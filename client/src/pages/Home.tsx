@@ -12,7 +12,7 @@ export default function Home() {
       {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100">
         <div className="flex items-center gap-2">
-           <img src={logo} alt="HabilitaFácil Logo" className="h-16 w-auto object-contain" />
+           <img src={logo} alt="HabilitaFácil Logo" className="h-12 w-auto object-contain" />
         </div>
         <Link href="/dashboard/aluno">
           <Button variant="ghost" size="sm" className="text-primary font-medium">Entrar</Button>
