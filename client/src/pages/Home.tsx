@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import heroImg from "@assets/generated_images/happy_driving_lesson_in_brazil.png";
-import logo from "/logo.jpg"; // Using the public path since we copied/verified it, or falling back to text
+import logo from "@assets/36433982-73c6-4454-b519-1c5f29971d9f_1765225117004.jpg";
 
 export default function Home() {
   return (
@@ -12,13 +12,7 @@ export default function Home() {
       {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100">
         <div className="flex items-center gap-2">
-           {/* Fallback to text logo if image fails or for simplicity */}
-           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-white">
-             <ShipWheel className="w-5 h-5" />
-           </div>
-           <span className="font-heading font-bold text-xl tracking-tight text-slate-900">
-            Habilita<span className="text-primary">Fácil</span>
-          </span>
+           <img src={logo} alt="HabilitaFácil Logo" className="h-10 w-auto object-contain" />
         </div>
         <Link href="/dashboard/aluno">
           <Button variant="ghost" size="sm" className="text-primary font-medium">Entrar</Button>
