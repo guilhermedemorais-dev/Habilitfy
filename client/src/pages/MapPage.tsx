@@ -2,13 +2,14 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { divIcon } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useState } from "react";
-import { instructors } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, Filter, Navigation, List, Map as MapIcon, ChevronLeft } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import { useQuery } from "@tanstack/react-query";
+import type { Instructor } from "@shared/schema";
 
 // Fix Leaflet Icon
 const createCustomIcon = (price: number) => {
@@ -32,10 +33,24 @@ export default function MapPage() {
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
   
-  // Center of Rio de Janeiro
+  const { data: instructors = [], isLoading } = useQuery<Instructor[]>({
+    queryKey: ["/api/instructors"],
+  });
+  
   const center: [number, number] = [-22.9068, -43.1729];
 
   const currentInstructor = instructors.find(i => i.id === selectedInstructor);
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-slate-600">Carregando instrutores...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-screen w-full bg-gray-100 flex flex-col">
@@ -77,16 +92,18 @@ export default function MapPage() {
                 />
                 <MapController coords={center} />
                 
-                {instructors.map((instructor) => (
-                <Marker
-                    key={instructor.id}
-                    position={[instructor.lat, instructor.lng]}
-                    icon={createCustomIcon(instructor.price)}
-                    eventHandlers={{
-                    click: () => setSelectedInstructor(instructor.id),
-                    }}
-                />
-                ))}
+                {instructors
+                  .filter(i => i.lat && i.lng)
+                  .map((instructor) => (
+                    <Marker
+                        key={instructor.id}
+                        position={[parseFloat(instructor.lat!), parseFloat(instructor.lng!)]}
+                        icon={createCustomIcon(parseFloat(instructor.pricePerHour))}
+                        eventHandlers={{
+                        click: () => setSelectedInstructor(instructor.id),
+                        }}
+                    />
+                  ))}
             </MapContainer>
 
             {/* Selected Instructor Card Float */}
@@ -94,19 +111,23 @@ export default function MapPage() {
                 <div className="absolute bottom-20 left-4 right-4 z-[1000] animate-in slide-in-from-bottom-10 fade-in duration-300">
                     <Card className="border-none shadow-2xl rounded-2xl overflow-hidden">
                         <CardContent className="p-0 flex h-32">
-                            <div className="w-32 h-full relative">
-                                <img src={currentInstructor.photo} className="w-full h-full object-cover" alt={currentInstructor.name} />
+                            <div className="w-32 h-full relative bg-gradient-to-br from-green-100 to-yellow-100 flex items-center justify-center">
+                                {currentInstructor.vehicleImageUrl ? (
+                                  <img src={currentInstructor.vehicleImageUrl} className="w-full h-full object-cover" alt="Veículo" />
+                                ) : (
+                                  <span className="text-3xl">🚗</span>
+                                )}
                                 <div className="absolute top-2 left-2 bg-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                                    {currentInstructor.rating} ★
+                                    {currentInstructor.rating || "5.0"} ★
                                 </div>
                             </div>
                             <div className="flex-1 p-4 flex flex-col justify-between">
                                 <div>
                                     <div className="flex justify-between items-start">
-                                        <h3 className="font-bold text-slate-900 leading-tight">{currentInstructor.name}</h3>
-                                        <span className="font-bold text-primary">R${currentInstructor.price}</span>
+                                        <h3 className="font-bold text-slate-900 leading-tight">Instrutor</h3>
+                                        <span className="font-bold text-primary">R${currentInstructor.pricePerHour}</span>
                                     </div>
-                                    <p className="text-xs text-slate-500 mt-1">{currentInstructor.vehicle} • {currentInstructor.vehicleType}</p>
+                                    <p className="text-xs text-slate-500 mt-1">{currentInstructor.vehicleModel} • {currentInstructor.vehicleType}</p>
                                     <p className="text-xs text-slate-400 mt-0.5">{currentInstructor.neighborhood}</p>
                                 </div>
                                 <div className="flex gap-2 mt-2">
@@ -138,19 +159,25 @@ export default function MapPage() {
                       <Link key={instructor.id} href={`/instrutor/${instructor.id}`}>
                         <Card className="border-none shadow-sm active:scale-[0.98] transition-transform">
                             <CardContent className="p-4 flex gap-4">
-                                <img src={instructor.photo} className="w-20 h-20 rounded-xl object-cover bg-gray-100" />
+                                <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-green-100 to-yellow-100 flex items-center justify-center overflow-hidden">
+                                  {instructor.vehicleImageUrl ? (
+                                    <img src={instructor.vehicleImageUrl} className="w-full h-full object-cover" alt="Veículo" />
+                                  ) : (
+                                    <span className="text-3xl">🚗</span>
+                                  )}
+                                </div>
                                 <div className="flex-1">
                                     <div className="flex justify-between">
-                                        <h3 className="font-bold text-slate-900">{instructor.name}</h3>
+                                        <h3 className="font-bold text-slate-900">Instrutor Profissional</h3>
                                         <div className="flex items-center gap-1 text-yellow-600 font-bold text-sm">
                                             <Star className="w-3 h-3 fill-current" />
-                                            {instructor.rating}
+                                            {instructor.rating || "5.0"}
                                         </div>
                                     </div>
-                                    <p className="text-sm text-slate-500">{instructor.vehicle} • {instructor.vehicleType}</p>
+                                    <p className="text-sm text-slate-500">{instructor.vehicleModel} • {instructor.vehicleType}</p>
                                     <p className="text-sm text-slate-400 mt-1">{instructor.neighborhood}</p>
                                     <div className="mt-2 flex items-center justify-between">
-                                        <span className="font-bold text-primary">R$ {instructor.price}<span className="text-xs font-normal text-slate-400">/aula</span></span>
+                                        <span className="font-bold text-primary">R$ {instructor.pricePerHour}<span className="text-xs font-normal text-slate-400">/aula</span></span>
                                         <Button size="sm" variant="ghost" className="h-7 text-primary hover:text-primary hover:bg-green-50 px-2">Ver detalhes</Button>
                                     </div>
                                 </div>
