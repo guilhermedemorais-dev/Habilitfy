@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import heroImg from "@assets/generated_images/happy_driving_lesson_in_brazil.png";
-import logo from "@assets/36433982-73c6-4454-b519-1c5f29971d9f_1765225117004.jpg";
+import logo from "@assets/36433982-73c6-4454-b519-1c5f29971d9f-removebg-preview_1_(1)_1765225573308.png";
 
 export default function Home() {
   return (
@@ -12,7 +12,7 @@ export default function Home() {
       {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100">
         <div className="flex items-center gap-2">
-           <img src={logo} alt="HabilitaFácil Logo" className="h-10 w-auto object-contain" />
+           <img src={logo} alt="HabilitaFácil Logo" className="h-16 w-auto object-contain" />
         </div>
         <Link href="/dashboard/aluno">
           <Button variant="ghost" size="sm" className="text-primary font-medium">Entrar</Button>
