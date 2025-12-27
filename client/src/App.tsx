@@ -15,11 +15,13 @@ import InstructorDashboard from "@/pages/InstructorDashboard";
 import SignupInstructor from "@/pages/SignupInstructor";
 import Admin from "@/pages/Admin";
 import NotFound from "@/pages/not-found";
+import Login from "@/pages/Login";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
       <Route path="/instrutores" component={MapPage} />
       <Route path="/instrutor/:id" component={InstructorProfile} />
       <Route path="/agendar/:id" component={Booking} />

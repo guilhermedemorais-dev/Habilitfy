@@ -5,18 +5,46 @@ import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import heroImg from "@assets/generated_images/happy_driving_lesson_in_brazil.png";
 import logo from "@assets/36433982-73c6-4454-b519-1c5f29971d9f-removebg-preview_1_(1)_1765225573308.png";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Home() {
+  const { user, isAuthenticated, login, logout } = useAuth();
+  const displayName = user?.firstName || user?.email || "Usuário";
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100">
         <div className="flex items-center gap-2">
-           <img src={logo} alt="HabilitaFácil Logo" className="h-12 w-auto object-contain" />
+           <img src={logo} alt="HabilitFy Logo" className="h-12 w-auto object-contain" />
         </div>
-        <Link href="/dashboard/aluno">
-          <Button variant="ghost" size="sm" className="text-primary font-medium">Entrar</Button>
-        </Link>
+        {isAuthenticated ? (
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-xs text-slate-400">Logado</p>
+              <p className="text-sm font-semibold text-slate-700 truncate max-w-[160px]">
+                {displayName}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-primary border-primary/30"
+              onClick={() => logout()}
+            >
+              Sair
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-primary font-medium"
+            onClick={() => login("/dashboard/aluno")}
+          >
+            Entrar
+          </Button>
+        )}
       </header>
 
       {/* Hero Section */}
@@ -74,7 +102,7 @@ export default function Home() {
       {/* Features / Categories */}
       <section className="px-6 py-8 bg-white">
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-          Por que escolher a HabilitaFácil?
+          Por que escolher a HabilitFy?
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="border-none shadow-sm bg-green-50/50">
@@ -117,12 +145,23 @@ export default function Home() {
 
       {/* CTA Section */}
       <section className="px-6 py-12 pb-24 text-center">
-        <Link href="/instrutores">
-          <Button size="lg" className="w-full max-w-sm bg-primary hover:bg-green-700 text-white text-lg h-14 rounded-2xl shadow-xl shadow-green-200 animate-pulse-slow">
-            Encontrar Instrutor Agora
-            <ChevronRight className="ml-2 w-5 h-5" />
-          </Button>
-        </Link>
+        <div className="flex flex-col items-center gap-3">
+          <Link href="/instrutores">
+            <Button size="lg" className="w-full max-w-sm bg-primary hover:bg-green-700 text-white text-lg h-14 rounded-2xl shadow-xl shadow-green-200 animate-pulse-slow">
+              Encontrar Instrutor Agora
+              <ChevronRight className="ml-2 w-5 h-5" />
+            </Button>
+          </Link>
+          <Link href="/login?role=instructor">
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full max-w-sm border-blue-200 text-blue-700 hover:bg-blue-50 font-semibold"
+            >
+              Sou Instrutor
+            </Button>
+          </Link>
+        </div>
         <p className="mt-4 text-sm text-slate-400">
           Mais de 5.000 alunos aprovados em 2024
         </p>

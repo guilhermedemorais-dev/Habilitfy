@@ -27,7 +27,7 @@ export default function SignupInstructor() {
 
            <div className="text-center mb-8">
                <h1 className="text-2xl font-bold text-slate-900">Cadastro de Parceiro</h1>
-               <p className="text-slate-500">Torne-se um instrutor HabilitaFácil</p>
+               <p className="text-slate-500">Torne-se um instrutor HabilitFy</p>
            </div>
 
            <Card className="border-none shadow-lg">

@@ -1,0 +1,31 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development TMPDIR=./tmp_tsx tsx server/index.ts
+
+13:26:54 [vite] (client) Re-optimizing dependencies because lockfile has changed
+1:26:54 PM [express] serving on 0.0.0.0:5000
+[BABEL] Note: The code generator has deoptimised the styling of /home/guimp/Documentos/HabilitFy/.vite-cache/deps/react-dom_client.js?v=e6b8b956 as it exceeds the max of 500KB.
+15:12:48 [vite] (client) hmr update /src/pages/InstructorProfile.tsx, /src/index.css
+15:12:54 [vite] (client) hmr update /src/pages/InstructorProfile.tsx, /src/index.css
+15:13:07 [vite] (client) hmr update /src/pages/InstructorProfile.tsx, /src/index.css
+15:13:17 [vite] (client) hmr update /src/pages/InstructorProfile.tsx, /src/index.css
+15:13:23 [vite] (client) hmr update /src/pages/InstructorProfile.tsx, /src/index.css
+15:13:37 [vite] (client) hmr update /src/pages/InstructorProfile.tsx, /src/index.css
+15:13:47 [vite] (client) hmr update /src/pages/InstructorProfile.tsx, /src/index.css
+15:14:23 [vite] (client) hmr update /src/pages/Booking.tsx, /src/index.css
+15:14:58 [vite] (client) hmr update /src/pages/Booking.tsx, /src/index.css
+15:15:16 [vite] (client) hmr update /src/pages/InstructorProfile.tsx, /src/index.css
+15:24:21 [vite] (client) hmr update /src/pages/Checkout.tsx, /src/index.css
+15:24:27 [vite] (client) hmr update /src/pages/Checkout.tsx, /src/index.css
+3:34:08 PM [express] POST /api/instructors 400 in 15ms :: {"message":"Invalid data","errors":[{"code":"invalid_type","expected":"string","received":"number","path":["pricePerHour"],"message":"Expected string, received number"},{"code":"invalid_type","expected":"string","received":"number","path":["lat"],"message":"Expected string, received number"},{"code":"invalid_type","expected":"string","received":"number","path":["lng"],"message":"Expected string, received number"}]}
+15:41:42 [vite] (client) hmr update /src/index.css
+15:43:06 [vite] (client) hmr update /src/pages/StudentDashboard.tsx, /src/index.css
+15:43:57 [vite] (client) hmr update /src/pages/InstructorDashboard.tsx, /src/index.css
+15:44:11 [vite] (client) hmr update /src/pages/Home.tsx, /src/index.css
+15:45:12 [vite] (client) hmr update /src/pages/Admin.tsx, /src/index.css
+15:45:22 [vite] (client) hmr update /src/pages/Admin.tsx, /src/index.css
+15:59:42 [vite] (client) hmr update /src/pages/Admin.tsx, /src/index.css
+16:16:35 [vite] (client) hmr update /src/pages/Home.tsx, /src/index.css
+16:16:55 [vite] (client) hmr update /src/App.tsx, /src/index.css
+16:20:30 [vite] (client) hmr update /src/index.css
+16:41:19 [vite] (client) hmr update /src/pages/Admin.tsx, /src/index.css

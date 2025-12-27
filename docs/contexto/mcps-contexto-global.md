@@ -1,7 +1,7 @@
 # MCPS – Contexto Global do Produto
 
 ## Identidade do produto
-- Nome: HabilitaFácil.
+- Nome: HabilitFy.
 - Proposta: marketplace/app de aulas práticas de direção, conectando alunos a instrutores credenciados (foco inicial RJ).
 
 ## Objetivo do MVP
@@ -57,12 +57,28 @@
 
 ## Contexto operacional
 - Região foco inicial RJ; modelo “Uber de aulas”: conexão aluno ↔ instrutor credenciado Detran.
-- Pagamento: mock (Pix/checkout simulado) no MVP; integração real será futura.
+- Pagamento: mock (Pix/checkout simulado) no MVP; integração real será via gateway escolhido AbacatePay.
 - Legalidade: instrutores devem ser credenciados; perfil guarda dados de credencial e veículo.
+
+## Integração de pagamento (AbacatePay)
+- Gateway selecionado para pagamento real; API baseada em intenção com endpoints diretos (ex.: `POST /billing/create`, `GET /billing/get`), idempotente e com envelope `{ data | error }`.
+- Métodos previstos: Pix e cartão no mesmo payload de cobrança, com status, URL de pagamento e flags como `devMode`.
+- SDKs oficiais e modo de desenvolvimento com chaves de API separadas; adotar dev mode enquanto substituímos o mock.
+- Suporte/documentação: https://docs.abacatepay.com/pages/introduction e contato em ajuda@abacatepay.com.
+
+## Referências de UI (MCP)
+- Context7: usar para docs atuais de Next/React/Tailwind/Shadcn (ex.: “use context7”).
+- Nuxt UI MCP: usar como inspiração de componentes e padrões visuais, adaptando para React.
+- Figma MCP: usar para importar designs e tokens quando houver arquivo de design.
+
+## MCPs Operacionais (DevOps/Produto)
+- Sentry MCP: investigação de erros e alertas (https://mcp.sentry.dev).
+- Linear MCP: tarefas/roadmap via Linear (https://mcp.linear.app/sse).
+- Atlassian MCP: Jira/Confluence via OAuth (https://mcp.atlassian.com/v1/sse).
 
 ## Diretrizes para qualquer IA
 - Ler este MCPS antes de atuar; ele é a fonte de verdade de contexto.
-- Respeitar o PRD oficial em `/docs/produto/prd-habilitafacil-mvp.md`.
+- Respeitar o PRD oficial em `/docs/produto/prd-habilitfy-mvp.md`.
 - Não mudar stack (Node/Express/Drizzle/Postgres/Vite/React) sem motivo técnico forte e explícito.
 - Manter consistência entre código, PRD, backlog e comportamento da aplicação.
 - Qualquer mudança estrutural (rotas, papéis, arquitetura) deve ser registrada aqui e no PRD/backlog.

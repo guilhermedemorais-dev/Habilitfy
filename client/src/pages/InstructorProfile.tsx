@@ -1,25 +1,49 @@
 import { useParams, Link } from "wouter";
-import { instructors, reviews } from "@/lib/data";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, Star, ShieldCheck, MapPin, Calendar as CalendarIcon, Clock, Share2 } from "lucide-react";
+import { ChevronLeft, Star, ShieldCheck, MapPin, Calendar as CalendarIcon, Share2 } from "lucide-react";
 import Calendar from "react-calendar";
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useQuery } from "@tanstack/react-query";
+import type { Instructor, Review } from "@shared/schema";
 
 export default function InstructorProfile() {
   const { id } = useParams();
-  const instructor = instructors.find((i) => i.id === id);
   const [date, setDate] = useState<Date>(new Date());
 
-  if (!instructor) return <div>Instrutor não encontrado</div>;
+  const { data: instructor, isLoading } = useQuery<Instructor>({
+    queryKey: ["/api/instructors", id],
+    enabled: !!id,
+  });
+
+  const { data: instructorReviews = [] } = useQuery<Review[]>({
+    queryKey: ["/api/instructors", id, "reviews"],
+    enabled: !!id,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-slate-600">Carregando instrutor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!instructor) return <div className="p-6">Instrutor não encontrado</div>;
 
   return (
     <div className="bg-white min-h-screen pb-24">
       {/* Hero Image */}
       <div className="relative h-72 w-full">
-        <img src={instructor.photo} className="w-full h-full object-cover" alt={instructor.name} />
+        {instructor.vehicleImageUrl ? (
+          <img src={instructor.vehicleImageUrl} className="w-full h-full object-cover" alt={instructor.vehicleModel} />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-green-100 to-yellow-100 flex items-center justify-center text-5xl">🚗</div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         
         <div className="absolute top-4 left-4 z-10">
@@ -37,16 +61,14 @@ export default function InstructorProfile() {
 
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
           <div className="flex items-center gap-2 mb-2">
-            {instructor.verified && (
-              <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 w-fit">
-                <ShieldCheck className="w-3 h-3" /> CREDENCIADO DETRAN
-              </span>
-            )}
-             <span className="bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 w-fit">
-                {instructor.rating} ★ ({instructor.reviewsCount} aulas)
-              </span>
+            <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 w-fit">
+              <ShieldCheck className="w-3 h-3" /> CREDENCIADO DETRAN
+            </span>
+            <span className="bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 w-fit">
+              {instructor.rating ?? "5.0"} ★ ({instructor.reviewsCount ?? 0} aulas)
+            </span>
           </div>
-          <h1 className="text-3xl font-bold mb-1">{instructor.name}</h1>
+          <h1 className="text-3xl font-bold mb-1">{instructor.neighborhood || "Instrutor"}</h1>
           <p className="text-white/80 flex items-center gap-1 text-sm">
             <MapPin className="w-3 h-3" /> {instructor.neighborhood}
           </p>
@@ -59,12 +81,12 @@ export default function InstructorProfile() {
         <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
                 <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Veículo</p>
-                <p className="font-semibold text-slate-800 text-sm">{instructor.vehicle}</p>
+                <p className="font-semibold text-slate-800 text-sm">{instructor.vehicleModel}</p>
                 <p className="text-xs text-slate-500">{instructor.vehicleType}</p>
             </div>
             <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
                 <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Preço/Aula</p>
-                <p className="font-semibold text-primary text-xl">R$ {instructor.price}</p>
+                <p className="font-semibold text-primary text-xl">R$ {instructor.pricePerHour}</p>
                 <p className="text-xs text-slate-500">50 minutos</p>
             </div>
         </div>
@@ -72,7 +94,7 @@ export default function InstructorProfile() {
         {/* Bio */}
         <div className="mb-8">
             <h2 className="font-bold text-lg mb-2 text-slate-900">Sobre o Instrutor</h2>
-            <p className="text-slate-600 text-sm leading-relaxed">{instructor.bio}</p>
+            <p className="text-slate-600 text-sm leading-relaxed">{instructor.bio || "Instrutor cadastrado na plataforma."}</p>
         </div>
 
         {/* Calendar */}
@@ -113,16 +135,17 @@ export default function InstructorProfile() {
                 Avaliações Recentes
             </h2>
             <div className="space-y-4">
-                {reviews.map(review => (
+                {instructorReviews.length === 0 && <p className="text-sm text-slate-500">Ainda não há avaliações.</p>}
+                {instructorReviews.map(review => (
                     <div key={review.id} className="border-b border-gray-100 pb-4 last:border-0">
                         <div className="flex justify-between items-center mb-1">
-                            <span className="font-bold text-sm text-slate-800">{review.user}</span>
-                            <span className="text-xs text-slate-400">{review.date}</span>
+                            <span className="font-bold text-sm text-slate-800">Aluno</span>
+                            <span className="text-xs text-slate-400">{review.createdAt ? format(new Date(review.createdAt), "dd/MM", { locale: ptBR }) : ""}</span>
                         </div>
                         <div className="flex text-yellow-400 mb-1">
                             {[...Array(review.rating)].map((_, i) => <Star key={i} className="w-3 h-3 fill-current" />)}
                         </div>
-                        <p className="text-sm text-slate-600">{review.text}</p>
+                        <p className="text-sm text-slate-600">{review.comment || "Avaliação enviada."}</p>
                     </div>
                 ))}
             </div>
@@ -133,7 +156,7 @@ export default function InstructorProfile() {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-50 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <div className="flex items-center justify-between mb-2 px-1">
             <div className="text-xs text-slate-500">Total para 1 aula</div>
-            <div className="font-bold text-lg text-slate-900">R$ {instructor.price},00</div>
+            <div className="font-bold text-lg text-slate-900">R$ {instructor.pricePerHour},00</div>
         </div>
         <Link href={`/agendar/${instructor.id}`}>
             <Button size="lg" className="w-full bg-primary hover:bg-green-700 text-white rounded-xl h-12 font-bold shadow-lg shadow-green-200">

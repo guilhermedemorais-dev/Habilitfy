@@ -1,4 +1,4 @@
-# Backlog de Desenvolvimento – HabilitaFácil
+# Backlog de Desenvolvimento – HabilitFy
 
 ## Contexto técnico atual (resumo)
 - Backend: Node/Express (`server/index.ts`), rotas em `server/routes.ts`, Drizzle + Postgres (`server/storage.ts`, `shared/schema.ts`), sessões com `express-session` + `connect-pg-simple`, OIDC (Replit) e middleware `isAuthenticated`.
@@ -8,7 +8,7 @@
 
 ## Autenticação & Sessões
 - [x] Backend OIDC + sessões em Postgres, rotas `/api/login`, `/api/logout`, `/api/auth/user`.
-- [ ] Fluxo de login/logout no frontend (chamar `/api/login`/`/api/logout`, tratar 401 e redirecionar).
+- [x] Fluxo de login/logout no frontend (chamar `/api/login`/`/api/logout`, tratar 401 e redirecionar).
 - [ ] Proteger rotas no frontend por role (student/instructor/admin) e redirecionar em 401/403.
 - [ ] Endurecer checagem de owner/role nas rotas sensíveis (PATCH booking/instructor, admin).
 
@@ -36,13 +36,15 @@
 - [ ] Disponibilidade: expor rotas e validar criação de booking contra slots.
 
 ## Módulo de Pagamento
-- [ ] Implementar checkout real (PSP) e status `paid`; hoje é mock no frontend.
-- [ ] Atualizar booking/status após pagamento; gerar comprovante simples.
+- [x] Backend: criação de cobrança AbacatePay (`/api/payments/abacatepay`), persistência de `paymentId/paymentUrl/paymentStatus/methods/devMode`, e webhook inicial para status.
+- [ ] Validar assinatura do webhook (`ABACATEPAY_WEBHOOK_SECRET`), reconciliação completa e migração aplicada em DB (novas colunas/status enum).
+- [ ] Integrar frontend ao checkout real (usar `paymentUrl`, polling/webhook) e refletir status `paid`/`cancelled`.
+- [ ] Gerar comprovante simples pós-pagamento.
 - [ ] Configurar comissão (admin) e armazenar no booking/fatura.
 
 ## Módulo Admin
 - [x] Endpoint `GET /api/admin/instructors/pending` com checagem de role admin.
-- [ ] Tela Admin consumir API real e permitir aprovar/rejeitar (rotas específicas ou uso de PATCH).
+- [x] Tela Admin consumir API real e permitir aprovar/rejeitar (rotas específicas ou uso de PATCH).
 - [ ] Listar bookings para auditoria no Admin (consumir backend).
 - [ ] Expor/configurar comissão (persistência e UI).
 
@@ -53,10 +55,10 @@
 - [ ] Políticas LGPD/termos publicados e referenciados na UI.
 
 ## Infra & Deploy
-- [ ] Docker Compose (proxy + api + web estático + postgres) para dev/prod.
 - [ ] Pipeline de build (front `npm run build`, api `npm run build`) e artefatos.
-- [ ] Deploy na VPS Hostinger (KVM 4 vCPU/16 GB) com Caddy/Nginx + SSL; alternativa CDN para front.
-- [ ] Configurar DB gerenciado (Neon/Supabase) ou Postgres em container com backup/volume.
+- [x] Deploy alvo: Hostinger app Node.js + Neon Postgres (ver `docs/deploy/hostinger-neon.md`).
+- [ ] Automatizar deploy (import Git Hostinger ou pipeline) e checar `npm start`.
+- [ ] TLS/DNS configurados no painel Hostinger (ex.: `api.seu-dominio.com`).
 
 ## QA & Testes
 - [ ] Fluxo completo manual: aluno → mapa → instrutor → horário → pagamento (mock) → sucesso.
@@ -67,7 +69,7 @@
 - [ ] Criar testes automatizados mínimos (unit/integration) para rotas críticas.
 
 ## Instrução para IA
-- Ler este backlog, o MCPS (`/docs/contexto/mcps-contexto-global.md`) e o PRD (`/docs/produto/prd-habilitafacil-mvp.md`) antes de atuar.
+- Ler este backlog, o MCPS (`/docs/contexto/mcps-contexto-global.md`) e o PRD (`/docs/produto/prd-habilitfy-mvp.md`) antes de atuar.
 - Conferir o código atual antes de marcar qualquer tarefa como concluída.
 - Marcar com [x] apenas o que estiver pronto; manter [ ] para pendentes ou parciais (anotar o que falta).
 - Implementar o que faltar seguindo stack e padrões existentes.

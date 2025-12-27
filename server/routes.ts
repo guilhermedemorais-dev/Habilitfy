@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertInstructorSchema, insertBookingSchema, insertReviewSchema } from "@shared/schema";
 import { z } from "zod";
+import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } from "./abacatepay";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
@@ -156,6 +157,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const status = req.query.status as string | undefined;
+      const instructors = await storage.getInstructorsWithUser(status);
+      res.json(instructors);
+    } catch (error) {
+      console.error("Error fetching instructors:", error);
+      res.status(500).json({ message: "Failed to fetch instructors" });
+    }
+  });
+
+  app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const role = req.query.role as string | undefined;
+      const users = await storage.getUsers(role);
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.patch('/api/admin/instructors/:id/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const status = req.body?.status as string | undefined;
+      if (!status || !['approved', 'rejected', 'pending'].includes(status)) {
+        return res.status(400).json({ message: 'Invalid status' });
+      }
+
+      const instructor = await storage.updateInstructor(req.params.id, { status: status as any });
+      res.json(instructor);
+    } catch (error) {
+      console.error("Error updating instructor status:", error);
+      res.status(500).json({ message: "Failed to update instructor status" });
+    }
+  });
+
   const httpServer = createServer(app);
+
+  app.post('/api/payments/abacatepay', isAuthenticated, async (req: any, res) => {
+    try {
+      const bookingId = req.body.bookingId as string;
+      if (!bookingId) {
+        return res.status(400).json({ message: "bookingId é obrigatório" });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking não encontrado" });
+      }
+      if (booking.studentId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Se já existir cobrança, apenas retorna
+      if (booking.paymentId && booking.paymentUrl) {
+        return res.json({
+          paymentId: booking.paymentId,
+          paymentUrl: booking.paymentUrl,
+          paymentStatus: booking.paymentStatus,
+          bookingStatus: booking.status,
+        });
+      }
+
+      const created = await createAbacateBilling(booking);
+      const bookingStatus = mapAbacateStatusToBooking(created.paymentStatus as any);
+
+      const updated = await storage.updateBooking(booking.id, {
+        paymentId: created.paymentId,
+        paymentUrl: created.paymentUrl,
+        paymentStatus: created.paymentStatus,
+        paymentProvider: "abacatepay",
+        paymentMethods: created.paymentMethods,
+        paymentDevMode: created.paymentDevMode,
+        status: bookingStatus,
+      });
+
+      res.json({
+        bookingId: updated.id,
+        paymentId: updated.paymentId,
+        paymentUrl: updated.paymentUrl,
+        paymentStatus: updated.paymentStatus,
+        bookingStatus: updated.status,
+      });
+    } catch (error: any) {
+      console.error("Error creating AbacatePay billing:", error);
+      res.status(500).json({ message: error?.message || "Failed to create payment" });
+    }
+  });
+
+  app.post('/api/webhooks/abacatepay', async (req: any, res) => {
+    try {
+      const raw = req.rawBody;
+      // TODO: validar assinatura com ABACATEPAY_WEBHOOK_SECRET usando raw body + header
+      const payload = req.body as any;
+      const status = payload?.data?.status as string | undefined;
+      const paymentId = payload?.data?.id as string | undefined;
+
+      if (!paymentId) {
+        return res.status(400).json({ message: "paymentId ausente" });
+      }
+
+      const billing = await getAbacateBilling(paymentId).catch(() => undefined);
+      const effectiveStatus = (billing?.status as any) || (status as any);
+      const bookingStatus = mapAbacateStatusToBooking(effectiveStatus);
+
+      // Procurar booking por paymentId
+      const booking = await storage.getBookingByPaymentId?.(paymentId);
+      if (!booking) {
+        // fallback: nada a atualizar
+        return res.status(202).json({ ok: true, message: "Booking não encontrado para paymentId" });
+      }
+
+      await storage.updateBooking(booking.id, {
+        paymentStatus: effectiveStatus,
+        status: bookingStatus,
+        paidAt: bookingStatus === "paid" ? new Date() : booking.paidAt,
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Error handling AbacatePay webhook:", error);
+      res.status(500).json({ message: "Webhook error" });
+    }
+  });
+
   return httpServer;
 }

@@ -25,7 +25,7 @@ export const sessions = pgTable(
 );
 
 export const userRoleEnum = pgEnum('user_role', ['student', 'instructor', 'admin']);
-export const bookingStatusEnum = pgEnum('booking_status', ['pending', 'confirmed', 'completed', 'cancelled']);
+export const bookingStatusEnum = pgEnum('booking_status', ['pending', 'confirmed', 'paid', 'completed', 'cancelled']);
 export const instructorStatusEnum = pgEnum('instructor_status', ['pending', 'approved', 'rejected']);
 
 export const users = pgTable("users", {
@@ -80,6 +80,11 @@ export const bookings = pgTable("bookings", {
   studentNotes: text("student_notes"),
   paymentStatus: varchar("payment_status").default('pending'),
   paymentId: varchar("payment_id"),
+  paymentProvider: varchar("payment_provider"),
+  paymentUrl: varchar("payment_url"),
+  paymentMethods: jsonb("payment_methods"),
+  paymentDevMode: boolean("payment_dev_mode"),
+  paidAt: timestamp("paid_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -63,6 +63,35 @@ async function upsertUser(
 }
 
 export async function setupAuth(app: Express) {
+  // Modo local/offline: pula OIDC e injeta usuário fake configurável via env
+  if (process.env.AUTH_MODE === "local") {
+    app.use(async (req, _res, next) => {
+      const role = (process.env.LOCAL_USER_ROLE as any) || "student";
+      const userId = process.env.LOCAL_USER_ID || "local-user";
+      const email = process.env.LOCAL_USER_EMAIL || "local@example.com";
+      const firstName = process.env.LOCAL_USER_FIRSTNAME || "Local";
+      const lastName = process.env.LOCAL_USER_LASTNAME || "User";
+
+      await storage.upsertUser({
+        id: userId,
+        email,
+        firstName,
+        lastName,
+        role,
+      });
+
+      (req as any).user = {
+        claims: { sub: userId, role },
+        access_token: "local",
+        refresh_token: null,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      (req as any).isAuthenticated = () => true;
+      next();
+    });
+    return;
+  }
+
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
@@ -131,6 +160,15 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Modo local/offline: aceitar sempre se usuário fake foi injetado
+  if (process.env.AUTH_MODE === "local") {
+    const user = (req as any).user;
+    if (user) {
+      return next();
+    }
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

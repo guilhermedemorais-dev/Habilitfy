@@ -20,11 +20,13 @@ import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
+  getUsers(role?: string): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   getInstructor(id: string): Promise<Instructor | undefined>;
   getInstructorByUserId(userId: string): Promise<Instructor | undefined>;
   getAllInstructors(status?: string): Promise<Instructor[]>;
+  getInstructorsWithUser(status?: string): Promise<(Instructor & { user: User | null })[]>;
   createInstructor(instructor: InsertInstructor): Promise<Instructor>;
   updateInstructor(id: string, data: Partial<InsertInstructor>): Promise<Instructor>;
   
@@ -33,6 +35,7 @@ export interface IStorage {
   getBookingsByInstructor(instructorId: string): Promise<Booking[]>;
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBooking(id: string, data: Partial<InsertBooking>): Promise<Booking>;
+  getBookingByPaymentId(paymentId: string): Promise<Booking | undefined>;
   
   createReview(review: InsertReview): Promise<Review>;
   getReviewsByInstructor(instructorId: string): Promise<Review[]>;
@@ -45,6 +48,13 @@ export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async getUsers(role?: string): Promise<User[]> {
+    if (role) {
+      return db.select().from(users).where(eq(users.role, role as any));
+    }
+    return db.select().from(users);
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -79,6 +89,21 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(instructors);
   }
 
+  async getInstructorsWithUser(status?: string): Promise<(Instructor & { user: User | null })[]> {
+    const baseQuery = db
+      .select({ instructor: instructors, user: users })
+      .from(instructors)
+      .leftJoin(users, eq(users.id, instructors.userId));
+
+    if (status) {
+      const rows = await baseQuery.where(eq(instructors.status, status as any));
+      return rows.map((row) => ({ ...row.instructor, user: row.user }));
+    }
+
+    const rows = await baseQuery;
+    return rows.map((row) => ({ ...row.instructor, user: row.user }));
+  }
+
   async createInstructor(instructorData: InsertInstructor): Promise<Instructor> {
     const [instructor] = await db
       .insert(instructors)
@@ -111,6 +136,11 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(bookings)
       .where(eq(bookings.instructorId, instructorId))
       .orderBy(desc(bookings.date));
+  }
+
+  async getBookingByPaymentId(paymentId: string): Promise<Booking | undefined> {
+    const [booking] = await db.select().from(bookings).where(eq(bookings.paymentId, paymentId));
+    return booking;
   }
 
   async createBooking(bookingData: InsertBooking): Promise<Booking> {
