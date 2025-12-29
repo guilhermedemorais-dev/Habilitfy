@@ -4,6 +4,12 @@ import {
   bookings,
   reviews,
   availability,
+  transactions,
+  wallets,
+  walletEntries,
+  withdrawals,
+  paymentGateways,
+  integrations,
   type User,
   type UpsertUser,
   type Instructor,
@@ -14,9 +20,17 @@ import {
   type InsertReview,
   type Availability,
   type InsertAvailability,
+  type Transaction,
+  type Wallet,
+  type WalletEntry,
+  type Withdrawal,
+  type PaymentGateway,
+  type Integration,
+  type IntegrationInsert,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, ne, isNotNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -36,6 +50,132 @@ export interface IStorage {
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBooking(id: string, data: Partial<InsertBooking>): Promise<Booking>;
   getBookingByPaymentId(paymentId: string): Promise<Booking | undefined>;
+  upsertBookingTransaction(booking: Booking): Promise<Transaction | undefined>;
+  getAdminBookings(limit?: number): Promise<
+    Array<{
+      booking: Booking;
+      student: User | null;
+      instructor: Instructor | null;
+      instructorUser: User | null;
+    }>
+  >;
+  getAdminDashboardStats(): Promise<{
+    totalBookings: number;
+    completedBookings: number;
+    totalRevenue: number;
+    walletBalance: number;
+  }>;
+  getAdminFinanceSummary(): Promise<{
+    totalTransacted: number;
+    totalProcessing: number;
+    totalWalletBalance: number;
+    pendingWithdrawals: number;
+    pendingWithdrawalsCount: number;
+    totalRefunded: number;
+    failedTransactionsCount: number;
+    pendingTransactionsCount: number;
+  }>;
+  getAdminTransactionSeries(options?: {
+    status?: string;
+    period?: "day" | "week" | "month";
+    days?: number;
+  }): Promise<Array<{ period: string; total: number; count: number }>>;
+  getAdminGeoSummary(filters?: {
+    state?: string;
+    city?: string;
+  }): Promise<{
+    instructors: Array<{ lat: number; lng: number; count: number; label: string | null }>;
+    students: Array<{ lat: number; lng: number; count: number; label: string | null }>;
+    states: string[];
+    cities: string[];
+    totals: {
+      instructorsTotal: number;
+      instructorsWithLocation: number;
+      studentsTotal: number;
+      studentsWithLocation: number;
+    };
+  }>;
+  getAdminTransactions(filters?: {
+    status?: string;
+    type?: string;
+    gateway?: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      transaction: Transaction;
+      fromUser: User | null;
+      toUser: User | null;
+      booking: Booking | null;
+    }>
+  >;
+  getWalletsWithUser(role?: string): Promise<(Wallet & { user: User | null })[]>;
+  getWalletEntries(filters?: {
+    walletId?: string;
+    userId?: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      entry: WalletEntry;
+      user: User | null;
+      booking: Booking | null;
+      transaction: Transaction | null;
+    }>
+  >;
+  getWithdrawals(filters?: { status?: string; limit?: number }): Promise<
+    Array<{
+      withdrawal: Withdrawal;
+      user: User | null;
+      processedBy: User | null;
+    }>
+  >;
+  updateWithdrawal(id: string, data: Partial<Withdrawal>): Promise<Withdrawal>;
+  getPaymentGateways(): Promise<PaymentGateway[]>;
+  createPaymentGateway(data: {
+    provider: string;
+    apiKey?: string | null;
+    status?: string;
+    isDefault?: boolean;
+  }): Promise<PaymentGateway>;
+  updatePaymentGateway(
+    id: string,
+    data: {
+      provider?: string;
+      apiKey?: string | null;
+      status?: string;
+      isDefault?: boolean;
+    },
+  ): Promise<PaymentGateway>;
+  getIntegrations(filters?: {
+    category?: string;
+    status?: string;
+    environment?: string;
+  }): Promise<Integration[]>;
+  getIntegration(id: string): Promise<Integration | undefined>;
+  getIntegrationBySlug(
+    slug: string,
+    environment?: string,
+  ): Promise<Integration | undefined>;
+  createIntegration(data: {
+    name: string;
+    slug: string;
+    category: string;
+    status?: string;
+    environment?: string;
+    isDefault?: boolean;
+    fields?: IntegrationInsert["fields"];
+  }): Promise<Integration>;
+  updateIntegration(
+    id: string,
+    data: {
+      name?: string;
+      slug?: string;
+      category?: string;
+      status?: string;
+      environment?: string;
+      isDefault?: boolean;
+      fields?: IntegrationInsert["fields"];
+    },
+  ): Promise<Integration>;
   
   createReview(review: InsertReview): Promise<Review>;
   getReviewsByInstructor(instructorId: string): Promise<Review[]>;
@@ -138,6 +278,809 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(bookings.date));
   }
 
+  async getAdminBookings(limit = 20): Promise<
+    Array<{
+      booking: Booking;
+      student: User | null;
+      instructor: Instructor | null;
+      instructorUser: User | null;
+    }>
+  > {
+    const studentUser = alias(users, "student_user");
+    const instructorUser = alias(users, "instructor_user");
+
+    const rows = await db
+      .select({
+        booking: bookings,
+        student: studentUser,
+        instructor: instructors,
+        instructorUser,
+      })
+      .from(bookings)
+      .leftJoin(studentUser, eq(bookings.studentId, studentUser.id))
+      .leftJoin(instructors, eq(bookings.instructorId, instructors.id))
+      .leftJoin(instructorUser, eq(instructors.userId, instructorUser.id))
+      .orderBy(desc(bookings.createdAt))
+      .limit(limit);
+
+    return rows.map((row) => ({
+      booking: row.booking,
+      student: row.student ?? null,
+      instructor: row.instructor ?? null,
+      instructorUser: row.instructorUser ?? null,
+    }));
+  }
+
+  async getAdminDashboardStats(): Promise<{
+    totalBookings: number;
+    completedBookings: number;
+    totalRevenue: number;
+    walletBalance: number;
+  }> {
+    const [row] = await db
+      .select({
+        totalBookings: sql<number>`count(${bookings.id})`.mapWith(Number),
+        completedBookings: sql<number>`
+          count(*) filter (where ${bookings.status} = 'completed')
+        `.mapWith(Number),
+        totalRevenue: sql<number>`
+          coalesce(
+            sum(
+              case
+                when ${bookings.status} in ('paid', 'completed')
+                then ${bookings.totalPrice}
+                else 0
+              end
+            ),
+            0
+          )
+        `.mapWith(Number),
+      })
+      .from(bookings);
+
+    const [walletRow] = await db
+      .select({
+        walletBalance: sql<number>`
+          coalesce(sum(${wallets.balance}), 0)
+        `.mapWith(Number),
+      })
+      .from(wallets);
+
+    return {
+      totalBookings: row?.totalBookings ?? 0,
+      completedBookings: row?.completedBookings ?? 0,
+      totalRevenue: row?.totalRevenue ?? 0,
+      walletBalance: walletRow?.walletBalance ?? 0,
+    };
+  }
+
+  async getAdminFinanceSummary(): Promise<{
+    totalTransacted: number;
+    totalProcessing: number;
+    totalWalletBalance: number;
+    pendingWithdrawals: number;
+    pendingWithdrawalsCount: number;
+    totalRefunded: number;
+    failedTransactionsCount: number;
+    pendingTransactionsCount: number;
+  }> {
+    const [transactionRow] = await db
+      .select({
+        totalTransacted: sql<number>`
+          coalesce(
+            sum(
+              case
+                when ${transactions.status} = 'paid'
+                then ${transactions.amountGross}
+                else 0
+              end
+            ),
+            0
+          )
+        `.mapWith(Number),
+        totalProcessing: sql<number>`
+          coalesce(
+            sum(
+              case
+                when ${transactions.status} in ('pending', 'processing')
+                then ${transactions.amountGross}
+                else 0
+              end
+            ),
+            0
+          )
+        `.mapWith(Number),
+        totalRefunded: sql<number>`
+          coalesce(
+            sum(
+              case
+                when ${transactions.status} = 'refunded'
+                then ${transactions.amountGross}
+                else 0
+              end
+            ),
+            0
+          )
+        `.mapWith(Number),
+        failedTransactionsCount: sql<number>`
+          count(*) filter (where ${transactions.status} in ('failed', 'cancelled'))
+        `.mapWith(Number),
+        pendingTransactionsCount: sql<number>`
+          count(*) filter (where ${transactions.status} in ('pending', 'processing'))
+        `.mapWith(Number),
+      })
+      .from(transactions);
+
+    const [walletRow] = await db
+      .select({
+        totalWalletBalance: sql<number>`
+          coalesce(sum(${wallets.balance}), 0)
+        `.mapWith(Number),
+      })
+      .from(wallets);
+
+    const [withdrawalRow] = await db
+      .select({
+        pendingWithdrawals: sql<number>`
+          coalesce(
+            sum(
+              case
+                when ${withdrawals.status} in ('pending', 'approved')
+                then ${withdrawals.amount}
+                else 0
+              end
+            ),
+            0
+          )
+        `.mapWith(Number),
+        pendingWithdrawalsCount: sql<number>`
+          count(*) filter (where ${withdrawals.status} in ('pending', 'approved'))
+        `.mapWith(Number),
+      })
+      .from(withdrawals);
+
+    return {
+      totalTransacted: transactionRow?.totalTransacted ?? 0,
+      totalProcessing: transactionRow?.totalProcessing ?? 0,
+      totalWalletBalance: walletRow?.totalWalletBalance ?? 0,
+      pendingWithdrawals: withdrawalRow?.pendingWithdrawals ?? 0,
+      pendingWithdrawalsCount: withdrawalRow?.pendingWithdrawalsCount ?? 0,
+      totalRefunded: transactionRow?.totalRefunded ?? 0,
+      failedTransactionsCount: transactionRow?.failedTransactionsCount ?? 0,
+      pendingTransactionsCount: transactionRow?.pendingTransactionsCount ?? 0,
+    };
+  }
+
+  async getAdminTransactionSeries(options?: {
+    status?: string;
+    period?: "day" | "week" | "month";
+    days?: number;
+  }): Promise<Array<{ period: string; total: number; count: number }>> {
+    const period = options?.period ?? "day";
+    const days = Math.min(Math.max(options?.days ?? 30, 1), 365);
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const periodExpression = sql<Date>`date_trunc('${period}', ${transactions.createdAt})`;
+    const conditions = [gte(transactions.createdAt, since)];
+
+    if (options?.status) {
+      conditions.push(eq(transactions.status, options.status as any));
+    }
+
+    const rows = await db
+      .select({
+        period: periodExpression,
+        total: sql<number>`
+          coalesce(sum(${transactions.amountGross}), 0)
+        `.mapWith(Number),
+        count: sql<number>`
+          count(${transactions.id})
+        `.mapWith(Number),
+      })
+      .from(transactions)
+      .where(and(...conditions))
+      .groupBy(periodExpression)
+      .orderBy(periodExpression);
+
+    return rows.map((row) => ({
+      period:
+        row.period instanceof Date
+          ? row.period.toISOString()
+          : String(row.period),
+      total: row.total ?? 0,
+      count: row.count ?? 0,
+    }));
+  }
+
+  async getAdminGeoSummary(filters?: {
+    state?: string;
+    city?: string;
+  }): Promise<{
+    instructors: Array<{ lat: number; lng: number; count: number; label: string | null }>;
+    students: Array<{ lat: number; lng: number; count: number; label: string | null }>;
+    states: string[];
+    cities: string[];
+    totals: {
+      instructorsTotal: number;
+      instructorsWithLocation: number;
+      studentsTotal: number;
+      studentsWithLocation: number;
+    };
+  }> {
+    const state = filters?.state?.trim() || undefined;
+    const city = filters?.city?.trim() || undefined;
+    const instructorConditions = [isNotNull(instructors.lat), isNotNull(instructors.lng)];
+    const studentConditions = [
+      eq(users.role, "student" as any),
+      isNotNull(users.lat),
+      isNotNull(users.lng),
+    ];
+    const instructorTotalConditions: any[] = [];
+    const studentTotalConditions: any[] = [eq(users.role, "student" as any)];
+
+    if (state) {
+      instructorConditions.push(eq(instructors.state, state));
+      studentConditions.push(eq(users.state, state));
+      instructorTotalConditions.push(eq(instructors.state, state));
+      studentTotalConditions.push(eq(users.state, state));
+    }
+    if (city) {
+      instructorConditions.push(eq(instructors.city, city));
+      studentConditions.push(eq(users.city, city));
+      instructorTotalConditions.push(eq(instructors.city, city));
+      studentTotalConditions.push(eq(users.city, city));
+    }
+
+    const [
+      instructorTotals,
+      studentTotals,
+      instructorPoints,
+      studentPoints,
+      instructorStates,
+      studentStates,
+      instructorCities,
+      studentCities,
+    ] = await Promise.all([
+      instructorTotalConditions.length > 0
+        ? db
+            .select({
+              instructorsTotal: sql<number>`
+                count(${instructors.id})
+              `.mapWith(Number),
+              instructorsWithLocation: sql<number>`
+                count(*) filter (where ${instructors.lat} is not null and ${instructors.lng} is not null)
+              `.mapWith(Number),
+            })
+            .from(instructors)
+            .where(and(...instructorTotalConditions))
+        : db
+            .select({
+              instructorsTotal: sql<number>`
+                count(${instructors.id})
+              `.mapWith(Number),
+              instructorsWithLocation: sql<number>`
+                count(*) filter (where ${instructors.lat} is not null and ${instructors.lng} is not null)
+              `.mapWith(Number),
+            })
+            .from(instructors),
+      db
+        .select({
+          studentsTotal: sql<number>`
+            count(${users.id})
+          `.mapWith(Number),
+          studentsWithLocation: sql<number>`
+            count(*) filter (where ${users.lat} is not null and ${users.lng} is not null)
+          `.mapWith(Number),
+        })
+        .from(users)
+        .where(and(...studentTotalConditions)),
+      db
+        .select({
+          lat: instructors.lat,
+          lng: instructors.lng,
+          neighborhood: instructors.neighborhood,
+          city: instructors.city,
+          state: instructors.state,
+          count: sql<number>`
+            count(${instructors.id})
+          `.mapWith(Number),
+        })
+        .from(instructors)
+        .where(and(...instructorConditions))
+        .groupBy(
+          instructors.lat,
+          instructors.lng,
+          instructors.neighborhood,
+          instructors.city,
+          instructors.state,
+        ),
+      db
+        .select({
+          lat: users.lat,
+          lng: users.lng,
+          neighborhood: users.neighborhood,
+          city: users.city,
+          state: users.state,
+          count: sql<number>`
+            count(${users.id})
+          `.mapWith(Number),
+        })
+        .from(users)
+        .where(and(...studentConditions))
+        .groupBy(users.lat, users.lng, users.neighborhood, users.city, users.state),
+      db
+        .select({ state: instructors.state })
+        .from(instructors)
+        .where(isNotNull(instructors.state))
+        .groupBy(instructors.state),
+      db
+        .select({ state: users.state })
+        .from(users)
+        .where(and(eq(users.role, "student" as any), isNotNull(users.state)))
+        .groupBy(users.state),
+      db
+        .select({ city: instructors.city })
+        .from(instructors)
+        .where(
+          and(
+            ...[
+              isNotNull(instructors.city),
+              ...(state ? [eq(instructors.state, state)] : []),
+            ],
+          ),
+        )
+        .groupBy(instructors.city),
+      db
+        .select({ city: users.city })
+        .from(users)
+        .where(
+          and(
+            ...[
+              eq(users.role, "student" as any),
+              isNotNull(users.city),
+              ...(state ? [eq(users.state, state)] : []),
+            ],
+          ),
+        )
+        .groupBy(users.city),
+    ]);
+
+    const mapPoint = (row: {
+      lat: string | null;
+      lng: string | null;
+      neighborhood: string | null;
+      city: string | null;
+      state: string | null;
+      count: number;
+    }) => {
+      const labelParts = [row.neighborhood, row.city, row.state]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => value.trim());
+      const uniqueParts = Array.from(new Set(labelParts));
+      return {
+        lat: row.lat ? Number(row.lat) : 0,
+        lng: row.lng ? Number(row.lng) : 0,
+        label: uniqueParts.length > 0 ? uniqueParts.join(" - ") : null,
+        count: row.count ?? 0,
+      };
+    };
+
+    const uniqueSorted = (values: Array<string | null>) => {
+      const filtered = values.filter((value): value is string => Boolean(value));
+      return Array.from(new Set(filtered)).sort((a, b) => a.localeCompare(b));
+    };
+
+    return {
+      instructors: instructorPoints.map(mapPoint).filter((point) => point.lat && point.lng),
+      students: studentPoints.map(mapPoint).filter((point) => point.lat && point.lng),
+      states: uniqueSorted([
+        ...instructorStates.map((row) => row.state),
+        ...studentStates.map((row) => row.state),
+      ]),
+      cities: uniqueSorted([
+        ...instructorCities.map((row) => row.city),
+        ...studentCities.map((row) => row.city),
+      ]),
+      totals: {
+        instructorsTotal: instructorTotals?.instructorsTotal ?? 0,
+        instructorsWithLocation: instructorTotals?.instructorsWithLocation ?? 0,
+        studentsTotal: studentTotals?.studentsTotal ?? 0,
+        studentsWithLocation: studentTotals?.studentsWithLocation ?? 0,
+      },
+    };
+  }
+
+  async getAdminTransactions(filters?: {
+    status?: string;
+    type?: string;
+    gateway?: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      transaction: Transaction;
+      fromUser: User | null;
+      toUser: User | null;
+      booking: Booking | null;
+    }>
+  > {
+    const fromUser = alias(users, "from_user");
+    const toUser = alias(users, "to_user");
+    const limit = Math.min(Math.max(filters?.limit ?? 30, 1), 100);
+    const conditions = [];
+
+    if (filters?.status) {
+      conditions.push(eq(transactions.status, filters.status as any));
+    }
+    if (filters?.type) {
+      conditions.push(eq(transactions.type, filters.type as any));
+    }
+    if (filters?.gateway) {
+      conditions.push(eq(transactions.gateway, filters.gateway));
+    }
+
+    let query = db
+      .select({
+        transaction: transactions,
+        fromUser,
+        toUser,
+        booking: bookings,
+      })
+      .from(transactions)
+      .leftJoin(fromUser, eq(transactions.fromUserId, fromUser.id))
+      .leftJoin(toUser, eq(transactions.toUserId, toUser.id))
+      .leftJoin(bookings, eq(transactions.bookingId, bookings.id))
+      .orderBy(desc(transactions.createdAt))
+      .limit(limit);
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const rows = await query;
+    return rows.map((row) => ({
+      transaction: row.transaction,
+      fromUser: row.fromUser ?? null,
+      toUser: row.toUser ?? null,
+      booking: row.booking ?? null,
+    }));
+  }
+
+  async getWalletsWithUser(role?: string): Promise<(Wallet & { user: User | null })[]> {
+    let query = db
+      .select({ wallet: wallets, user: users })
+      .from(wallets)
+      .leftJoin(users, eq(wallets.userId, users.id))
+      .orderBy(desc(wallets.updatedAt));
+
+    if (role) {
+      query = query.where(eq(users.role, role as any));
+    }
+
+    const rows = await query;
+    return rows.map((row) => ({
+      ...row.wallet,
+      user: row.user ?? null,
+    }));
+  }
+
+  async getWalletEntries(filters?: {
+    walletId?: string;
+    userId?: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      entry: WalletEntry;
+      user: User | null;
+      booking: Booking | null;
+      transaction: Transaction | null;
+    }>
+  > {
+    const limit = Math.min(Math.max(filters?.limit ?? 20, 1), 200);
+    const conditions = [];
+
+    if (filters?.walletId) {
+      conditions.push(eq(walletEntries.walletId, filters.walletId));
+    }
+    if (filters?.userId) {
+      conditions.push(eq(walletEntries.userId, filters.userId));
+    }
+
+    let query = db
+      .select({
+        entry: walletEntries,
+        user: users,
+        booking: bookings,
+        transaction: transactions,
+      })
+      .from(walletEntries)
+      .leftJoin(users, eq(walletEntries.userId, users.id))
+      .leftJoin(bookings, eq(walletEntries.bookingId, bookings.id))
+      .leftJoin(transactions, eq(walletEntries.transactionId, transactions.id))
+      .orderBy(desc(walletEntries.createdAt))
+      .limit(limit);
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const rows = await query;
+    return rows.map((row) => ({
+      entry: row.entry,
+      user: row.user ?? null,
+      booking: row.booking ?? null,
+      transaction: row.transaction ?? null,
+    }));
+  }
+
+  async getWithdrawals(filters?: { status?: string; limit?: number }): Promise<
+    Array<{
+      withdrawal: Withdrawal;
+      user: User | null;
+      processedBy: User | null;
+    }>
+  > {
+    const processedBy = alias(users, "processed_by");
+    const limit = Math.min(Math.max(filters?.limit ?? 20, 1), 200);
+
+    let query = db
+      .select({
+        withdrawal: withdrawals,
+        user: users,
+        processedBy,
+      })
+      .from(withdrawals)
+      .leftJoin(users, eq(withdrawals.userId, users.id))
+      .leftJoin(processedBy, eq(withdrawals.processedByUserId, processedBy.id))
+      .orderBy(desc(withdrawals.requestedAt))
+      .limit(limit);
+
+    if (filters?.status) {
+      query = query.where(eq(withdrawals.status, filters.status as any));
+    }
+
+    const rows = await query;
+    return rows.map((row) => ({
+      withdrawal: row.withdrawal,
+      user: row.user ?? null,
+      processedBy: row.processedBy ?? null,
+    }));
+  }
+
+  async updateWithdrawal(id: string, data: Partial<Withdrawal>): Promise<Withdrawal> {
+    const [withdrawal] = await db
+      .update(withdrawals)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(withdrawals.id, id))
+      .returning();
+    return withdrawal;
+  }
+
+  async getPaymentGateways(): Promise<PaymentGateway[]> {
+    return db.select().from(paymentGateways).orderBy(desc(paymentGateways.updatedAt));
+  }
+
+  async createPaymentGateway(data: {
+    provider: string;
+    apiKey?: string | null;
+    status?: string;
+    isDefault?: boolean;
+  }): Promise<PaymentGateway> {
+    if (data.isDefault) {
+      await db
+        .update(paymentGateways)
+        .set({ isDefault: false, updatedAt: new Date() });
+    }
+
+    const [gateway] = await db
+      .insert(paymentGateways)
+      .values({
+        provider: data.provider,
+        apiKey: data.apiKey ?? null,
+        status: data.status ?? "active",
+        isDefault: data.isDefault ?? false,
+      })
+      .returning();
+    return gateway;
+  }
+
+  async updatePaymentGateway(
+    id: string,
+    data: {
+      provider?: string;
+      apiKey?: string | null;
+      status?: string;
+      isDefault?: boolean;
+    },
+  ): Promise<PaymentGateway> {
+    if (data.isDefault) {
+      await db
+        .update(paymentGateways)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(ne(paymentGateways.id, id));
+    }
+
+    const payload: Partial<typeof paymentGateways.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    if (typeof data.provider === "string") {
+      payload.provider = data.provider;
+    }
+    if (typeof data.apiKey !== "undefined") {
+      payload.apiKey = data.apiKey;
+    }
+    if (typeof data.status === "string") {
+      payload.status = data.status;
+    }
+    if (typeof data.isDefault === "boolean") {
+      payload.isDefault = data.isDefault;
+    }
+
+    const [gateway] = await db
+      .update(paymentGateways)
+      .set(payload)
+      .where(eq(paymentGateways.id, id))
+      .returning();
+    return gateway;
+  }
+
+  async getIntegrations(filters?: {
+    category?: string;
+    status?: string;
+    environment?: string;
+  }): Promise<Integration[]> {
+    const conditions = [];
+
+    if (filters?.category) {
+      conditions.push(eq(integrations.category, filters.category));
+    }
+    if (filters?.status) {
+      conditions.push(eq(integrations.status, filters.status as any));
+    }
+    if (filters?.environment) {
+      conditions.push(eq(integrations.environment, filters.environment as any));
+    }
+
+    let query = db.select().from(integrations).orderBy(desc(integrations.updatedAt));
+    if (conditions.length === 1) {
+      query = query.where(conditions[0]);
+    } else if (conditions.length > 1) {
+      query = query.where(and(...conditions));
+    }
+
+    return query;
+  }
+
+  async getIntegration(id: string): Promise<Integration | undefined> {
+    const [integration] = await db
+      .select()
+      .from(integrations)
+      .where(eq(integrations.id, id));
+    return integration;
+  }
+
+  async getIntegrationBySlug(
+    slug: string,
+    environment?: string,
+  ): Promise<Integration | undefined> {
+    const conditions = [eq(integrations.slug, slug)];
+    if (environment) {
+      conditions.push(eq(integrations.environment, environment as any));
+    }
+    const whereClause =
+      conditions.length > 1 ? and(...conditions) : conditions[0];
+    const [integration] = await db
+      .select()
+      .from(integrations)
+      .where(whereClause)
+      .limit(1);
+    return integration;
+  }
+
+  async createIntegration(data: {
+    name: string;
+    slug: string;
+    category: string;
+    status?: string;
+    environment?: string;
+    isDefault?: boolean;
+    fields?: IntegrationInsert["fields"];
+  }): Promise<Integration> {
+    const environment = data.environment ?? "production";
+
+    if (data.isDefault) {
+      await db
+        .update(integrations)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(integrations.category, data.category),
+            eq(integrations.environment, environment as any),
+          ),
+        );
+    }
+
+    const [integration] = await db
+      .insert(integrations)
+      .values({
+        name: data.name,
+        slug: data.slug,
+        category: data.category,
+        status: data.status ?? "active",
+        environment,
+        isDefault: data.isDefault ?? false,
+        fields: data.fields ?? [],
+      })
+      .returning();
+    return integration;
+  }
+
+  async updateIntegration(
+    id: string,
+    data: {
+      name?: string;
+      slug?: string;
+      category?: string;
+      status?: string;
+      environment?: string;
+      isDefault?: boolean;
+      fields?: IntegrationInsert["fields"];
+    },
+  ): Promise<Integration> {
+    let current: Integration | undefined;
+    if (data.isDefault) {
+      current = await this.getIntegration(id);
+      const category = data.category ?? current?.category;
+      const environment = data.environment ?? current?.environment ?? "production";
+      if (category) {
+        await db
+          .update(integrations)
+          .set({ isDefault: false, updatedAt: new Date() })
+          .where(
+            and(
+              eq(integrations.category, category),
+              eq(integrations.environment, environment as any),
+              ne(integrations.id, id),
+            ),
+          );
+      }
+    }
+
+    const payload: Partial<typeof integrations.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    if (typeof data.name === "string") {
+      payload.name = data.name;
+    }
+    if (typeof data.slug === "string") {
+      payload.slug = data.slug;
+    }
+    if (typeof data.category === "string") {
+      payload.category = data.category;
+    }
+    if (typeof data.status === "string") {
+      payload.status = data.status as any;
+    }
+    if (typeof data.environment === "string") {
+      payload.environment = data.environment as any;
+    }
+    if (typeof data.isDefault === "boolean") {
+      payload.isDefault = data.isDefault;
+    }
+    if (typeof data.fields !== "undefined") {
+      payload.fields = data.fields;
+    }
+
+    const [integration] = await db
+      .update(integrations)
+      .set(payload)
+      .where(eq(integrations.id, id))
+      .returning();
+    return integration;
+  }
+
   async getBookingByPaymentId(paymentId: string): Promise<Booking | undefined> {
     const [booking] = await db.select().from(bookings).where(eq(bookings.paymentId, paymentId));
     return booking;
@@ -158,6 +1101,139 @@ export class DatabaseStorage implements IStorage {
       .where(eq(bookings.id, id))
       .returning();
     return booking;
+  }
+
+  private getTransactionStatusFromBooking(booking: Booking) {
+    const paymentStatus = String(booking.paymentStatus ?? "").toLowerCase();
+    if (
+      booking.status === "paid" ||
+      booking.status === "completed" ||
+      paymentStatus === "paid"
+    ) {
+      return "paid";
+    }
+    if (
+      booking.status === "cancelled" ||
+      paymentStatus === "cancelled" ||
+      paymentStatus === "expired" ||
+      paymentStatus === "failed"
+    ) {
+      return "cancelled";
+    }
+    return "pending";
+  }
+
+  private async getOrCreateWallet(userId: string): Promise<Wallet> {
+    const [existing] = await db
+      .select()
+      .from(wallets)
+      .where(eq(wallets.userId, userId));
+    if (existing) return existing;
+
+    const [created] = await db
+      .insert(wallets)
+      .values({
+        userId,
+        balance: "0",
+        currency: "BRL",
+      })
+      .returning();
+    return created;
+  }
+
+  private async ensureWalletEntry(transaction: Transaction) {
+    if (!transaction.toUserId) return;
+
+    const [existing] = await db
+      .select({ id: walletEntries.id })
+      .from(walletEntries)
+      .where(eq(walletEntries.transactionId, transaction.id));
+
+    if (existing) return;
+
+    const wallet = await this.getOrCreateWallet(transaction.toUserId);
+    await db.insert(walletEntries).values({
+      walletId: wallet.id,
+      userId: transaction.toUserId,
+      type: "credit",
+      amount: transaction.amountNet,
+      description: transaction.bookingId
+        ? `Repasse booking ${transaction.bookingId}`
+        : "Repasse booking",
+      bookingId: transaction.bookingId,
+      transactionId: transaction.id,
+      createdAt: transaction.createdAt ?? new Date(),
+    });
+
+    const currentBalance = Number(wallet.balance);
+    const baseBalance = Number.isFinite(currentBalance) ? currentBalance : 0;
+    const delta = Number(transaction.amountNet);
+    const safeDelta = Number.isFinite(delta) ? delta : 0;
+    const updatedBalance = baseBalance + safeDelta;
+
+    await db
+      .update(wallets)
+      .set({ balance: updatedBalance.toFixed(2), updatedAt: new Date() })
+      .where(eq(wallets.id, wallet.id));
+  }
+
+  async upsertBookingTransaction(booking: Booking): Promise<Transaction | undefined> {
+    if (!booking) return undefined;
+
+    const [existing] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.bookingId, booking.id));
+
+    const instructor = await this.getInstructor(booking.instructorId);
+    const gross = Number(booking.totalPrice);
+    const amountGross = Number.isFinite(gross) ? gross.toFixed(2) : "0";
+    const amountNet = amountGross;
+    const status = this.getTransactionStatusFromBooking(booking);
+
+    if (existing) {
+      const [updated] = await db
+        .update(transactions)
+        .set({
+          status,
+          amountGross,
+          amountNet,
+          gateway: booking.paymentProvider ?? null,
+          paymentId: booking.paymentId ?? null,
+          fromUserId: booking.studentId,
+          toUserId: instructor?.userId ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(transactions.id, existing.id))
+        .returning();
+
+      if (status === "paid") {
+        await this.ensureWalletEntry(updated);
+      }
+
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(transactions)
+      .values({
+        bookingId: booking.id,
+        type: "booking",
+        status,
+        amountGross,
+        amountNet,
+        gateway: booking.paymentProvider ?? null,
+        paymentId: booking.paymentId ?? null,
+        fromUserId: booking.studentId,
+        toUserId: instructor?.userId ?? null,
+      })
+      .returning();
+
+    if (status === "paid") {
+      await this.ensureWalletEntry(created);
+    }
+
+    return created;
   }
 
   async createReview(reviewData: InsertReview): Promise<Review> {

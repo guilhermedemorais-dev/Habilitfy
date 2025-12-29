@@ -69,6 +69,7 @@
 ## Referências de UI (MCP)
 - Context7: usar para docs atuais de Next/React/Tailwind/Shadcn (ex.: “use context7”).
 - Nuxt UI MCP: usar como inspiração de componentes e padrões visuais, adaptando para React.
+- Instruções Nuxt UI MCP (adaptação React): `docs/contexto/vscode/nuxt-ui-instructions.md`.
 - Figma MCP: usar para importar designs e tokens quando houver arquivo de design.
 
 ## MCPs Operacionais (DevOps/Produto)

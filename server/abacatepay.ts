@@ -1,6 +1,7 @@
 import type { Booking } from "@shared/schema";
 
-const ABACATEPAY_BASE_URL = process.env.ABACATEPAY_BASE_URL || "https://api.abacatepay.com";
+const ABACATEPAY_BASE_URL =
+  process.env.ABACATEPAY_BASE_URL || "https://api.abacatepay.com";
 const ABACATEPAY_API_KEY = process.env.ABACATEPAY_API_KEY;
 const ABACATEPAY_DEV_MODE = process.env.ABACATEPAY_DEV_MODE !== "false"; // default true
 
@@ -19,14 +20,34 @@ interface AbacateBillingResponse {
   error?: unknown;
 }
 
+type AbacateConfigOverrides = {
+  apiKey?: string | null;
+  baseUrl?: string | null;
+  devMode?: boolean | null;
+};
+
+const resolveAbacateConfig = (overrides?: AbacateConfigOverrides) => {
+  const apiKey = overrides?.apiKey ?? ABACATEPAY_API_KEY;
+  const baseUrl = overrides?.baseUrl ?? ABACATEPAY_BASE_URL;
+  const devMode =
+    typeof overrides?.devMode === "boolean"
+      ? overrides.devMode
+      : ABACATEPAY_DEV_MODE;
+  return { apiKey, baseUrl, devMode };
+};
+
 export function mapAbacateStatusToBooking(status: AbacateStatus | undefined): "pending" | "paid" | "cancelled" {
   if (!status || status === "PENDING") return "pending";
   if (status === "PAID") return "paid";
   return "cancelled";
 }
 
-export async function createAbacateBilling(booking: Booking) {
-  if (!ABACATEPAY_API_KEY) {
+export async function createAbacateBilling(
+  booking: Booking,
+  overrides?: AbacateConfigOverrides,
+) {
+  const { apiKey, baseUrl, devMode } = resolveAbacateConfig(overrides);
+  if (!apiKey) {
     throw new Error("ABACATEPAY_API_KEY não configurada");
   }
 
@@ -36,7 +57,7 @@ export async function createAbacateBilling(booking: Booking) {
     amount: amountInCents,
     methods: ["PIX", "CARD"],
     frequency: "ONE_TIME",
-    devMode: ABACATEPAY_DEV_MODE,
+    devMode,
     metadata: {
       bookingId: booking.id,
       studentId: booking.studentId,
@@ -44,11 +65,11 @@ export async function createAbacateBilling(booking: Booking) {
     },
   };
 
-  const res = await fetch(`${ABACATEPAY_BASE_URL}/billing/create`, {
+  const res = await fetch(`${baseUrl}/billing/create`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${ABACATEPAY_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(payload),
   });
@@ -71,20 +92,27 @@ export async function createAbacateBilling(booking: Booking) {
     paymentUrl: json.data.url,
     paymentStatus: json.data.status,
     paymentMethods: json.data.methods || ["PIX", "CARD"],
-    paymentDevMode: json.data.devMode ?? ABACATEPAY_DEV_MODE,
+    paymentDevMode: json.data.devMode ?? devMode,
   };
 }
 
-export async function getAbacateBilling(id: string) {
-  if (!ABACATEPAY_API_KEY) {
+export async function getAbacateBilling(
+  id: string,
+  overrides?: AbacateConfigOverrides,
+) {
+  const { apiKey, baseUrl } = resolveAbacateConfig(overrides);
+  if (!apiKey) {
     throw new Error("ABACATEPAY_API_KEY não configurada");
   }
 
-  const res = await fetch(`${ABACATEPAY_BASE_URL}/billing/get?id=${encodeURIComponent(id)}`, {
-    headers: {
-      Authorization: `Bearer ${ABACATEPAY_API_KEY}`,
+  const res = await fetch(
+    `${baseUrl}/billing/get?id=${encodeURIComponent(id)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
     },
-  });
+  );
 
   if (!res.ok) {
     const body = await res.text();

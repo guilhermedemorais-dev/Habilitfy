@@ -1,8 +1,9 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { cn } from "@/lib/utils";
 
 import Home from "@/pages/Home";
 import MapPage from "@/pages/MapPage";
@@ -37,12 +38,20 @@ function Router() {
 }
 
 function App() {
+  const [location] = useLocation();
+  const isAdminRoute = location.startsWith("/admin");
+
   return (
     <QueryClientProvider client={queryClient}>
       <Toaster />
-      <div className="min-h-screen pb-16 md:pb-0 bg-gray-50 text-slate-900 font-sans">
+      <div
+        className={cn(
+          "min-h-screen bg-gray-50 text-slate-900 font-sans",
+          isAdminRoute ? "pb-0" : "pb-16 md:pb-0",
+        )}
+      >
         <Router />
-        <BottomNav />
+        {!isAdminRoute && <BottomNav />}
       </div>
     </QueryClientProvider>
   );

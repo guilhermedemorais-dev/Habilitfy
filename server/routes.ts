@@ -6,6 +6,159 @@ import { insertInstructorSchema, insertBookingSchema, insertReviewSchema } from 
 import { z } from "zod";
 import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } from "./abacatepay";
 
+const transactionStatusValues = [
+  "pending",
+  "paid",
+  "processing",
+  "refunded",
+  "cancelled",
+  "failed",
+] as const;
+
+const transactionTypeValues = [
+  "booking",
+  "withdrawal",
+  "refund",
+  "commission",
+  "affiliate",
+  "coupon",
+] as const;
+
+const withdrawalStatusValues = [
+  "pending",
+  "approved",
+  "rejected",
+  "processed",
+] as const;
+
+const gatewayStatusValues = ["active", "inactive"] as const;
+const integrationStatusValues = ["active", "inactive"] as const;
+const integrationEnvironmentValues = ["development", "production"] as const;
+const integrationFieldTypes = ["text", "secret", "url", "number", "boolean"] as const;
+
+const gatewayCreateSchema = z.object({
+  provider: z.string().min(1),
+  apiKey: z.string().optional().nullable(),
+  status: z.enum(gatewayStatusValues).optional().default("active"),
+  isDefault: z.boolean().optional().default(false),
+});
+
+const gatewayUpdateSchema = z.object({
+  provider: z.string().min(1).optional(),
+  apiKey: z.string().optional().nullable(),
+  status: z.enum(gatewayStatusValues).optional(),
+  isDefault: z.boolean().optional(),
+});
+
+const integrationFieldSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().optional().nullable(),
+  type: z.enum(integrationFieldTypes).optional().default("text"),
+  value: z.string().optional().nullable(),
+  required: z.boolean().optional().default(false),
+  placeholder: z.string().optional().nullable(),
+});
+
+const integrationCreateSchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1).optional().nullable(),
+  category: z.string().min(1).optional().default("payment"),
+  status: z.enum(integrationStatusValues).optional().default("active"),
+  environment: z.enum(integrationEnvironmentValues)
+    .optional()
+    .default("production"),
+  isDefault: z.boolean().optional().default(false),
+  fields: z.array(integrationFieldSchema).optional().default([]),
+});
+
+const integrationUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  slug: z.string().min(1).optional().nullable(),
+  category: z.string().min(1).optional(),
+  status: z.enum(integrationStatusValues).optional(),
+  environment: z.enum(integrationEnvironmentValues).optional(),
+  isDefault: z.boolean().optional(),
+  fields: z.array(integrationFieldSchema).optional(),
+});
+
+const parseLimit = (value: unknown, fallback: number, max = 200) => {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), max);
+};
+
+const maskApiKey = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (trimmed.length <= 4) return "****";
+  return `****${trimmed.slice(-4)}`;
+};
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const normalizeIntegrationFields = (
+  fields: Array<z.infer<typeof integrationFieldSchema>> | undefined | null,
+) => {
+  if (!Array.isArray(fields)) return [];
+  return fields
+    .map((field) => ({
+      key: String(field.key || "").trim(),
+      label: field.label ? String(field.label).trim() : null,
+      type: field.type || "text",
+      value:
+        typeof field.value === "string"
+          ? field.value
+          : field.value == null
+            ? null
+            : String(field.value),
+      required: Boolean(field.required),
+      placeholder: field.placeholder ? String(field.placeholder).trim() : null,
+    }))
+    .filter((field) => field.key.length > 0);
+};
+
+const maskIntegrationFields = (
+  fields: Array<z.infer<typeof integrationFieldSchema>> | null | undefined,
+) => {
+  if (!Array.isArray(fields)) return [];
+  return fields.map((field) => {
+    if (field.type !== "secret") return field;
+    const hasValue = Boolean(field.value && String(field.value).trim().length > 0);
+    return {
+      ...field,
+      value: hasValue ? "****" : "",
+      hasValue,
+    };
+  });
+};
+
+const mergeSecretIntegrationFields = (
+  incoming: Array<z.infer<typeof integrationFieldSchema>>,
+  existing: Array<z.infer<typeof integrationFieldSchema>> | null | undefined,
+) => {
+  if (!Array.isArray(incoming)) return incoming;
+  const existingMap = new Map(
+    (existing || []).map((field) => [field.key, field]),
+  );
+  return incoming.map((field) => {
+    if (field.type !== "secret") return field;
+    const value = typeof field.value === "string" ? field.value.trim() : "";
+    if (!value || value === "****") {
+      const stored = existingMap.get(field.key);
+      return {
+        ...field,
+        value: stored?.value ?? null,
+      };
+    }
+    return field;
+  });
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
@@ -121,6 +274,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/bookings/:id', isAuthenticated, async (req, res) => {
     try {
       const booking = await storage.updateBooking(req.params.id, req.body);
+      if (
+        booking.status === "paid" ||
+        booking.status === "completed" ||
+        String(booking.paymentStatus ?? "").toLowerCase() === "paid"
+      ) {
+        storage.upsertBookingTransaction(booking).catch((error) => {
+          console.error("Error syncing booking transaction:", error);
+        });
+      }
       res.json(booking);
     } catch (error) {
       console.error("Error updating booking:", error);
@@ -172,6 +334,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/admin/bookings', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const limitParam = Number.parseInt(req.query.limit as string, 10);
+      const limit = Number.isFinite(limitParam)
+        ? Math.min(Math.max(limitParam, 1), 100)
+        : 20;
+
+      const bookings = await storage.getAdminBookings(limit);
+      res.json(bookings);
+    } catch (error) {
+      console.error("Error fetching admin bookings:", error);
+      res.status(500).json({ message: "Failed to fetch bookings" });
+    }
+  });
+
+  app.get('/api/admin/dashboard', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const stats = await storage.getAdminDashboardStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching admin dashboard stats:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  app.get('/api/admin/geo-summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const state = req.query.state as string | undefined;
+      const city = req.query.city as string | undefined;
+
+      const summary = await storage.getAdminGeoSummary({
+        state: state && state !== "all" ? state : undefined,
+        city: city && city !== "all" ? city : undefined,
+      });
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching admin geo summary:", error);
+      res.status(500).json({ message: "Failed to fetch geo summary" });
+    }
+  });
+
   app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
@@ -207,6 +425,455 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/admin/finance/summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const summary = await storage.getAdminFinanceSummary();
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching admin finance summary:", error);
+      res.status(500).json({ message: "Failed to fetch finance summary" });
+    }
+  });
+
+  app.get('/api/admin/finance/timeseries', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const status = req.query.status as string | undefined;
+      const period = (req.query.period as "day" | "week" | "month" | undefined) ?? "day";
+      const days = parseLimit(req.query.days, period === "day" ? 30 : 120, 365);
+
+      if (status && status !== "all" && !transactionStatusValues.includes(status as any)) {
+        return res.status(400).json({ message: "Invalid transaction status" });
+      }
+      if (!["day", "week", "month"].includes(period)) {
+        return res.status(400).json({ message: "Invalid period" });
+      }
+
+      const series = await storage.getAdminTransactionSeries({
+        status: status === "all" ? undefined : status,
+        period,
+        days,
+      });
+      res.json(series);
+    } catch (error) {
+      console.error("Error fetching finance timeseries:", error);
+      res.status(500).json({ message: "Failed to fetch finance timeseries" });
+    }
+  });
+
+  app.get('/api/admin/transactions', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const status = req.query.status as string | undefined;
+      const type = req.query.type as string | undefined;
+      const gateway = req.query.gateway as string | undefined;
+      const limit = parseLimit(req.query.limit, 30, 100);
+
+      if (status && !transactionStatusValues.includes(status as any)) {
+        return res.status(400).json({ message: "Invalid transaction status" });
+      }
+      if (type && !transactionTypeValues.includes(type as any)) {
+        return res.status(400).json({ message: "Invalid transaction type" });
+      }
+
+      const transactions = await storage.getAdminTransactions({
+        status,
+        type,
+        gateway,
+        limit,
+      });
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching admin transactions:", error);
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  app.get('/api/admin/wallets', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const role = req.query.role as string | undefined;
+      const wallets = await storage.getWalletsWithUser(role);
+      res.json(wallets);
+    } catch (error) {
+      console.error("Error fetching admin wallets:", error);
+      res.status(500).json({ message: "Failed to fetch wallets" });
+    }
+  });
+
+  app.get('/api/admin/wallet-entries', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const walletId = req.query.walletId as string | undefined;
+      const userId = req.query.userId as string | undefined;
+      const limit = parseLimit(req.query.limit, 20, 200);
+
+      const entries = await storage.getWalletEntries({
+        walletId,
+        userId,
+        limit,
+      });
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching admin wallet entries:", error);
+      res.status(500).json({ message: "Failed to fetch wallet entries" });
+    }
+  });
+
+  app.get('/api/admin/withdrawals', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const status = req.query.status as string | undefined;
+      const limit = parseLimit(req.query.limit, 20, 200);
+
+      if (status && !withdrawalStatusValues.includes(status as any)) {
+        return res.status(400).json({ message: "Invalid withdrawal status" });
+      }
+
+      const withdrawals = await storage.getWithdrawals({
+        status,
+        limit,
+      });
+      res.json(withdrawals);
+    } catch (error) {
+      console.error("Error fetching admin withdrawals:", error);
+      res.status(500).json({ message: "Failed to fetch withdrawals" });
+    }
+  });
+
+  app.patch('/api/admin/withdrawals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const payload = z
+        .object({
+          status: z.enum(withdrawalStatusValues),
+          notes: z.string().optional(),
+        })
+        .parse(req.body);
+
+      const updateData: any = {
+        status: payload.status,
+        notes: payload.notes,
+      };
+
+      if (payload.status !== "pending") {
+        updateData.processedAt = new Date();
+        updateData.processedByUserId = user.id;
+      }
+
+      const withdrawal = await storage.updateWithdrawal(req.params.id, updateData);
+      res.json(withdrawal);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating withdrawal:", error);
+      res.status(500).json({ message: "Failed to update withdrawal" });
+    }
+  });
+
+  app.get('/api/admin/payment-gateways', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const gateways = await storage.getPaymentGateways();
+      res.json(
+        gateways.map((gateway) => ({
+          id: gateway.id,
+          provider: gateway.provider,
+          status: gateway.status,
+          isDefault: gateway.isDefault,
+          maskedKey: maskApiKey(gateway.apiKey),
+          updatedAt: gateway.updatedAt,
+          createdAt: gateway.createdAt,
+        })),
+      );
+    } catch (error) {
+      console.error("Error fetching payment gateways:", error);
+      res.status(500).json({ message: "Failed to fetch payment gateways" });
+    }
+  });
+
+  app.post('/api/admin/payment-gateways', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const payload = gatewayCreateSchema.parse(req.body);
+      const apiKey = payload.apiKey?.trim() || null;
+
+      const gateway = await storage.createPaymentGateway({
+        provider: payload.provider,
+        apiKey,
+        status: payload.status,
+        isDefault: payload.isDefault,
+      });
+
+      res.status(201).json({
+        id: gateway.id,
+        provider: gateway.provider,
+        status: gateway.status,
+        isDefault: gateway.isDefault,
+        maskedKey: maskApiKey(gateway.apiKey),
+        updatedAt: gateway.updatedAt,
+        createdAt: gateway.createdAt,
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error creating payment gateway:", error);
+      res.status(500).json({ message: "Failed to create payment gateway" });
+    }
+  });
+
+  app.patch('/api/admin/payment-gateways/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const payload = gatewayUpdateSchema.parse(req.body);
+      const apiKey =
+        typeof payload.apiKey === "string" ? payload.apiKey.trim() : payload.apiKey;
+
+      const gateway = await storage.updatePaymentGateway(req.params.id, {
+        provider: payload.provider,
+        apiKey: typeof apiKey === "string" ? apiKey : apiKey ?? undefined,
+        status: payload.status,
+        isDefault: payload.isDefault,
+      });
+
+      res.json({
+        id: gateway.id,
+        provider: gateway.provider,
+        status: gateway.status,
+        isDefault: gateway.isDefault,
+        maskedKey: maskApiKey(gateway.apiKey),
+        updatedAt: gateway.updatedAt,
+        createdAt: gateway.createdAt,
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating payment gateway:", error);
+      res.status(500).json({ message: "Failed to update payment gateway" });
+    }
+  });
+
+  app.get('/api/admin/integrations', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const status = req.query.status as string | undefined;
+      const category = req.query.category as string | undefined;
+      const environment = req.query.environment as string | undefined;
+
+      if (status && !integrationStatusValues.includes(status as any)) {
+        return res.status(400).json({ message: "Invalid integration status" });
+      }
+      if (environment && !integrationEnvironmentValues.includes(environment as any)) {
+        return res.status(400).json({ message: "Invalid integration environment" });
+      }
+
+      const integrations = await storage.getIntegrations({
+        status,
+        category,
+        environment,
+      });
+
+      res.json(
+        integrations.map((integration) => ({
+          ...integration,
+          fields: maskIntegrationFields(integration.fields as any),
+        })),
+      );
+    } catch (error) {
+      console.error("Error fetching integrations:", error);
+      res.status(500).json({ message: "Failed to fetch integrations" });
+    }
+  });
+
+  app.post('/api/admin/integrations', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const payload = integrationCreateSchema.parse(req.body);
+      const slug = payload.slug?.trim() || slugify(payload.name);
+      if (!slug) {
+        return res.status(400).json({ message: "Slug inválido" });
+      }
+
+      const existing = await storage.getIntegrationBySlug(
+        slug,
+        payload.environment,
+      );
+      if (existing) {
+        return res.status(409).json({ message: "Integração já cadastrada" });
+      }
+
+      const integration = await storage.createIntegration({
+        name: payload.name.trim(),
+        slug,
+        category: payload.category.trim(),
+        status: payload.status,
+        environment: payload.environment,
+        isDefault: payload.isDefault,
+        fields: normalizeIntegrationFields(payload.fields),
+      });
+
+      res.status(201).json({
+        ...integration,
+        fields: maskIntegrationFields(integration.fields as any),
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error creating integration:", error);
+      res.status(500).json({ message: "Failed to create integration" });
+    }
+  });
+
+  app.patch('/api/admin/integrations/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const payload = integrationUpdateSchema.parse(req.body);
+      const current = await storage.getIntegration(req.params.id);
+      if (!current) {
+        return res.status(404).json({ message: "Integração não encontrada" });
+      }
+
+      let slug: string | undefined;
+      if (payload.slug !== undefined) {
+        const candidate = payload.slug?.trim() || slugify(payload.name || current.name);
+        if (!candidate) {
+          return res.status(400).json({ message: "Slug inválido" });
+        }
+        slug = candidate;
+
+        const envToCheck = payload.environment || current.environment;
+        if (candidate !== current.slug || envToCheck !== current.environment) {
+          const existing = await storage.getIntegrationBySlug(
+            candidate,
+            envToCheck,
+          );
+          if (existing && existing.id !== current.id) {
+            return res.status(409).json({ message: "Integração já cadastrada" });
+          }
+        }
+      }
+
+      const fields =
+        payload.fields === undefined
+          ? undefined
+          : mergeSecretIntegrationFields(
+              normalizeIntegrationFields(payload.fields),
+              current.fields as any,
+            );
+
+      const integration = await storage.updateIntegration(req.params.id, {
+        name: payload.name?.trim(),
+        slug,
+        category: payload.category?.trim(),
+        status: payload.status,
+        environment: payload.environment,
+        isDefault: payload.isDefault,
+        fields,
+      });
+
+      res.json({
+        ...integration,
+        fields: maskIntegrationFields(integration.fields as any),
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating integration:", error);
+      res.status(500).json({ message: "Failed to update integration" });
+    }
+  });
+
+  const parseBooleanField = (value?: string | null) => {
+    if (value == null) return undefined;
+    const normalized = String(value).trim().toLowerCase();
+    if (!normalized) return undefined;
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+    return undefined;
+  };
+
+  const resolveAbacateIntegrationConfig = async () => {
+    const environment =
+      process.env.NODE_ENV === "production" ? "production" : "development";
+    const integration = await storage.getIntegrationBySlug(
+      "abacatepay",
+      environment,
+    );
+    if (!integration || integration.status !== "active") {
+      return {};
+    }
+    const fields = Array.isArray(integration.fields) ? integration.fields : [];
+    const readField = (key: string) =>
+      fields.find((field) => field.key === key)?.value ?? null;
+    const apiKey = readField("apiKey") || readField("api_key");
+    const baseUrl = readField("baseUrl") || readField("base_url");
+    const devModeRaw = readField("devMode") || readField("dev_mode");
+
+    return {
+      apiKey: apiKey?.trim() || undefined,
+      baseUrl: baseUrl?.trim() || undefined,
+      devMode: parseBooleanField(devModeRaw),
+    };
+  };
+
   const httpServer = createServer(app);
 
   app.post('/api/payments/abacatepay', isAuthenticated, async (req: any, res) => {
@@ -234,7 +901,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const created = await createAbacateBilling(booking);
+      const integrationConfig = await resolveAbacateIntegrationConfig();
+      const created = await createAbacateBilling(booking, integrationConfig);
       const bookingStatus = mapAbacateStatusToBooking(created.paymentStatus as any);
 
       const updated = await storage.updateBooking(booking.id, {
@@ -245,6 +913,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentMethods: created.paymentMethods,
         paymentDevMode: created.paymentDevMode,
         status: bookingStatus,
+      });
+
+      storage.upsertBookingTransaction(updated).catch((error) => {
+        console.error("Error syncing booking transaction:", error);
       });
 
       res.json({
@@ -272,7 +944,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "paymentId ausente" });
       }
 
-      const billing = await getAbacateBilling(paymentId).catch(() => undefined);
+      const integrationConfig = await resolveAbacateIntegrationConfig();
+      const billing = await getAbacateBilling(paymentId, integrationConfig).catch(
+        () => undefined,
+      );
       const effectiveStatus = (billing?.status as any) || (status as any);
       const bookingStatus = mapAbacateStatusToBooking(effectiveStatus);
 
@@ -283,10 +958,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(202).json({ ok: true, message: "Booking não encontrado para paymentId" });
       }
 
-      await storage.updateBooking(booking.id, {
+      const updatedBooking = await storage.updateBooking(booking.id, {
         paymentStatus: effectiveStatus,
         status: bookingStatus,
         paidAt: bookingStatus === "paid" ? new Date() : booking.paidAt,
+      });
+
+      storage.upsertBookingTransaction(updatedBooking).catch((error) => {
+        console.error("Error syncing booking transaction:", error);
       });
 
       res.json({ ok: true });
