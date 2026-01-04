@@ -1,11 +1,11 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { divIcon } from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, Filter, Navigation, List, Map as MapIcon, ChevronLeft } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { useQuery } from "@tanstack/react-query";
@@ -30,16 +30,92 @@ function MapController({ coords }: { coords: [number, number] }) {
 }
 
 export default function MapPage() {
+  const [location] = useLocation();
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
   
   const { data: instructors = [], isLoading } = useQuery<Instructor[]>({
     queryKey: ["/api/instructors"],
   });
+
+  const queryParams = useMemo(() => {
+    const search = location.split("?")[1] || "";
+    return new URLSearchParams(search);
+  }, [location]);
+
+  const searchQuery = (queryParams.get("q") || "").trim().toLowerCase();
+  const categoryQuery = (queryParams.get("categories") || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const minRating = Number(queryParams.get("minRating"));
+  const minPrice = Number(queryParams.get("minPrice"));
+  const maxPrice = Number(queryParams.get("maxPrice"));
+
+  const filteredInstructors = useMemo(() => {
+    return instructors.filter((instructor) => {
+      const rating = Number(instructor.rating || 0);
+      const price = Number(instructor.pricePerHour || 0);
+
+      if (!Number.isNaN(minRating) && minRating > 0 && rating < minRating) {
+        return false;
+      }
+
+      if (!Number.isNaN(minPrice) && minPrice > 0 && price < minPrice) {
+        return false;
+      }
+
+      if (!Number.isNaN(maxPrice) && maxPrice > 0 && price > maxPrice) {
+        return false;
+      }
+
+      if (searchQuery) {
+        const text = [
+          instructor.neighborhood,
+          instructor.city,
+          instructor.state,
+          instructor.vehicleModel,
+          instructor.vehicleType,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!text.includes(searchQuery)) {
+          return false;
+        }
+      }
+
+      if (categoryQuery.length > 0) {
+        const haystack = [
+          instructor.vehicleModel,
+          instructor.vehicleType,
+          instructor.serviceAreas,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const matchesCategory = categoryQuery.some((category) =>
+          haystack.includes(category),
+        );
+        if (!matchesCategory) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [
+    categoryQuery,
+    instructors,
+    maxPrice,
+    minPrice,
+    minRating,
+    searchQuery,
+  ]);
   
   const center: [number, number] = [-22.9068, -43.1729];
 
-  const currentInstructor = instructors.find(i => i.id === selectedInstructor);
+  const currentInstructor = filteredInstructors.find(i => i.id === selectedInstructor);
   
   if (isLoading) {
     return (
@@ -53,7 +129,7 @@ export default function MapPage() {
   }
 
   return (
-    <div className="relative h-screen w-full bg-gray-100 flex flex-col">
+    <div className="relative h-screen w-full bg-background flex flex-col">
       {/* Header Float */}
       <div className="absolute top-0 left-0 right-0 z-[1000] p-4 flex justify-between items-start pointer-events-none">
         <Link href="/">
@@ -92,7 +168,7 @@ export default function MapPage() {
                 />
                 <MapController coords={center} />
                 
-                {instructors
+                {filteredInstructors
                   .filter(i => i.lat && i.lng)
                   .map((instructor) => (
                     <Marker
@@ -155,7 +231,14 @@ export default function MapPage() {
           <div className="pt-20 pb-24 px-4 overflow-y-auto h-full">
               <h1 className="text-2xl font-bold mb-4 px-2">Instrutores Próximos</h1>
               <div className="space-y-4">
-                  {instructors.map((instructor) => (
+                  {filteredInstructors.length === 0 ? (
+                      <Card className="border-none shadow-sm">
+                        <CardContent className="p-6 text-sm text-slate-500">
+                          Nenhum instrutor encontrado com esses filtros.
+                        </CardContent>
+                      </Card>
+                  ) : (
+                    filteredInstructors.map((instructor) => (
                       <Link key={instructor.id} href={`/instrutor/${instructor.id}`}>
                         <Card className="border-none shadow-sm active:scale-[0.98] transition-transform">
                             <CardContent className="p-4 flex gap-4">
@@ -184,7 +267,8 @@ export default function MapPage() {
                             </CardContent>
                         </Card>
                       </Link>
-                  ))}
+                    ))
+                  )}
               </div>
           </div>
       )}

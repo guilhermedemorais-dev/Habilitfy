@@ -27,23 +27,27 @@ import {
   type PaymentGateway,
   type Integration,
   type IntegrationInsert,
+  messages,
+  type Message,
+  type InsertMessage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, sql, ne, isNotNull } from "drizzle-orm";
+import { eq, and, or, gte, lte, desc, sql, ne, isNotNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
+  getUserByUsername(email: string): Promise<User | undefined>;
   getUsers(role?: string): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
-  
+
   getInstructor(id: string): Promise<Instructor | undefined>;
   getInstructorByUserId(userId: string): Promise<Instructor | undefined>;
   getAllInstructors(status?: string): Promise<Instructor[]>;
   getInstructorsWithUser(status?: string): Promise<(Instructor & { user: User | null })[]>;
   createInstructor(instructor: InsertInstructor): Promise<Instructor>;
   updateInstructor(id: string, data: Partial<InsertInstructor>): Promise<Instructor>;
-  
+
   getBooking(id: string): Promise<Booking | undefined>;
   getBookingsByStudent(studentId: string): Promise<Booking[]>;
   getBookingsByInstructor(instructorId: string): Promise<Booking[]>;
@@ -176,10 +180,10 @@ export interface IStorage {
       fields?: IntegrationInsert["fields"];
     },
   ): Promise<Integration>;
-  
+
   createReview(review: InsertReview): Promise<Review>;
   getReviewsByInstructor(instructorId: string): Promise<Review[]>;
-  
+
   createAvailability(avail: InsertAvailability): Promise<Availability>;
   getAvailabilityByInstructor(instructorId: string): Promise<Availability[]>;
 }
@@ -187,6 +191,11 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
@@ -544,26 +553,26 @@ export class DatabaseStorage implements IStorage {
     ] = await Promise.all([
       instructorTotalConditions.length > 0
         ? db
-            .select({
-              instructorsTotal: sql<number>`
+          .select({
+            instructorsTotal: sql<number>`
                 count(${instructors.id})
               `.mapWith(Number),
-              instructorsWithLocation: sql<number>`
+            instructorsWithLocation: sql<number>`
                 count(*) filter (where ${instructors.lat} is not null and ${instructors.lng} is not null)
               `.mapWith(Number),
-            })
-            .from(instructors)
-            .where(and(...instructorTotalConditions))
+          })
+          .from(instructors)
+          .where(and(...instructorTotalConditions))
         : db
-            .select({
-              instructorsTotal: sql<number>`
+          .select({
+            instructorsTotal: sql<number>`
                 count(${instructors.id})
               `.mapWith(Number),
-              instructorsWithLocation: sql<number>`
+            instructorsWithLocation: sql<number>`
                 count(*) filter (where ${instructors.lat} is not null and ${instructors.lng} is not null)
               `.mapWith(Number),
-            })
-            .from(instructors),
+          })
+          .from(instructors),
       db
         .select({
           studentsTotal: sql<number>`
@@ -1241,19 +1250,19 @@ export class DatabaseStorage implements IStorage {
       .insert(reviews)
       .values(reviewData)
       .returning();
-    
+
     const allReviews = await db.select().from(reviews)
       .where(eq(reviews.instructorId, reviewData.instructorId));
-    
+
     const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-    
+
     await db.update(instructors)
       .set({
         rating: avgRating.toFixed(2),
         reviewsCount: allReviews.length,
       })
       .where(eq(instructors.id, reviewData.instructorId));
-    
+
     return review;
   }
 
@@ -1274,6 +1283,93 @@ export class DatabaseStorage implements IStorage {
   async getAvailabilityByInstructor(instructorId: string): Promise<Availability[]> {
     return db.select().from(availability)
       .where(eq(availability.instructorId, instructorId));
+  }
+
+  async createMessage(data: InsertMessage): Promise<Message> {
+    const [msg] = await db.insert(messages).values(data).returning();
+    return msg;
+  }
+
+  async getMessages(contactId: string, currentUserId: string): Promise<Message[]> {
+    return db.select()
+      .from(messages)
+      .where(
+        or(
+          and(eq(messages.senderId, currentUserId), eq(messages.receiverId, contactId)),
+          and(eq(messages.senderId, contactId), eq(messages.receiverId, currentUserId))
+        )
+      )
+      .orderBy(messages.createdAt);
+  }
+
+  async getContacts(userId: string): Promise<User[]> {
+    // Determine contacts based on bookings
+    // If user is instructor: get students from their bookings
+    // If user is student: get instructors from their bookings
+
+    // This is a simplified implementation. Optimally we would use a more complex query.
+    // For MVP, we'll query bookings involving the user.
+
+    /* 
+       Ideally:
+       SELECT DISTINCT u.* FROM users u
+       JOIN bookings b ON (b.student_id = u.id OR b.instructor_id = (SELECT id FROM instructors WHERE user_id = u.id))
+       WHERE ...
+    */
+
+    // Let's rely on retrieving bookings first
+
+    // Case 1: Start with assuming the user might be a student or instructor.
+    // We will just find all unique user IDs they interacted with in bookings.
+
+    // Note: To implement this purely with Drizzle and clean code given context, 
+    // it's easier to just fetch relevant bookings and map the unique counterparts.
+
+    // Fetch bookings where user is student
+    const studentBookings = await db.query.bookings.findMany({
+      where: eq(bookings.studentId, userId),
+      with: { instructor: { with: { user: true } } }
+    });
+
+    // Fetch bookings where user is instructor
+    const instructorProfile = await db.query.instructors.findFirst({
+      where: eq(instructors.userId, userId)
+    });
+
+    const instructorBookings = instructorProfile
+      ? await db.query.bookings.findMany({
+        where: eq(bookings.instructorId, instructorProfile.id),
+        with: { student: true }
+      })
+      : [];
+
+    const contactsMap = new Map<string, User>();
+
+    studentBookings.forEach(b => {
+      if (b.instructor?.user) {
+        contactsMap.set(b.instructor.user.id, b.instructor.user);
+      }
+    });
+
+    instructorBookings.forEach(b => {
+      if (b.student) {
+        contactsMap.set(b.student.id, b.student);
+      }
+    });
+
+    return Array.from(contactsMap.values());
+  }
+
+  async markMessagesAsRead(senderId: string, receiverId: string): Promise<void> {
+    await db.update(messages)
+      .set({ read: true })
+      .where(
+        and(
+          eq(messages.senderId, senderId),
+          eq(messages.receiverId, receiverId),
+          eq(messages.read, false)
+        )
+      );
   }
 }
 

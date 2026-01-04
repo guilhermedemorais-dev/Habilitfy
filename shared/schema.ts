@@ -79,6 +79,7 @@ export const users = pgTable("users", {
   state: varchar("state"),
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
+  password: text("password"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -258,6 +259,8 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   }),
   bookingsAsStudent: many(bookings, { relationName: 'student_bookings' }),
   reviews: many(reviews),
+  sentMessages: many(messages, { relationName: 'sent_messages' }),
+  receivedMessages: many(messages, { relationName: 'received_messages' }),
 }));
 
 export const instructorsRelations = relations(instructors, ({ one, many }) => ({
@@ -298,6 +301,16 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
   }),
 }));
 
+export const messages = pgTable("messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  senderId: varchar("sender_id").references(() => users.id).notNull(),
+  receiverId: varchar("receiver_id").references(() => users.id).notNull(),
+  bookingId: varchar("booking_id").references(() => bookings.id),
+  content: text("content").notNull(),
+  read: boolean("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const transactionsRelations = relations(transactions, ({ one }) => ({
   booking: one(bookings, {
     fields: [transactions.bookingId],
@@ -310,6 +323,23 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
   toUser: one(users, {
     fields: [transactions.toUserId],
     references: [users.id],
+  }),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  sender: one(users, {
+    fields: [messages.senderId],
+    references: [users.id],
+    relationName: 'sent_messages',
+  }),
+  receiver: one(users, {
+    fields: [messages.receiverId],
+    references: [users.id],
+    relationName: 'received_messages',
+  }),
+  booking: one(bookings, {
+    fields: [messages.bookingId],
+    references: [bookings.id],
   }),
 }));
 
@@ -400,3 +430,11 @@ export const insertAvailabilitySchema = createInsertSchema(availability).omit({
 });
 export type InsertAvailability = z.infer<typeof insertAvailabilitySchema>;
 export type Availability = typeof availability.$inferSelect;
+
+export const insertMessageSchema = createInsertSchema(messages).omit({
+  id: true,
+  createdAt: true,
+  read: true,
+});
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type Message = typeof messages.$inferSelect;

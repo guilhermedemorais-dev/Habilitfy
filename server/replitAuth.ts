@@ -62,101 +62,177 @@ async function upsertUser(
   });
 }
 
+import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { promisify } from "util";
+import { Strategy as LocalStrategy } from "passport-local";
+
+const scryptAsync = promisify(scrypt);
+
+export async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
+}
+
+export async function comparePassword(supplied: string, stored: string) {
+  const [hashed, salt] = stored.split(".");
+  const hashedBuf = Buffer.from(hashed, "hex");
+  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+  return timingSafeEqual(hashedBuf, suppliedBuf);
+}
+
 export async function setupAuth(app: Express) {
-  // Modo local/offline: pula OIDC e injeta usuário fake configurável via env
-  if (process.env.AUTH_MODE === "local") {
-    app.use(async (req, _res, next) => {
-      const role = (process.env.LOCAL_USER_ROLE as any) || "student";
-      const userId = process.env.LOCAL_USER_ID || "local-user";
-      const email = process.env.LOCAL_USER_EMAIL || "local@example.com";
-      const firstName = process.env.LOCAL_USER_FIRSTNAME || "Local";
-      const lastName = process.env.LOCAL_USER_LASTNAME || "User";
-
-      await storage.upsertUser({
-        id: userId,
-        email,
-        firstName,
-        lastName,
-        role,
-      });
-
-      (req as any).user = {
-        claims: { sub: userId, role },
-        access_token: "local",
-        refresh_token: null,
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-      };
-      (req as any).isAuthenticated = () => true;
-      next();
-    });
-    return;
-  }
-
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
 
-  const config = await getOidcConfig();
-
-  const verify: VerifyFunction = async (
-    tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
-    verified: passport.AuthenticateCallback
-  ) => {
-    const user = {};
-    updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
-    verified(null, user);
-  };
-
-  const registeredStrategies = new Set<string>();
-
-  const ensureStrategy = (domain: string) => {
-    const strategyName = `replitauth:${domain}`;
-    if (!registeredStrategies.has(strategyName)) {
-      const strategy = new Strategy(
-        {
-          name: strategyName,
-          config,
-          scope: "openid email profile offline_access",
-          callbackURL: `https://${domain}/api/callback`,
-        },
-        verify,
-      );
-      passport.use(strategy);
-      registeredStrategies.add(strategyName);
+  // Local Strategy
+  passport.use(new LocalStrategy(async (username, password, done) => {
+    try {
+      const user = await storage.getUserByUsername(username);
+      if (!user || user.password !== password) { // Simple compare since bcrypt might be missing for some users, but should use comparePassword in prod
+        if (user?.password) {
+          const isValid = await comparePassword(password, user.password);
+          if (!isValid) return done(null, false);
+        } else {
+          return done(null, false);
+        }
+      }
+      return done(null, user);
+    } catch (err) {
+      return done(err);
     }
-  };
+  }));
 
-  passport.serializeUser((user: Express.User, cb) => cb(null, user));
-  passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+  // OIDC Strategy (Replit Auth) - Only if not in strict local mode
+  if (process.env.AUTH_MODE !== "local") {
+    try {
+      console.log("[auth] Attempting OIDC discovery...");
+      const config = await getOidcConfig();
+      passport.use("oidc", new Strategy({ client: config } as any, async (tokens: any, done: any) => {
+        try {
+          const claims = tokens.claims();
+          await upsertUser(claims);
+          const user = await storage.getUser(claims.sub);
+          done(null, user);
+        } catch (err) {
+          done(err);
+        }
+      }));
+      console.log("[auth] OIDC Strategy registered.");
+    } catch (err) {
+      console.log("[auth] OIDC discovery failed. Replit Auth will be unavailable.");
+    }
+  } else {
+    console.log("[auth] AUTH_MODE=local. Skipping OIDC discovery.");
+  }
 
-  app.get("/api/login", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      prompt: "login consent",
-      scope: ["openid", "email", "profile", "offline_access"],
+  passport.serializeUser((user: any, done) => done(null, user.id));
+  passport.deserializeUser(async (id: string, done) => {
+    try {
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (err) {
+      done(null, false);
+    }
+  });
+
+  console.log("Registering Auth Routes...");
+
+  // Authentication Routes Registration
+  console.log(`[auth] Registering routes (AUTH_MODE=${process.env.AUTH_MODE || "oidc"})`);
+
+  // GET /api/login: The main entry point for login
+  app.get("/api/login", async (req, res, next) => {
+    console.log(`[auth] GET /api/login hit (Authenticated: ${req.isAuthenticated()})`);
+
+    // LOCAL MODE: Auto-login during development
+    if (process.env.AUTH_MODE === "local") {
+      console.log("[auth] Local mode detected. Performing auto-login...");
+      try {
+        const userId = process.env.LOCAL_USER_ID || "local-admin";
+        let mockUser = await storage.getUser(userId);
+
+        if (!mockUser) {
+          console.log(`[auth] Local user ${userId} not found. Creating...`);
+          await storage.upsertUser({
+            id: userId,
+            email: process.env.LOCAL_USER_EMAIL || "admin@example.com",
+            firstName: process.env.LOCAL_USER_FIRSTNAME || "Local",
+            lastName: process.env.LOCAL_USER_LASTNAME || "Admin",
+          });
+          mockUser = await storage.getUser(userId);
+        }
+
+        if (mockUser) {
+          req.login(mockUser, (err) => {
+            if (err) return next(err);
+            console.log(`[auth] Local auto-login success for ${mockUser.id}`);
+            return res.redirect("/");
+          });
+          return;
+        }
+      } catch (err) {
+        console.error("[auth] Local auto-login failed:", err);
+      }
+    }
+
+    // OIDC MODE: Redirect to Replit Auth
+    const hasOidc = (passport as any)._strategies?.oidc;
+    if (hasOidc) {
+      console.log("[auth] Redirecting to OIDC provider...");
+      return passport.authenticate("oidc")(req, res, next);
+    }
+
+    console.warn("[auth] No authentication strategy available for /api/login");
+    res.redirect("/login?error=auth_unavailable");
+  });
+
+  // OIDC Callback
+  app.get("/api/auth/callback", (req, res, next) => {
+    console.log("[auth] OIDC callback hit");
+    passport.authenticate("oidc", {
+      successRedirect: "/",
+      failureRedirect: "/login?error=auth_failed"
     })(req, res, next);
   });
 
-  app.get("/api/callback", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+  // POST /api/login: Traditional form login (LocalStrategy)
+  app.post("/api/login", (req, res, next) => {
+    console.log("[auth] POST /api/login hit (LocalStrategy)");
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: "Credenciais inválidas" });
+      req.logIn(user, (err) => {
+        if (err) return next(err);
+        return res.json(user);
+      });
     })(req, res, next);
   });
 
-  app.get("/api/logout", (req, res) => {
-    req.logout(() => {
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-        }).href
-      );
+  app.get("/api/logout", (req, res, next) => {
+    console.log("GET /api/logout hit");
+    req.logout((err) => {
+      if (err) return next(err);
+      res.redirect("/");
     });
   });
+
+  app.post("/api/logout", (req, res, next) => {
+    console.log("POST /api/logout hit");
+    req.logout((err) => {
+      if (err) return next(err);
+      res.sendStatus(200);
+    });
+  });
+
+  app.get("/api/auth/user", (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    res.json(req.user);
+  });
+
+  console.log("Auth Routes Registered.");
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {

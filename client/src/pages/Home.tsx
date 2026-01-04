@@ -1,171 +1,704 @@
-import { Link } from "wouter";
-import { MapPin, Search, Star, ChevronRight, ShieldCheck, ShipWheel } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import type { LucideIcon } from "lucide-react";
+import { useState } from "react";
+import {
+  Bike,
+  Bus,
+  Car,
+  CheckCircle2,
+  Filter,
+  Lock,
+  MapPin,
+  Search,
+  ShieldCheck,
+  Star,
+  Truck,
+  UserCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { navItems } from "@/components/layout/navigation";
+import { instructors, type Instructor } from "@/lib/data";
 import heroImg from "@assets/generated_images/happy_driving_lesson_in_brazil.png";
-import logo from "@assets/36433982-73c6-4454-b519-1c5f29971d9f-removebg-preview_1_(1)_1765225573308.png";
-import { useAuth } from "@/hooks/useAuth";
 
-export default function Home() {
-  const { user, isAuthenticated, login, logout } = useAuth();
-  const displayName = user?.firstName || user?.email || "Usuário";
+const logoBlue = "/logo-new-blue.svg";
+
+const categories = [
+  { icon: Bike, label: "Moto" },
+  { icon: Car, label: "Carro" },
+  { icon: Bus, label: "Ônibus" },
+  { icon: Truck, label: "Caminhão" },
+];
+
+const ratingOptions = [4, 4.5, 4.8];
+
+const headerNav = [
+  { label: "Início", href: "#inicio" },
+  { label: "Como funciona", href: "#como-funciona" },
+  { label: "Para alunos", href: "#para-alunos" },
+  { label: "Para instrutores", href: "#para-instrutores" },
+  { label: "Quem somos", href: "#quem-somos" },
+  { label: "Contato", href: "#contato" },
+];
+
+const howSteps = [
+  "Cadastro",
+  "Validação documental",
+  "Agendamento online",
+  "Pagamento seguro",
+  "Avaliação",
+];
+
+const whyItems = [
+  {
+    title: "No seu ritmo, do seu jeito",
+    description:
+      "Aulas adaptadas ao nível, dificuldade ou objetivo de cada aluno.",
+  },
+  {
+    title: "Você escolhe o melhor horário",
+    description:
+      "Agendamento online direto na agenda do instrutor, sem burocracia.",
+  },
+  {
+    title: "Sem pacotes engessados",
+    description: "Você paga apenas pelas aulas que fazem sentido para você.",
+  },
+];
+
+const complianceItems = [
+  {
+    title: "Apenas alunos aptos",
+    description:
+      "Cadastro permitido somente para quem possui aprovação no exame teórico ou CNH válida.",
+    icon: UserCheck,
+  },
+  {
+    title: "Instrutores validados",
+    description: "Somente instrutores credenciados podem oferecer aulas na plataforma.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Pagamento seguro",
+    description: "Todas as transações acontecem dentro do sistema.",
+    icon: Lock,
+  },
+];
+
+const CategoryPill = ({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={active}
+    className={cn(
+      "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-sm transition",
+      active
+        ? "border-transparent bg-[#2746e0] text-white shadow-md shadow-blue-900/20"
+        : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600"
+    )}
+  >
+    <Icon className="h-4 w-4" />
+    <span>{label}</span>
+  </button>
+);
+
+const InstructorCard = ({ instructor }: { instructor: Instructor }) => {
+  const categoryLabel = instructor.category;
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="px-6 py-4 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-           <img src={logo} alt="HabilitFy Logo" className="h-12 w-auto object-contain" />
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-center gap-3">
+        <div className="h-12 w-12 overflow-hidden rounded-xl bg-slate-100">
+          <img
+            src={instructor.photo}
+            alt={`Foto de ${instructor.name}`}
+            className="h-full w-full object-cover"
+          />
         </div>
-        {isAuthenticated ? (
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <p className="text-xs text-slate-400">Logado</p>
-              <p className="text-sm font-semibold text-slate-700 truncate max-w-[160px]">
-                {displayName}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-primary border-primary/30"
-              onClick={() => logout()}
-            >
-              Sair
-            </Button>
-          </div>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-primary font-medium"
-            onClick={() => login("/dashboard/aluno")}
-          >
-            Entrar
-          </Button>
-        )}
-      </header>
-
-      {/* Hero Section */}
-      <section className="relative pt-8 pb-12 px-6 overflow-hidden">
-        <div className="absolute inset-0 z-0 opacity-10 bg-gradient-to-br from-green-500 to-yellow-400" />
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative z-10 max-w-md mx-auto text-center"
-        >
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight text-slate-900">
-            Sua CNH na mão, <br />
-            <span className="text-primary">sem estresse.</span>
-          </h1>
-          <p className="text-slate-600 mb-8 text-lg">
-            Encontre os melhores instrutores credenciados pelo Detran perto de você. Agende aulas avulsas ou pacotes.
+        <div>
+          <p className="text-sm font-semibold text-slate-900">
+            {instructor.name}
           </p>
+          <div className="flex items-center gap-1 text-xs text-slate-500">
+            <Star className="h-3.5 w-3.5 text-amber-400" />
+            <span>
+              {instructor.rating.toFixed(1)} ({instructor.reviewsCount})
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+        <MapPin className="h-3.5 w-3.5" />
+        <span>{instructor.neighborhood}</span>
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-500">
+          {categoryLabel}
+        </span>
+        <span className="text-sm font-semibold text-slate-900">
+          R$ {instructor.price}/aula
+        </span>
+      </div>
+      <Link href={`/instrutor/${instructor.id}`}>
+        <Button className="mt-4 w-full rounded-full" size="sm">
+          Agendar
+        </Button>
+      </Link>
+    </div>
+  );
+};
 
-          <div className="bg-white p-2 rounded-2xl shadow-lg border border-gray-100 flex items-center gap-2 mb-8">
-            <MapPin className="text-primary w-5 h-5 ml-2" />
-            <input 
-              type="text" 
-              placeholder="Digite seu CEP ou bairro" 
-              className="flex-1 bg-transparent border-none focus:ring-0 text-sm h-10"
-            />
-            <Link href="/instrutores">
-              <Button size="icon" className="bg-primary hover:bg-green-700 text-white rounded-xl h-10 w-10 shadow-md">
-                <Search className="w-5 h-5" />
-              </Button>
+const DesktopSidebar = () => {
+  const [location] = useLocation();
+
+  return (
+    <aside className="fixed left-0 top-0 hidden h-screen w-20 flex-col items-center bg-slate-950 py-6 text-white md:flex">
+      <nav className="mt-6 flex flex-1 flex-col items-center justify-center gap-3">
+        {navItems.map((item) => {
+          const isActive = location === item.href;
+          return (
+            <Link key={item.href} href={item.href}>
+              <a
+                aria-label={item.label}
+                title={item.label}
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-2xl transition",
+                  isActive
+                    ? "border border-blue-500/40 bg-blue-600/25 text-blue-200 shadow-lg shadow-blue-900/20"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="sr-only">{item.label}</span>
+              </a>
             </Link>
-          </div>
-        </motion.div>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+};
 
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="relative z-10 mt-4 rounded-3xl overflow-hidden shadow-xl mx-4 md:mx-auto max-w-2xl border-4 border-white aspect-video"
-        >
-          <img src={heroImg} alt="Driving Lesson" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
-            <div className="text-white">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full">PROMO</span>
-              </div>
-              <h3 className="text-2xl font-bold">1ª Aula por R$ 69,90</h3>
-              <p className="text-white/90 text-sm">Para novos alunos. Aproveite hoje!</p>
+export default function Home() {
+  const [, setLocation] = useLocation();
+  const [searchValue, setSearchValue] = useState("");
+  const [activeCategories, setActiveCategories] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [minRating, setMinRating] = useState<number | null>(null);
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const featuredInstructors = instructors.slice(0, 4);
+
+  const hasActiveFilters =
+    activeCategories.length > 0 ||
+    minRating !== null ||
+    minPrice.trim() !== "" ||
+    maxPrice.trim() !== "";
+
+  const toggleCategory = (label: string) => {
+    setActiveCategories((prev) =>
+      prev.includes(label)
+        ? prev.filter((category) => category !== label)
+        : [...prev, label],
+    );
+  };
+
+  const goToMap = () => {
+    const params = new URLSearchParams();
+    const search = searchValue.trim();
+
+    if (search) params.set("q", search);
+    if (activeCategories.length > 0) {
+      params.set("categories", activeCategories.join(","));
+    }
+    if (minRating !== null) params.set("minRating", String(minRating));
+    if (minPrice.trim() !== "") params.set("minPrice", minPrice.trim());
+    if (maxPrice.trim() !== "") params.set("maxPrice", maxPrice.trim());
+
+    const query = params.toString();
+    setLocation(`/instrutores${query ? `?${query}` : ""}`);
+  };
+
+  const clearFilters = () => {
+    setActiveCategories([]);
+    setMinRating(null);
+    setMinPrice("");
+    setMaxPrice("");
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-slate-900">
+      <DesktopSidebar />
+
+      <div className="md:ml-20">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 max-w-6xl items-center px-4 md:px-8">
+            <div className="flex w-32 items-center">
+              <img
+                src={logoBlue}
+                alt="HabilitFy"
+                className="h-12 w-auto md:h-14"
+              />
             </div>
+            <nav className="hidden flex-1 items-center justify-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+              {headerNav.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="transition hover:text-slate-900"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <div className="hidden w-32 md:block" />
           </div>
-        </motion.div>
-      </section>
+        </header>
 
-      {/* Features / Categories */}
-      <section className="px-6 py-8 bg-white">
-        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-          Por que escolher a HabilitFy?
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-none shadow-sm bg-green-50/50">
-            <CardContent className="p-6 flex flex-col items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-primary">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-lg">100% Credenciados</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Todos os instrutores passam por verificação rigorosa do Detran e antecedentes criminais.
+        <main
+          id="inicio"
+          className="mx-auto flex max-w-6xl flex-col gap-12 px-4 pb-24 pt-8 md:px-8"
+        >
+          <section className="relative overflow-hidden rounded-[28px] bg-slate-950 text-white shadow-xl">
+            <img
+              src={heroImg}
+              alt="Aula prática de direção"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-900/45 to-transparent" />
+            <div className="relative z-10 max-w-3xl px-6 py-12 md:px-12 md:py-16">
+              <h1
+                className="text-3xl font-semibold leading-tight text-[#2746e0] md:text-4xl lg:text-5xl"
+                style={{ textShadow: "0 2px 12px rgba(0,0,0,0.35)" }}
+              >
+                Mais liberdade para aprender. Mais autonomia para ensinar.
+              </h1>
+              <p
+                className="mt-5 text-base text-white/80 md:text-lg"
+                style={{ textShadow: "0 2px 10px rgba(0,0,0,0.35)" }}
+              >
+                Conectamos alunos aptos à prática a instrutores credenciados, de
+                forma autônoma e simplificada, com agendamento online, pagamento
+                seguro e tudo dentro das regras do processo de habilitação.
               </p>
-            </CardContent>
-          </Card>
-          
-          <Card className="border-none shadow-sm bg-yellow-50/50">
-             <CardContent className="p-6 flex flex-col items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-700">
-                <Star className="w-6 h-6" />
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/login?role=student">
+                  <Button className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-blue-600 hover:bg-slate-100">
+                    Sou aluno
+                  </Button>
+                </Link>
+                <Link href="/login?role=instructor">
+                  <Button className="h-12 rounded-full border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white hover:bg-white/20">
+                    Sou instrutor
+                  </Button>
+                </Link>
               </div>
-              <h3 className="font-bold text-lg">Avaliação Real</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Veja reviews reais de outros alunos antes de escolher seu instrutor.
-              </p>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-           <Card className="border-none shadow-sm bg-blue-50/50">
-             <CardContent className="p-6 flex flex-col items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700">
-                <ShipWheel className="w-6 h-6" />
+          <section className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {categories.map((category) => (
+                <CategoryPill
+                  key={category.label}
+                  {...category}
+                  active={activeCategories.includes(category.label)}
+                  onClick={() => toggleCategory(category.label)}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => setShowFilters((prev) => !prev)}
+                aria-expanded={showFilters}
+                className={cn(
+                  "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-sm transition",
+                  showFilters || hasActiveFilters
+                    ? "border-blue-200 bg-blue-50 text-[#2746e0]"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600",
+                )}
+              >
+                <Filter className="h-4 w-4" />
+                Filtros
+              </button>
+            </div>
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center">
+              <div className="flex flex-1 items-center gap-3 text-slate-400">
+                <Search className="h-5 w-5" />
+                <input
+                  type="text"
+                  placeholder="Digite seu bairro ou cidade"
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      goToMap();
+                    }
+                  }}
+                  className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                />
               </div>
-              <h3 className="font-bold text-lg">Carro ou Próprio</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Faça aula no carro da autoescola ou treine no seu próprio veículo (para habilitados).
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+              <Button
+                className="h-10 rounded-full px-6 text-sm font-semibold"
+                onClick={goToMap}
+              >
+                Buscar
+              </Button>
+            </div>
 
-      {/* CTA Section */}
-      <section className="px-6 py-12 pb-24 text-center">
-        <div className="flex flex-col items-center gap-3">
-          <Link href="/instrutores">
-            <Button size="lg" className="w-full max-w-sm bg-primary hover:bg-green-700 text-white text-lg h-14 rounded-2xl shadow-xl shadow-green-200 animate-pulse-slow">
-              Encontrar Instrutor Agora
-              <ChevronRight className="ml-2 w-5 h-5" />
-            </Button>
-          </Link>
-          <Link href="/login?role=instructor">
-            <Button
-              size="lg"
-              variant="outline"
-              className="w-full max-w-sm border-blue-200 text-blue-700 hover:bg-blue-50 font-semibold"
-            >
-              Sou Instrutor
-            </Button>
-          </Link>
-        </div>
-        <p className="mt-4 text-sm text-slate-400">
-          Mais de 5.000 alunos aprovados em 2024
-        </p>
-      </section>
+            {showFilters && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Avaliação mínima
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setMinRating(null)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-semibold transition",
+                      minRating === null
+                        ? "border-transparent bg-[#2746e0] text-white"
+                        : "border-slate-200 text-slate-600 hover:border-blue-200 hover:text-blue-600",
+                    )}
+                  >
+                    Todas
+                  </button>
+                  {ratingOptions.map((rating) => (
+                    <button
+                      key={rating}
+                      type="button"
+                      onClick={() => setMinRating(rating)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-semibold transition",
+                        minRating === rating
+                          ? "border-transparent bg-[#2746e0] text-white"
+                          : "border-slate-200 text-slate-600 hover:border-blue-200 hover:text-blue-600",
+                      )}
+                    >
+                      {rating.toFixed(1)}+
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Preço mínimo
+                    <input
+                      type="number"
+                      min="0"
+                      value={minPrice}
+                      onChange={(event) => setMinPrice(event.target.value)}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 focus:border-blue-200 focus:outline-none"
+                      placeholder="R$ 0"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Preço máximo
+                    <input
+                      type="number"
+                      min="0"
+                      value={maxPrice}
+                      onChange={(event) => setMaxPrice(event.target.value)}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 focus:border-blue-200 focus:outline-none"
+                      placeholder="R$ 200"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-600"
+                  >
+                    Limpar filtros
+                  </button>
+                  <Button
+                    size="sm"
+                    className="rounded-full px-4 text-xs font-semibold"
+                    onClick={() => {
+                      setShowFilters(false);
+                      goToMap();
+                    }}
+                  >
+                    Aplicar filtros
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">
+                Instrutores bem avaliados
+              </h3>
+              <p className="text-sm text-slate-500">
+                Profissionais credenciados, próximos de você e avaliados por
+                alunos reais.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredInstructors.map((instructor) => (
+                <InstructorCard key={instructor.id} instructor={instructor} />
+              ))}
+            </div>
+          </section>
+
+          <section
+            id="como-funciona"
+            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8"
+          >
+            <h3 className="text-xl font-semibold text-slate-900">Como funciona</h3>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {howSteps.map((step, index) => (
+                <div
+                  key={step}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    0{index + 1}
+                  </span>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {step}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+              <h3 className="text-2xl font-semibold text-slate-900">
+                Uma nova forma de aprender — e ensinar.
+              </h3>
+              <p className="mt-4 text-sm text-slate-600 md:text-base">
+                O HabilitFy é um marketplace digital de aulas práticas de
+                direção, criado para conectar alunos aptos à prática a
+                instrutores credenciados, de forma simples, transparente e
+                organizada.
+              </p>
+              <p className="mt-4 text-sm text-slate-600 md:text-base">
+                Inspirado em modelos já consolidados internacionalmente, o
+                sistema permite que alunos escolham instrutores com base em
+                critérios reais — localização, avaliações e disponibilidade —
+                enquanto instrutores atuam de forma independente, com autonomia
+                e dentro das normas do processo de habilitação definidas pelos
+                órgãos reguladores de trânsito.
+              </p>
+              <p className="mt-4 text-sm font-semibold text-slate-900">
+                Aqui, o aprendizado se adapta à pessoa.
+                <br />
+                Não o contrário.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {["Autonomia", "Segurança", "Praticidade"].map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-blue-100 bg-blue-50 px-4 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-600"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Por que o HabilitFy?
+                </h3>
+                <div className="mt-5 space-y-4">
+                  {whyItems.map((item) => (
+                    <div key={item.title} className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <CheckCircle2 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {item.title}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {item.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-3xl bg-slate-900 p-6 text-white shadow-sm">
+                <h3 className="text-lg font-semibold">Tudo dentro das regras.</h3>
+                <p className="mt-3 text-sm text-slate-300">
+                  O HabilitFy opera respeitando as normas do processo de
+                  habilitação no Brasil, garantindo segurança jurídica,
+                  transparência e conformidade em todas as etapas.
+                </p>
+                <div className="mt-6 space-y-4">
+                  {complianceItems.map((item) => (
+                    <div key={item.title} className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-blue-200">
+                        <item.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {item.title}
+                        </p>
+                        <p className="text-sm text-slate-300">
+                          {item.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="para-alunos"
+            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8"
+          >
+            <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  Para quem quer aprender a dirigir
+                </h3>
+                <p className="mt-3 text-sm text-slate-600 md:text-base">
+                  Escolha instrutores próximos, compare avaliações reais, agende
+                  aulas em poucos cliques e pratique com mais confiança.
+                </p>
+                <p className="mt-3 text-sm text-slate-600 md:text-base">
+                  O HabilitFy é indicado para alunos que já possuem aprovação no
+                  exame teórico ou CNH válida e desejam aprender ou evoluir na
+                  prática de direção de forma mais flexível e organizada.
+                </p>
+              </div>
+              <Link href="/login?role=student">
+                <Button className="h-12 rounded-full px-6 text-sm font-semibold">
+                  Sou aluno
+                </Button>
+              </Link>
+            </div>
+          </section>
+
+          <section
+            id="para-instrutores"
+            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8"
+          >
+            <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  Para quem quer ensinar com autonomia
+                </h3>
+                <p className="mt-3 text-sm text-slate-600 md:text-base">
+                  Atue de forma independente, personalize suas aulas, organize
+                  sua agenda e receba de forma segura, sem depender do modelo
+                  tradicional de autoescola.
+                </p>
+                <p className="mt-3 text-sm text-slate-600 md:text-base">
+                  O instrutor utiliza o HabilitFy exclusivamente como plataforma
+                  tecnológica de intermediação, mantendo total autonomia
+                  profissional.
+                </p>
+              </div>
+              <Link href="/login?role=instructor">
+                <Button className="h-12 rounded-full px-6 text-sm font-semibold">
+                  Sou instrutor
+                </Button>
+              </Link>
+            </div>
+          </section>
+
+          <section
+            id="quem-somos"
+            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8"
+          >
+            <h3 className="text-xl font-semibold text-slate-900">Quem somos</h3>
+            <p className="mt-3 text-sm text-slate-600 md:text-base">
+              O HabilitFy nasceu para modernizar o ensino prático de direção no
+              Brasil, utilizando tecnologia para reduzir burocracias, aumentar a
+              transparência e criar relações mais equilibradas entre alunos e
+              instrutores.
+            </p>
+            <p className="mt-3 text-sm text-slate-600 md:text-base">
+              Acreditamos que plataformas digitais devem organizar processos,
+              respeitar as normas legais e facilitar conexões profissionais de
+              forma clara e responsável.
+            </p>
+          </section>
+
+          <footer
+            id="contato"
+            className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm md:p-8"
+          >
+            <div className="grid gap-8 md:grid-cols-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  HabilitFy
+                </p>
+                <p className="mt-3 text-sm text-slate-600">
+                  HabilitFy é uma plataforma digital de intermediação entre
+                  alunos aptos à prática de direção e instrutores credenciados,
+                  respeitando as normas vigentes do processo de habilitação
+                  definidas pelos órgãos reguladores de trânsito.
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Mapa do site
+                </p>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {headerNav.map((item) => (
+                    <li key={item.href}>
+                      <a
+                        href={item.href}
+                        className="transition hover:text-slate-900"
+                      >
+                        {item.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="space-y-6">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Links legais
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    <li>FAQ</li>
+                    <li>Política de Privacidade (em breve)</li>
+                    <li>Termos de Uso (em breve)</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Empresa desenvolvedora
+                  </p>
+                  <p className="mt-3 text-sm text-slate-600">
+                    Desenvolvido por Sophxy – Tech Solutions
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-400">
+              © 2026 HabilitFy. Todos os direitos reservados.
+            </div>
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }

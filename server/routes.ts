@@ -2,9 +2,35 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertInstructorSchema, insertBookingSchema, insertReviewSchema } from "@shared/schema";
+import { insertInstructorSchema, insertBookingSchema, insertReviewSchema, insertAvailabilitySchema, insertMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } from "./abacatepay";
+import rateLimit from "express-rate-limit";
+
+// Rate limiters for different types of operations
+const bookingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // max 10 bookings per IP
+  message: { message: 'Muitas tentativas de agendamento. Tente novamente em 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // max 20 payment attempts per IP
+  message: { message: 'Muitas tentativas de pagamento. Tente novamente em 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // max 100 requests per minute per IP
+  message: { message: 'Muitas requisições. Tente novamente em alguns instantes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const transactionStatusValues = [
   "pending",
@@ -162,13 +188,17 @@ const mergeSecretIntegrationFields = (
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
+  app.get('/api/ping', (req, res) => {
+    res.json({ message: 'pong', timestamp: new Date().toISOString() });
+  });
+
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      
+
       const instructorProfile = await storage.getInstructorByUserId(userId);
-      
+
       res.json({ ...user, instructorProfile });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -215,10 +245,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/instructors/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/instructors/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const instructor = await storage.updateInstructor(req.params.id, req.body);
-      res.json(instructor);
+      const userId = req.user.claims.sub;
+      const instructor = await storage.getInstructor(req.params.id);
+
+      if (!instructor) {
+        return res.status(404).json({ message: "Instructor not found" });
+      }
+
+      // Verify ownership: user must be the instructor owner or admin
+      const user = await storage.getUser(userId);
+      if (instructor.userId !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden: You don't have permission to modify this instructor" });
+      }
+
+      const updated = await storage.updateInstructor(req.params.id, req.body);
+      res.json(updated);
     } catch (error) {
       console.error("Error updating instructor:", error);
       res.status(500).json({ message: "Failed to update instructor" });
@@ -239,7 +282,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const bookings = await storage.getBookingsByStudent(userId);
-      res.json(bookings);
+
+      // Enrich bookings with instructor details
+      const enrichedBookings = await Promise.all(
+        bookings.map(async (booking) => {
+          const instructor = await storage.getInstructor(booking.instructorId);
+          const instructorUser = instructor
+            ? await storage.getUser(instructor.userId)
+            : null;
+
+          return {
+            ...booking,
+            instructor: instructor && instructorUser ? {
+              id: instructor.id,
+              userId: instructorUser.id,
+              name: `${instructorUser.firstName || ''} ${instructorUser.lastName || ''}`.trim() || instructorUser.email || 'Instrutor',
+              photo: instructorUser.profileImageUrl || '',
+              vehicle: `${instructor.vehicleModel} ${instructor.vehicleYear || ''}`.trim(),
+            } : undefined,
+          };
+        })
+      );
+
+      res.json(enrichedBookings);
     } catch (error) {
       console.error("Error fetching student bookings:", error);
       res.status(500).json({ message: "Failed to fetch bookings" });
@@ -249,17 +314,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/bookings/instructor/:instructorId', isAuthenticated, async (req, res) => {
     try {
       const bookings = await storage.getBookingsByInstructor(req.params.instructorId);
-      res.json(bookings);
+
+      // Enrich bookings with student details
+      const enrichedBookings = await Promise.all(
+        bookings.map(async (booking) => {
+          const student = await storage.getUser(booking.studentId);
+
+          return {
+            ...booking,
+            student: student ? {
+              id: student.id,
+              name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email || 'Aluno',
+              phone: student.phone || undefined,
+            } : undefined,
+          };
+        })
+      );
+
+      res.json(enrichedBookings);
     } catch (error) {
       console.error("Error fetching instructor bookings:", error);
       res.status(500).json({ message: "Failed to fetch bookings" });
     }
   });
 
-  app.post('/api/bookings', isAuthenticated, async (req: any, res) => {
+  app.post('/api/bookings', bookingLimiter, isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const data = insertBookingSchema.parse({ ...req.body, studentId: userId });
+
+      // 1. Check for booking conflicts (same instructor, overlapping time)
+      const existingBookings = await storage.getBookingsByInstructor(data.instructorId);
+      const newStart = new Date(data.date);
+      const newEnd = new Date(newStart.getTime() + (data.duration || 60) * 60000);
+
+      const hasConflict = existingBookings.some(booking => {
+        if (booking.status === 'cancelled') return false;
+
+        const bookingStart = new Date(booking.date);
+        const bookingEnd = new Date(bookingStart.getTime() + (booking.duration || 60) * 60000);
+
+        // Check if time ranges overlap
+        return newStart < bookingEnd && newEnd > bookingStart;
+      });
+
+      if (hasConflict) {
+        return res.status(409).json({
+          message: "Horário indisponível. Este instrutor já possui uma aula agendada neste horário."
+        });
+      }
+
+      // 2. Check if instructor has availability for this time slot
+      const availability = await storage.getAvailabilityByInstructor(data.instructorId);
+      if (availability.length > 0) {
+        const bookingDate = new Date(data.date);
+        const dayOfWeek = bookingDate.getDay();
+        const bookingTime = bookingDate.toTimeString().slice(0, 5); // "HH:mm"
+
+        const hasAvailability = availability.some(slot =>
+          slot.dayOfWeek === dayOfWeek &&
+          bookingTime >= slot.startTime &&
+          bookingTime <= slot.endTime
+        );
+
+        if (!hasAvailability) {
+          return res.status(400).json({
+            message: "Instrutor não disponível neste horário. Verifique os horários disponíveis."
+          });
+        }
+      }
+
       const booking = await storage.createBooking(data);
       res.status(201).json(booking);
     } catch (error) {
@@ -271,8 +395,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/bookings/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/bookings/:id', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const existingBooking = await storage.getBooking(req.params.id);
+
+      if (!existingBooking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      // Verify ownership: user must be the student, instructor, or admin
+      const user = await storage.getUser(userId);
+      const instructor = await storage.getInstructor(existingBooking.instructorId);
+
+      const isStudent = existingBooking.studentId === userId;
+      const isInstructor = instructor?.userId === userId;
+      const isAdmin = user?.role === 'admin';
+
+      if (!isStudent && !isInstructor && !isAdmin) {
+        return res.status(403).json({ message: "Forbidden: You don't have permission to modify this booking" });
+      }
+
       const booking = await storage.updateBooking(req.params.id, req.body);
       if (
         booking.status === "paid" ||
@@ -302,6 +445,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error creating review:", error);
       res.status(500).json({ message: "Failed to create review" });
+    }
+  });
+
+  // Availability routes
+  // Reviews routes
+  app.post('/api/reviews', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertReviewSchema.parse({ ...req.body, studentId: userId });
+
+      // 1. Verify if booking exists and belongs to student
+      const booking = await storage.getBooking(data.bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Reserva não encontrada" });
+      }
+
+      if (booking.studentId !== userId) {
+        return res.status(403).json({ message: "Você só pode avaliar suas próprias reservas" });
+      }
+
+      // 2. Verify if booking is completed (or paid, depending on business rule)
+      if (booking.status !== 'completed' && booking.status !== 'paid') {
+        return res.status(400).json({ message: "Você só pode avaliar aulas concluídas" });
+      }
+
+      // 3. Check for duplicate review
+      const existingReviews = await storage.getReviewsByInstructor(data.instructorId);
+      const hasReviewed = existingReviews.some(r => r.bookingId === data.bookingId);
+
+      if (hasReviewed) {
+        return res.status(409).json({ message: "Você já avaliou esta aula" });
+      }
+
+      const review = await storage.createReview(data);
+
+      // Update instructor rating (async, fire and forget)
+      // TODO: Implement updateInstructorRating in storage if needed for cache/search optimization
+
+      res.status(201).json(review);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Error creating review:", error);
+      res.status(500).json({ message: "Erro ao criar avaliação" });
+    }
+  });
+
+  app.get('/api/instructors/:id/reviews', async (req, res) => {
+    try {
+      const reviews = await storage.getReviewsByInstructor(req.params.id);
+
+      // Enrich with student names if possible (need to fetch users)
+      // For MVP, returning raw reviews. 
+      // Ideally, storage.getReviewsByInstructor should join with users table.
+
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+      res.status(500).json({ message: "Failed to fetch reviews" });
+    }
+  });
+
+  app.get('/api/instructors/:id/availability', async (req, res) => {
+    try {
+      const slots = await storage.getAvailabilityByInstructor(req.params.id);
+      res.json(slots);
+    } catch (error) {
+      console.error("Error fetching availability:", error);
+      res.status(500).json({ message: "Failed to fetch availability" });
+    }
+  });
+
+  app.post('/api/instructors/:id/availability', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const instructor = await storage.getInstructor(req.params.id);
+
+      if (!instructor) {
+        return res.status(404).json({ message: "Instructor not found" });
+      }
+
+      // Verify ownership: user must be the instructor or admin
+      const user = await storage.getUser(userId);
+      if (instructor.userId !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const data = insertAvailabilitySchema.parse({
+        ...req.body,
+        instructorId: req.params.id,
+      });
+
+      const slot = await storage.createAvailability(data);
+      res.status(201).json(slot);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error creating availability:", error);
+      res.status(500).json({ message: "Failed to create availability" });
     }
   });
 
@@ -814,9 +1058,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         payload.fields === undefined
           ? undefined
           : mergeSecretIntegrationFields(
-              normalizeIntegrationFields(payload.fields),
-              current.fields as any,
-            );
+            normalizeIntegrationFields(payload.fields),
+            current.fields as any,
+          );
 
       const integration = await storage.updateIntegration(req.params.id, {
         name: payload.name?.trim(),
@@ -874,9 +1118,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
   };
 
+  // Chat routes
+  app.get('/api/chat/contacts', isAuthenticated, async (req: any, res) => {
+    try {
+      const contacts = await storage.getContacts(req.user.claims.sub);
+      res.json(contacts);
+    } catch (error) {
+      console.error("Error fetching contacts:", error);
+      res.status(500).json({ message: "Failed to fetch contacts" });
+    }
+  });
+
+  app.get('/api/chat/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const messages = await storage.getMessages(req.params.userId, req.user.claims.sub);
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  app.post('/api/chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertMessageSchema.parse({ ...req.body, senderId: userId });
+
+      // Verify if receiver exists
+      const receiver = await storage.getUser(data.receiverId);
+      if (!receiver) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      const message = await storage.createMessage(data);
+      res.status(201).json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Error sending message:", error);
+      res.status(500).json({ message: "Erro ao enviar mensagem" });
+    }
+  });
+
+  app.post('/api/chat/:userId/read', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.markMessagesAsRead(req.params.userId, req.user.claims.sub);
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+      res.status(500).json({ message: "Failed to mark messages as read" });
+    }
+  });
+
   const httpServer = createServer(app);
 
-  app.post('/api/payments/abacatepay', isAuthenticated, async (req: any, res) => {
+  app.post('/api/payments/abacatepay', paymentLimiter, isAuthenticated, async (req: any, res) => {
     try {
       const bookingId = req.body.bookingId as string;
       if (!bookingId) {

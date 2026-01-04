@@ -26,7 +26,7 @@ export function AuthGuard({
 
   if (user && requiredRoles?.length && !requiredRoles.includes(user.role)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-slate-700">
+      <div className="min-h-screen flex items-center justify-center bg-background text-slate-700">
         <div className="bg-white shadow-sm rounded-xl border border-gray-200 px-6 py-5 text-center">
           <p className="text-sm font-semibold text-red-600">Acesso negado</p>
           <p className="text-xs text-slate-500 mt-1">
@@ -40,7 +40,7 @@ export function AuthGuard({
   if (user) return <>{children}</>;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 text-slate-700">
+    <div className="min-h-screen flex items-center justify-center bg-background text-slate-700">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="w-6 h-6 animate-spin text-primary" />
         <p className="text-sm">{message}</p>

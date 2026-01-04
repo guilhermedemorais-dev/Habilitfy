@@ -67,7 +67,7 @@ export default function Booking() {
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen pb-24 font-sans">
+    <div className="bg-background min-h-screen pb-24 font-sans">
       <header className="bg-white p-4 flex items-center gap-4 border-b border-gray-100 sticky top-0 z-10">
         <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
           <ChevronLeft className="w-6 h-6" />

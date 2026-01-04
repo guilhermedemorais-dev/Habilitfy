@@ -59,7 +59,8 @@ Fontes: `docs/produto/*.md`.
 - [ ] CRUD de serviços ofertados por categoria com preço/hora e ativar/desativar.
 - [ ] Cadastro/validação de veículos por categoria (status pendente/aprovado/rejeitado).
 - [ ] Histórico de aulas com check-in/out via QR code (liberações 50/50) e logs.
-- [ ] Chat aluno↔instrutor pós-booking e cadastro de pontos de encontro.
+- [ ] Chat aluno↔instrutor pós-booking (sistema interno, não WhatsApp).
+- [ ] Cadastro de pontos de encontro.
 - [ ] Perfil: upload de foto, chave Pix com histórico de alterações, notificações de validação/pagamento.
 - [ ] Fluxo da primeira aula avaliativa e sugestão de pacote exibida ao aluno.
 
@@ -95,11 +96,17 @@ Fontes: `docs/produto/*.md`.
 - [ ] Gestão financeira: relatórios PDF e conciliação avançada.
 - [ ] Monitoramento do sistema (health, alertas), logs de eventos e incidentes.
 - [ ] Permissões granulares por papel (admin/financeiro/suporte/KYC) e auditoria completa.
-- [ ] Comunicação: chat interno admin↔usuários e central de notificações segmentadas/agendadas.
+- [ ] Permissões granulares por papel (admin/financeiro/suporte/KYC) e auditoria completa.
+
+### Módulo de Comunicação (Chat Interno)
+- [x] Backend: tabela `messages` e rotas de envio/recebimento.
+- [x] Frontend: Hook `useChat` e componente `ChatWindow` com polling.
+- [x] Frontend: Página `/chat` e integração no Dashboard.
+- [x] Substituir botões de WhatsApp pelo Chat Interno.
 
 ### Admin – KYC (`prd-admin-kyc.md`)
-- [ ] Painel de triagem com filtros por tipo/status/cidade e visualização de uploads.
-- [ ] Aprovar/rejeitar com comentário obrigatório, logs e notificações.
+- [x] Painel de triagem com filtros por tipo/status/cidade e visualização de uploads (Implementado em Admin.tsx).
+- [x] Aprovar/rejeitar com comentário obrigatório, logs e notificações (Implementado em Admin.tsx e route PATCH).
 - [ ] Reprocessar análise quando documentos forem reenviados; LGPD e exportação de histórico.
 - [ ] Preparar ganchos para integrações futuras (gov.br/CNH Digital/Detran).
 
@@ -115,13 +122,13 @@ Fontes: `docs/produto/*.md`.
 - [x] Backend OIDC + sessões em Postgres, rotas `/api/login`, `/api/logout`, `/api/auth/user`.
 - [x] Fluxo de login/logout no frontend (chamar `/api/login`/`/api/logout`, tratar 401 e redirecionar).
 - [ ] Proteger rotas no frontend por role (student/instructor/admin) e redirecionar em 401/403. (admin ok via AuthGuard; falta aplicar roles em aluno/instrutor e tratar 401/403 globais)
-- [ ] Endurecer checagem de owner/role nas rotas sensíveis (PATCH booking/instructor, admin).
+- [x] Endurecer checagem de owner/role nas rotas sensíveis (PATCH booking/instructor com validação completa).
 
 ### Módulo Instrutor
 - [x] Endpoints backend: listar/detalhar/criar/atualizar instrutor, rota de pendentes admin.
 - [ ] Expor rotas HTTP de availability (CRUD) e validar horários.
 - [ ] Integrar `SignupInstructor.tsx` com POST `/api/instructors` (hoje mock).
-- [ ] Painel instrutor consumir `/api/bookings/instructor/:id` e mostrar agenda real (hoje mock).
+- [x] Painel instrutor consumir `/api/bookings/instructor/:id` e mostrar agenda real (integrado com dados reais).
 - [ ] UI para disponibilidade (criar/editar slots) conectada às rotas.
 - [ ] Upload/links de credencial e veículo (campos reais, persistência).
 
@@ -129,16 +136,18 @@ Fontes: `docs/produto/*.md`.
 - [x] Lista/mapa de instrutores usando `/api/instructors` em `MapPage`.
 - [x] `InstructorProfile.tsx` consumir `/api/instructors/:id` e `/api/instructors/:id/reviews` (hoje mock).
 - [x] `Booking.tsx` criar booking via POST `/api/bookings` (incluindo aluguel veículo/total) e tratar respostas.
-- [ ] `StudentDashboard.tsx` consumir `/api/bookings/student` (hoje mock).
+- [x] `StudentDashboard.tsx` consumir `/api/bookings/student` (integrado com dados reais).
 - [ ] Envio de reviews via POST `/api/reviews` e recálculo em tempo real (UI).
 - [ ] Usar availability real na seleção de horários.
 - [ ] Checkout/pagamento: alinhar com backend (ainda mock) e atualizar status do booking. (UI chama `/api/payments/abacatepay`, mas sem polling/status)
 
 ### Módulo de Agendamento (Booking/Availability)
 - [x] Modelo de dados + endpoints GET/POST/PATCH de bookings no backend.
-- [ ] Garantir ownership/permissão nas rotas de booking (aluno só vê/cria os seus; instrutor só os seus).
-- [ ] Validar conflitos/horários com availability e estado do instrutor.
-- [ ] Disponibilidade: expor rotas e validar criação de booking contra slots.
+- [x] Garantir ownership/permissão nas rotas de booking (validação completa implementada).
+- [x] Validar conflitos/horários com availability e estado do instrutor (validação de double-booking e availability).
+- [x] Disponibilidade: expor rotas e validar criação de booking contra slots (rotas GET/POST criadas com ownership).
+- [x] Rate limiting em rotas sensíveis (bookings, pagamentos).
+- [x] Toast notifications para feedback ao usuário.
 
 ### Módulo de Pagamento
 - [x] Backend: criação de cobrança AbacatePay (`/api/payments/abacatepay`), persistência de `paymentId/paymentUrl/paymentStatus/methods/devMode`, e webhook inicial para status.

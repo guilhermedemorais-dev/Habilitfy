@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 
 export default function Success() {
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
       <motion.div 
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}

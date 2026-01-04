@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
+import type { User } from "@shared/schema";
 
 const LOGIN_REDIRECT_KEY = "habilitfy.postLoginRedirect";
 
@@ -25,7 +26,7 @@ export function useAuth() {
   const [, navigate] = useLocation();
   const hasNavigated = useRef(false);
 
-  const { data: user, isLoading, refetch } = useQuery({
+  const { data: user, isLoading, refetch } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,

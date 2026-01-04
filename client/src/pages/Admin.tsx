@@ -1654,7 +1654,7 @@ export default function Admin() {
 
   return (
     <AuthGuard redirectTo="/admin" requiredRoles={["admin"]}>
-      <div className="min-h-screen bg-gray-50 text-slate-900">
+      <div className="min-h-screen bg-background text-slate-900">
         <div className="flex">
           <aside className="sticky top-0 hidden h-screen w-64 flex-col border-r border-slate-200 bg-white lg:flex">
             <div className="px-6 py-6">
@@ -1703,7 +1703,7 @@ export default function Admin() {
             </div>
           </aside>
           <main className="flex-1">
-            <header className="sticky top-0 z-20 border-b border-slate-200 bg-gray-50/90 backdrop-blur">
+            <header className="sticky top-0 z-20 border-b border-slate-200 bg-background/90 backdrop-blur">
               <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4 lg:px-10">
                 <div className="flex items-center gap-3">
                   <Sheet>

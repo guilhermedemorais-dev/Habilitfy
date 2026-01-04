@@ -60,7 +60,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await registerRoutes(app);
+  console.log("Starting server IIFE...");
+  try {
+    console.log("Calling registerRoutes...");
+    await registerRoutes(app);
+    console.log("registerRoutes finished.");
+  } catch (err) {
+    console.error("CRITICAL: registerRoutes failed!", err);
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

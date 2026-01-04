@@ -40,9 +40,14 @@ export default function Checkout() {
   );
 
   return (
-    <div className="bg-[#009EE3] min-h-screen font-sans flex flex-col">
-      <header className="p-4 flex items-center gap-4 text-white">
-        <Button variant="ghost" size="icon" onClick={() => window.history.back()} className="text-white hover:bg-white/10">
+    <div className="bg-background min-h-screen font-sans flex flex-col">
+      <header className="p-4 flex items-center gap-4 text-slate-900">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => window.history.back()}
+          className="text-slate-700 hover:bg-slate-100"
+        >
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <span className="font-bold">Checkout Seguro</span>

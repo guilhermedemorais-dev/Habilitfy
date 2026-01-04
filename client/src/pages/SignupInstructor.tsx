@@ -16,7 +16,7 @@ export default function SignupInstructor() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-6">
+    <div className="min-h-screen bg-background flex flex-col justify-center items-center p-6">
        <div className="w-full max-w-md">
            {/* Progress */}
            <div className="flex justify-between mb-8 px-2">

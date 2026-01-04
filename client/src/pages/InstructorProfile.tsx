@@ -1,4 +1,4 @@
-import { useParams, Link } from "wouter";
+import { useLocation, useParams, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Star, ShieldCheck, MapPin, Calendar as CalendarIcon, Share2 } from "lucide-react";
 import Calendar from "react-calendar";
@@ -7,9 +7,12 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import type { Instructor, Review } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function InstructorProfile() {
   const { id } = useParams();
+  const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const [date, setDate] = useState<Date>(new Date());
 
   const { data: instructor, isLoading } = useQuery<Instructor>({
@@ -36,7 +39,7 @@ export default function InstructorProfile() {
   if (!instructor) return <div className="p-6">Instrutor não encontrado</div>;
 
   return (
-    <div className="bg-white min-h-screen pb-24">
+    <div className="bg-background min-h-screen pb-24">
       {/* Hero Image */}
       <div className="relative h-72 w-full">
         {instructor.vehicleImageUrl ? (
@@ -158,11 +161,20 @@ export default function InstructorProfile() {
             <div className="text-xs text-slate-500">Total para 1 aula</div>
             <div className="font-bold text-lg text-slate-900">R$ {instructor.pricePerHour},00</div>
         </div>
-        <Link href={`/agendar/${instructor.id}`}>
-            <Button size="lg" className="w-full bg-primary hover:bg-green-700 text-white rounded-xl h-12 font-bold shadow-lg shadow-green-200">
-                Agendar Horário
-            </Button>
-        </Link>
+        <Button
+          size="lg"
+          className="w-full bg-primary hover:bg-green-700 text-white rounded-xl h-12 font-bold shadow-lg shadow-green-200"
+          onClick={() => {
+            const target = `/agendar/${instructor.id}`;
+            if (!user) {
+              setLocation(`/login?redirect=${encodeURIComponent(target)}`);
+              return;
+            }
+            setLocation(target);
+          }}
+        >
+          Agendar Horário
+        </Button>
       </div>
     </div>
   );
