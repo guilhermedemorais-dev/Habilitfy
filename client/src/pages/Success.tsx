@@ -46,11 +46,9 @@ export default function Success() {
             <Share2 className="w-5 h-5" />
             Falar no WhatsApp
         </Button>
-        <Link href="/dashboard/aluno">
-            <Button variant="outline" className="w-full rounded-xl h-12">
-                Ver Meus Agendamentos
-            </Button>
-        </Link>
+        <Button variant="outline" className="w-full rounded-xl h-12" asChild>
+          <Link href="/dashboard/aluno">Ver Meus Agendamentos</Link>
+        </Button>
       </div>
     </div>
   );

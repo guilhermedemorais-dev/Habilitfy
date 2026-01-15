@@ -15,7 +15,7 @@ export default function InstructorProfile() {
   const { user } = useAuth();
   const [date, setDate] = useState<Date>(new Date());
 
-  const { data: instructor, isLoading } = useQuery<Instructor>({
+  const { data: instructor, isLoading } = useQuery<Instructor & { name?: string }>({
     queryKey: ["/api/instructors", id],
     enabled: !!id,
   });
@@ -50,11 +50,16 @@ export default function InstructorProfile() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         
         <div className="absolute top-4 left-4 z-10">
-          <Link href="/instrutores">
-            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 rounded-full">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="text-white hover:bg-white/20 rounded-full"
+            asChild
+          >
+            <Link href="/instrutores">
               <ChevronLeft className="w-6 h-6" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
          <div className="absolute top-4 right-4 z-10">
             <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 rounded-full">
@@ -71,7 +76,9 @@ export default function InstructorProfile() {
               {instructor.rating ?? "5.0"} ★ ({instructor.reviewsCount ?? 0} aulas)
             </span>
           </div>
-          <h1 className="text-3xl font-bold mb-1">{instructor.neighborhood || "Instrutor"}</h1>
+          <h1 className="text-3xl font-bold mb-1">
+            {instructor.name || instructor.neighborhood || "Instrutor"}
+          </h1>
           <p className="text-white/80 flex items-center gap-1 text-sm">
             <MapPin className="w-3 h-3" /> {instructor.neighborhood}
           </p>

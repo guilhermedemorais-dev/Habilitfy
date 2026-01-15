@@ -1,0 +1,274 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications alt+T"
+  - generic [ref=e4]:
+    - complementary [ref=e5]:
+      - navigation [ref=e6]:
+        - link "Inicio" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img [ref=e8]
+          - generic [ref=e11]: Inicio
+        - link "Chat" [ref=e12] [cursor=pointer]:
+          - /url: /chat
+          - img [ref=e13]
+          - generic [ref=e15]: Chat
+        - link "Buscar Instrutores" [ref=e16] [cursor=pointer]:
+          - /url: /instrutores
+          - img [ref=e17]
+          - generic [ref=e19]: Buscar Instrutores
+        - link "Minhas Aulas" [ref=e20] [cursor=pointer]:
+          - /url: /dashboard/aluno
+          - img [ref=e21]
+          - generic [ref=e23]: Minhas Aulas
+        - link "Perfil" [ref=e24] [cursor=pointer]:
+          - /url: /dashboard/instrutor
+          - img [ref=e25]
+          - generic [ref=e28]: Perfil
+    - generic [ref=e29]:
+      - banner [ref=e30]:
+        - generic [ref=e31]:
+          - img "HabilitFy" [ref=e33]
+          - navigation [ref=e34]:
+            - link "Início" [ref=e35] [cursor=pointer]:
+              - /url: "#inicio"
+            - link "Como funciona" [ref=e36] [cursor=pointer]:
+              - /url: "#como-funciona"
+            - link "Para alunos" [ref=e37] [cursor=pointer]:
+              - /url: "#para-alunos"
+            - link "Para instrutores" [ref=e38] [cursor=pointer]:
+              - /url: "#para-instrutores"
+            - link "Quem somos" [ref=e39] [cursor=pointer]:
+              - /url: "#quem-somos"
+            - link "Contato" [ref=e40] [cursor=pointer]:
+              - /url: "#contato"
+      - main [ref=e41]:
+        - generic [ref=e42]:
+          - img "Aula prática de direção" [ref=e43]
+          - generic [ref=e46]:
+            - heading "Mais liberdade para aprender e mais autonomia para ensinar" [level=1] [ref=e47]
+            - paragraph [ref=e48]: Conectamos alunos aptos à prática a instrutores credenciados, de forma autônoma e simplificada, com agendamento online, pagamento seguro e tudo dentro das regras do processo de habilitação.
+            - generic [ref=e49]:
+              - link "Sou aluno" [ref=e50] [cursor=pointer]:
+                - /url: /login?role=student
+              - link "Sou instrutor" [ref=e51] [cursor=pointer]:
+                - /url: /login?role=instructor
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - button "Moto" [ref=e54]:
+              - img [ref=e55]
+              - generic [ref=e60]: Moto
+            - button "Carro" [ref=e61]:
+              - img [ref=e62]
+              - generic [ref=e66]: Carro
+            - button "Ônibus" [ref=e67]:
+              - img [ref=e68]
+              - generic [ref=e72]: Ônibus
+            - button "Caminhão" [ref=e73]:
+              - img [ref=e74]
+              - generic [ref=e79]: Caminhão
+            - button "Filtros" [ref=e80]:
+              - img [ref=e81]
+              - text: Filtros
+          - generic [ref=e83]:
+            - generic [ref=e84]:
+              - img [ref=e85]
+              - textbox "Digite seu bairro ou cidade" [ref=e88]
+            - button "Buscar" [ref=e89]
+        - generic [ref=e90]:
+          - generic [ref=e91]:
+            - heading "Instrutores bem avaliados" [level=3] [ref=e92]
+            - paragraph [ref=e93]: Profissionais credenciados, próximos de você e avaliados por alunos reais.
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - generic [ref=e96]:
+                - generic [ref=e98]: C
+                - generic [ref=e99]:
+                  - paragraph [ref=e100]: Carlos Santos
+                  - generic [ref=e101]:
+                    - img [ref=e102]
+                    - generic [ref=e104]: 0.0 (0)
+              - generic [ref=e105]:
+                - img [ref=e106]
+                - generic [ref=e109]: Centro
+              - generic [ref=e110]:
+                - generic [ref=e111]: carro
+                - generic [ref=e112]: R$ 85/aula
+              - link "Agendar" [ref=e113] [cursor=pointer]:
+                - /url: /instrutor/d3ee023d-3eae-4cb5-9659-26882618a000
+            - generic [ref=e114]:
+              - generic [ref=e115]:
+                - generic [ref=e117]: D
+                - generic [ref=e118]:
+                  - paragraph [ref=e119]: Diego Pereira
+                  - generic [ref=e120]:
+                    - img [ref=e121]
+                    - generic [ref=e123]: 0.0 (0)
+              - generic [ref=e124]:
+                - img [ref=e125]
+                - generic [ref=e128]: Bela Vista
+              - generic [ref=e129]:
+                - generic [ref=e130]: carro
+                - generic [ref=e131]: R$ 90/aula
+              - link "Agendar" [ref=e132] [cursor=pointer]:
+                - /url: /instrutor/8ebfc5d2-1948-47f2-92fb-4c77a0be552e
+            - generic [ref=e133]:
+              - generic [ref=e134]:
+                - generic [ref=e136]: H
+                - generic [ref=e137]:
+                  - paragraph [ref=e138]: Henrique Oliveira
+                  - generic [ref=e139]:
+                    - img [ref=e140]
+                    - generic [ref=e142]: 0.0 (0)
+              - generic [ref=e143]:
+                - img [ref=e144]
+                - generic [ref=e147]: Moinhos
+              - generic [ref=e148]:
+                - generic [ref=e149]: carro
+                - generic [ref=e150]: R$ 110/aula
+              - link "Agendar" [ref=e151] [cursor=pointer]:
+                - /url: /instrutor/17736df7-718a-4eb2-b7db-31690dc6ecce
+            - generic [ref=e152]:
+              - generic [ref=e153]:
+                - generic [ref=e155]: I
+                - generic [ref=e156]:
+                  - paragraph [ref=e157]: Instrutor Teste
+                  - generic [ref=e158]:
+                    - img [ref=e159]
+                    - generic [ref=e161]: 0.0 (0)
+              - generic [ref=e162]:
+                - img [ref=e163]
+                - generic [ref=e166]: Copacabana
+              - generic [ref=e167]:
+                - generic [ref=e168]: carro
+                - generic [ref=e169]: R$ 90/aula
+              - link "Agendar" [ref=e170] [cursor=pointer]:
+                - /url: /instrutor/81139af9-e092-483a-b0a9-03acf70637c6
+        - generic [ref=e171]:
+          - heading "Como funciona" [level=3] [ref=e172]
+          - generic [ref=e173]:
+            - button "01 Cadastro" [ref=e174]:
+              - generic [ref=e175]: "01"
+              - paragraph [ref=e176]: Cadastro
+            - button "02 Validação documental" [ref=e177]:
+              - generic [ref=e178]: "02"
+              - paragraph [ref=e179]: Validação documental
+            - button "03 Agendamento online" [ref=e180]:
+              - generic [ref=e181]: "03"
+              - paragraph [ref=e182]: Agendamento online
+            - button "04 Pagamento seguro" [ref=e183]:
+              - generic [ref=e184]: "04"
+              - paragraph [ref=e185]: Pagamento seguro
+            - button "05 Avaliação" [ref=e186]:
+              - generic [ref=e187]: "05"
+              - paragraph [ref=e188]: Avaliação
+          - generic [ref=e189]:
+            - paragraph [ref=e190]: Cadastro
+            - paragraph [ref=e191]: Aluno e instrutor fazem o cadastro com dados básicos para iniciar a jornada.
+        - generic [ref=e194]:
+          - generic [ref=e195]:
+            - heading "Uma nova forma de aprender — e ensinar." [level=3] [ref=e196]
+            - paragraph [ref=e197]: O HabilitFy é um marketplace digital de aulas práticas de direção, criado para conectar alunos aptos à prática a instrutores credenciados, de forma simples, transparente e organizada.
+            - paragraph [ref=e198]: Inspirado em modelos já consolidados internacionalmente, o sistema permite que alunos escolham instrutores com base em critérios reais — localização, avaliações e disponibilidade — enquanto instrutores atuam de forma independente, com autonomia e dentro das normas do processo de habilitação definidas pelos órgãos reguladores de trânsito.
+            - paragraph [ref=e199]:
+              - text: Aqui, o aprendizado se adapta à pessoa.
+              - text: Não o contrário.
+            - generic [ref=e200]:
+              - generic [ref=e201]: Autonomia
+              - generic [ref=e202]: Segurança
+              - generic [ref=e203]: Praticidade
+          - generic [ref=e204]:
+            - generic [ref=e205]:
+              - heading "Por que o HabilitFy?" [level=3] [ref=e206]
+              - generic [ref=e207]:
+                - generic [ref=e208]:
+                  - img [ref=e210]
+                  - generic [ref=e213]:
+                    - paragraph [ref=e214]: No seu ritmo, do seu jeito
+                    - paragraph [ref=e215]: Aulas adaptadas ao nível, dificuldade ou objetivo de cada aluno.
+                - generic [ref=e216]:
+                  - img [ref=e218]
+                  - generic [ref=e221]:
+                    - paragraph [ref=e222]: Você escolhe o melhor horário
+                    - paragraph [ref=e223]: Agendamento online direto na agenda do instrutor, sem burocracia.
+                - generic [ref=e224]:
+                  - img [ref=e226]
+                  - generic [ref=e229]:
+                    - paragraph [ref=e230]: Sem pacotes engessados
+                    - paragraph [ref=e231]: Você paga apenas pelas aulas que fazem sentido para você.
+            - generic [ref=e232]:
+              - heading "Tudo dentro das regras." [level=3] [ref=e233]
+              - paragraph [ref=e234]: O HabilitFy opera respeitando as normas do processo de habilitação no Brasil, garantindo segurança jurídica, transparência e conformidade em todas as etapas.
+              - generic [ref=e235]:
+                - generic [ref=e236]:
+                  - img [ref=e238]
+                  - generic [ref=e242]:
+                    - paragraph [ref=e243]: Apenas alunos aptos
+                    - paragraph [ref=e244]: Cadastro permitido somente para quem possui aprovação no exame teórico ou CNH válida.
+                - generic [ref=e245]:
+                  - img [ref=e247]
+                  - generic [ref=e250]:
+                    - paragraph [ref=e251]: Instrutores validados
+                    - paragraph [ref=e252]: Somente instrutores credenciados podem oferecer aulas na plataforma.
+                - generic [ref=e253]:
+                  - img [ref=e255]
+                  - generic [ref=e258]:
+                    - paragraph [ref=e259]: Pagamento seguro
+                    - paragraph [ref=e260]: Todas as transações acontecem dentro do sistema.
+        - generic [ref=e262]:
+          - generic [ref=e263]:
+            - heading "Para quem quer aprender a dirigir" [level=3] [ref=e264]
+            - paragraph [ref=e265]: Escolha instrutores próximos, compare avaliações reais, agende aulas em poucos cliques e pratique com mais confiança.
+            - paragraph [ref=e266]: O HabilitFy é indicado para alunos que já possuem aprovação no exame teórico ou CNH válida e desejam aprender ou evoluir na prática de direção de forma mais flexível e organizada.
+          - link "Sou aluno" [ref=e267] [cursor=pointer]:
+            - /url: /login?role=student
+        - generic [ref=e269]:
+          - generic [ref=e270]:
+            - heading "Para quem quer ensinar com autonomia" [level=3] [ref=e271]
+            - paragraph [ref=e272]: Atue de forma independente, personalize suas aulas, organize sua agenda e receba de forma segura, sem depender do modelo tradicional de autoescola.
+            - paragraph [ref=e273]: O instrutor utiliza o HabilitFy exclusivamente como plataforma tecnológica de intermediação, mantendo total autonomia profissional.
+          - link "Sou instrutor" [ref=e274] [cursor=pointer]:
+            - /url: /login?role=instructor
+        - generic [ref=e275]:
+          - heading "Quem somos" [level=3] [ref=e276]
+          - paragraph [ref=e277]: O HabilitFy nasceu para modernizar o ensino prático de direção no Brasil, utilizando tecnologia para reduzir burocracias, aumentar a transparência e criar relações mais equilibradas entre alunos e instrutores.
+          - paragraph [ref=e278]: Acreditamos que plataformas digitais devem organizar processos, respeitar as normas legais e facilitar conexões profissionais de forma clara e responsável.
+        - generic [ref=e279]:
+          - generic [ref=e280]:
+            - generic [ref=e281]:
+              - paragraph [ref=e282]: HabilitFy
+              - paragraph [ref=e283]: HabilitFy é uma plataforma digital de intermediação entre alunos aptos à prática de direção e instrutores credenciados, respeitando as normas vigentes do processo de habilitação definidas pelos órgãos reguladores de trânsito.
+            - generic [ref=e284]:
+              - paragraph [ref=e285]: Mapa do site
+              - list [ref=e286]:
+                - listitem [ref=e287]:
+                  - link "Início" [ref=e288] [cursor=pointer]:
+                    - /url: "#inicio"
+                - listitem [ref=e289]:
+                  - link "Como funciona" [ref=e290] [cursor=pointer]:
+                    - /url: "#como-funciona"
+                - listitem [ref=e291]:
+                  - link "Para alunos" [ref=e292] [cursor=pointer]:
+                    - /url: "#para-alunos"
+                - listitem [ref=e293]:
+                  - link "Para instrutores" [ref=e294] [cursor=pointer]:
+                    - /url: "#para-instrutores"
+                - listitem [ref=e295]:
+                  - link "Quem somos" [ref=e296] [cursor=pointer]:
+                    - /url: "#quem-somos"
+                - listitem [ref=e297]:
+                  - link "Contato" [ref=e298] [cursor=pointer]:
+                    - /url: "#contato"
+            - generic [ref=e299]:
+              - generic [ref=e300]:
+                - paragraph [ref=e301]: Links legais
+                - list [ref=e302]:
+                  - listitem [ref=e303]: FAQ
+                  - listitem [ref=e304]: Política de Privacidade (em breve)
+                  - listitem [ref=e305]: Termos de Uso (em breve)
+              - generic [ref=e306]:
+                - paragraph [ref=e307]: Empresa desenvolvedora
+                - paragraph [ref=e308]: Desenvolvido por Sophxy – Tech Solutions
+          - generic [ref=e309]: © 2026 HabilitFy. Todos os direitos reservados.
+```

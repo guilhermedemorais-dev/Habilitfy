@@ -1,3 +1,4 @@
+import { useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { LogIn, ArrowLeft, BadgeCheck, GraduationCap, ShieldCheck } from "lucide-react";
@@ -7,6 +8,10 @@ const logoBlue = "/logo-new-blue.svg";
 
 export default function Login() {
   const { login, isAuthenticated } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const redirectTo =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("redirect") || undefined
@@ -21,14 +26,44 @@ export default function Login() {
     window.location.assign(path);
   };
 
+  const handleLocalLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setLocalError(null);
+
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: email.trim(),
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setLocalError(data?.message || "Credenciais invalidas");
+        return;
+      }
+
+      window.location.assign(redirectTo || "/");
+    } catch (error) {
+      setLocalError("Falha ao autenticar. Tente novamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
       <header className="flex items-center justify-between p-6 md:px-12">
-        <Link href="/">
-          <button className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors font-medium">
-            <ArrowLeft className="w-5 h-5" />
-            <span>Voltar ao início</span>
-          </button>
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors font-medium"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>Voltar ao início</span>
         </Link>
         <img src={logoBlue} alt="HabilitFy" className="h-8 w-auto md:hidden" />
       </header>
@@ -93,6 +128,57 @@ export default function Login() {
                 </div>
               </button>
             </div>
+
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-100"></div>
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                <span className="bg-white px-4">Acesso interno</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleLocalLogin} className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="seu@email.com"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 focus:border-blue-200 focus:outline-none"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Senha
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="********"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 focus:border-blue-200 focus:outline-none"
+                  required
+                />
+              </div>
+              {localError && (
+                <p className="text-xs font-semibold text-red-500">
+                  {localError}
+                </p>
+              )}
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full h-12 text-sm font-bold rounded-2xl"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Entrando..." : "Entrar com email"}
+              </Button>
+            </form>
 
             <div className="flex items-center justify-center gap-2 text-slate-400 pt-2">
               <ShieldCheck size={14} />

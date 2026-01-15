@@ -9,8 +9,8 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { href: "/", icon: Home, label: "Inicio" },
-  { href: "/instrutores", icon: Map, label: "Buscar Instrutores" },
   { href: "/chat", icon: MessageCircle, label: "Chat" },
+  { href: "/instrutores", icon: Map, label: "Buscar Instrutores" },
   { href: "/dashboard/aluno", icon: Calendar, label: "Minhas Aulas" },
   { href: "/dashboard/instrutor", icon: User, label: "Perfil" },
 ];

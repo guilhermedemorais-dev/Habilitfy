@@ -14,11 +14,11 @@ export default function ChatPage() {
             <div className="min-h-screen bg-background flex flex-col">
                 {/* Simple Header */}
                 <header className="bg-white border-b px-6 py-4 flex items-center gap-4 sticky top-0 z-20">
-                    <Link href="/dashboard/aluno">
-                        <Button variant="ghost" size="icon" className="rounded-full">
+                    <Button variant="ghost" size="icon" className="rounded-full" asChild>
+                        <Link href="/dashboard/aluno">
                             <ArrowLeft className="w-5 h-5 text-slate-600" />
-                        </Button>
-                    </Link>
+                        </Link>
+                    </Button>
                     <h1 className="font-bold text-lg text-slate-900">Mensagens</h1>
                 </header>
 

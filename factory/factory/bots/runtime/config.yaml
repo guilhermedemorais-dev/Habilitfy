@@ -1,0 +1,15 @@
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.2
+  max_completion_tokens: 1200
+
+runtime:
+  context_max_files: 20
+  context_max_chars: 50000
+  output_root: factory/bots/runtime/out
+  log_level: INFO
+
+mcp:
+  enabled: false
+  endpoint: ""

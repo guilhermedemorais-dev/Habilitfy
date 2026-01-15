@@ -19,6 +19,7 @@ import Admin from "@/pages/Admin";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/Login";
 import ChatPage from "@/pages/ChatPage";
+import Styleguide from "@/pages/Styleguide";
 
 import { Link } from "wouter";
 import { Loader2 } from "lucide-react";
@@ -53,9 +54,9 @@ function AuthGuard({ component: Component, allowedRoles }: { component: React.Co
       <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background p-4 text-center">
         <h1 className="text-2xl font-bold text-slate-900">Acesso Negado</h1>
         <p className="text-slate-600">Você não tem permissão para acessar esta página.</p>
-        <Link href="/">
-          <Button>Voltar ao Início</Button>
-        </Link>
+        <Button asChild>
+          <Link href="/">Voltar ao Início</Link>
+        </Button>
       </div>
     );
   }
@@ -69,6 +70,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
       <Route path="/cadastro-instrutor" component={SignupInstructor} />
+      <Route path="/styleguide" component={Styleguide} />
 
       {/* Protected Routes */}
       <Route path="/instrutores" component={MapPage} />
@@ -104,6 +106,7 @@ function App() {
   const [location] = useLocation();
   const isAdminRoute = location.startsWith("/admin");
   const isAuthRoute = location.startsWith("/login") || location.startsWith("/cadastro-instrutor");
+  const isStyleguideRoute = location.startsWith("/styleguide");
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -111,11 +114,13 @@ function App() {
       <div
         className={cn(
           "min-h-screen bg-background text-slate-900 font-sans",
-          isAdminRoute || isAuthRoute ? "pb-0" : "pb-16 md:pb-0",
+          isAdminRoute || isAuthRoute || isStyleguideRoute
+            ? "pb-0"
+            : "pb-16 md:pb-0",
         )}
       >
         <Router />
-        {!isAdminRoute && !isAuthRoute && <BottomNav />}
+        {!isAdminRoute && !isAuthRoute && !isStyleguideRoute && <BottomNav />}
       </div>
     </QueryClientProvider>
   );

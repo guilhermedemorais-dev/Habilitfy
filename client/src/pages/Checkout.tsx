@@ -26,7 +26,7 @@ export default function Checkout() {
         window.location.href = data.paymentUrl;
         return;
       }
-      setLocation("/sucesso");
+      setLocation(bookingId ? `/sucesso?bookingId=${bookingId}` : "/sucesso");
     },
     onError: (err: any) => {
       setError(err?.message || "Falha ao iniciar pagamento.");

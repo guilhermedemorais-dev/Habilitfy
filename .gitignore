@@ -7,3 +7,5 @@ vite.config.ts.*
 .vite-cache/
 tmp_tsx/
 .env
+.env.*
+client_secret_*.json

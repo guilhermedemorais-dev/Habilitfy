@@ -10,9 +10,16 @@ import { storage } from "./storage";
 
 const getOidcConfig = memoize(
   async () => {
+    const issuerUrl = process.env.ISSUER_URL ?? "https://replit.com/oidc";
+    const clientId = process.env.OIDC_CLIENT_ID ?? process.env.REPL_ID;
+    const clientSecret = process.env.OIDC_CLIENT_SECRET ?? process.env.REPL_SECRET;
+    if (!clientId) {
+      throw new Error("OIDC_CLIENT_ID (ou REPL_ID) must be set for OIDC");
+    }
     return await client.discovery(
-      new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
+      new URL(issuerUrl),
+      clientId,
+      clientSecret,
     );
   },
   { maxAge: 3600 * 1000 }
@@ -34,7 +41,10 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure:
+        process.env.SESSION_COOKIE_SECURE === "true" ||
+        (process.env.SESSION_COOKIE_SECURE !== "false" &&
+          process.env.NODE_ENV === "production"),
       maxAge: sessionTtl,
     },
   });
@@ -152,15 +162,31 @@ export async function setupAuth(app: Express) {
       console.log("[auth] Local mode detected. Performing auto-login...");
       try {
         const userId = process.env.LOCAL_USER_ID || "local-admin";
+        const localRole = process.env.LOCAL_USER_ROLE as
+          | "student"
+          | "instructor"
+          | "admin"
+          | undefined;
         let mockUser = await storage.getUser(userId);
 
         if (!mockUser) {
           console.log(`[auth] Local user ${userId} not found. Creating...`);
-          await storage.upsertUser({
+          const newUser = {
             id: userId,
             email: process.env.LOCAL_USER_EMAIL || "admin@example.com",
             firstName: process.env.LOCAL_USER_FIRSTNAME || "Local",
             lastName: process.env.LOCAL_USER_LASTNAME || "Admin",
+            ...(localRole ? { role: localRole } : {}),
+          };
+          await storage.upsertUser(newUser);
+          mockUser = await storage.getUser(userId);
+        } else if (localRole && mockUser.role !== localRole) {
+          await storage.upsertUser({
+            id: mockUser.id,
+            email: mockUser.email,
+            firstName: mockUser.firstName,
+            lastName: mockUser.lastName,
+            role: localRole,
           });
           mockUser = await storage.getUser(userId);
         }
@@ -227,11 +253,6 @@ export async function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/auth/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(req.user);
-  });
-
   console.log("Auth Routes Registered.");
 }
 
@@ -240,6 +261,11 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   if (process.env.AUTH_MODE === "local") {
     const user = (req as any).user;
     if (user) {
+      if (!user.claims) {
+        user.claims = { sub: user.id };
+      } else if (!user.claims.sub) {
+        user.claims.sub = user.id;
+      }
       return next();
     }
     return res.status(401).json({ message: "Unauthorized" });

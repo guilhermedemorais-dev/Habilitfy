@@ -194,8 +194,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
       const instructorProfile = await storage.getInstructorByUserId(userId);
 
@@ -210,7 +216,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const status = req.query.status as string | undefined;
       const instructors = await storage.getAllInstructors(status || 'approved');
-      res.json(instructors);
+      const enriched = await Promise.all(
+        instructors.map(async (instructor) => {
+          const user = await storage.getUser(instructor.userId);
+          const name =
+            `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+            user?.email ||
+            "Instrutor";
+          const vehicle = `${instructor.vehicleModel} ${instructor.vehicleYear || ""}`.trim();
+          return {
+            ...instructor,
+            user: user
+              ? {
+                  id: user.id,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  email: user.email,
+                  profileImageUrl: user.profileImageUrl,
+                }
+              : null,
+            name,
+            photo: user?.profileImageUrl || "",
+            vehicle,
+          };
+        }),
+      );
+
+      res.json(enriched);
     } catch (error) {
       console.error("Error fetching instructors:", error);
       res.status(500).json({ message: "Failed to fetch instructors" });
@@ -223,7 +255,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!instructor) {
         return res.status(404).json({ message: "Instructor not found" });
       }
-      res.json(instructor);
+      const user = await storage.getUser(instructor.userId);
+      const name =
+        `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+        user?.email ||
+        "Instrutor";
+      const vehicle = `${instructor.vehicleModel} ${instructor.vehicleYear || ""}`.trim();
+
+      res.json({
+        ...instructor,
+        user: user
+          ? {
+              id: user.id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              profileImageUrl: user.profileImageUrl,
+            }
+          : null,
+        name,
+        photo: user?.profileImageUrl || "",
+        vehicle,
+      });
     } catch (error) {
       console.error("Error fetching instructor:", error);
       res.status(500).json({ message: "Failed to fetch instructor" });
@@ -430,21 +483,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating booking:", error);
       res.status(500).json({ message: "Failed to update booking" });
-    }
-  });
-
-  app.post('/api/reviews', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const data = insertReviewSchema.parse({ ...req.body, studentId: userId });
-      const review = await storage.createReview(data);
-      res.status(201).json(review);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid data", errors: error.errors });
-      }
-      console.error("Error creating review:", error);
-      res.status(500).json({ message: "Failed to create review" });
     }
   });
 
@@ -1184,7 +1222,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!booking) {
         return res.status(404).json({ message: "Booking não encontrado" });
       }
-      if (booking.studentId !== req.user.claims.sub) {
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      if (booking.studentId !== userId) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -1199,6 +1241,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const integrationConfig = await resolveAbacateIntegrationConfig();
+      const hasApiKey = Boolean(
+        integrationConfig.apiKey || process.env.ABACATEPAY_API_KEY,
+      );
+      if (!hasApiKey) {
+        return res.status(400).json({
+          message: "Gateway de pagamento não configurado",
+        });
+      }
+
       const created = await createAbacateBilling(booking, integrationConfig);
       const bookingStatus = mapAbacateStatusToBooking(created.paymentStatus as any);
 
@@ -1210,6 +1261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentMethods: created.paymentMethods,
         paymentDevMode: created.paymentDevMode,
         status: bookingStatus,
+        paidAt: bookingStatus === "paid" ? new Date() : booking.paidAt,
       });
 
       storage.upsertBookingTransaction(updated).catch((error) => {

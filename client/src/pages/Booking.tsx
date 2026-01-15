@@ -11,13 +11,26 @@ import type { Instructor } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { formatISO } from "date-fns";
 
+type InstructorDetails = Instructor & {
+  name?: string;
+  photo?: string;
+  vehicle?: string;
+  user?: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    profileImageUrl?: string | null;
+  } | null;
+};
+
 export default function Booking() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const [rentVehicle, setRentVehicle] = useState(false);
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState<string>("10:00");
-  const { data: instructor, isLoading } = useQuery<Instructor>({
+  const { data: instructor, isLoading } = useQuery<InstructorDetails>({
     queryKey: ["/api/instructors", id],
     enabled: !!id,
   });
@@ -62,6 +75,18 @@ export default function Booking() {
 
   if (!instructor) return <div>Instrutor não encontrado</div>;
 
+  const instructorName =
+    instructor.name ||
+    `${instructor.user?.firstName || ""} ${instructor.user?.lastName || ""}`.trim() ||
+    instructor.user?.email ||
+    "Instrutor";
+  const instructorVehicle =
+    instructor.vehicle ||
+    `${instructor.vehicleModel} ${instructor.vehicleYear || ""}`.trim() ||
+    instructor.vehicleType;
+  const instructorPhoto =
+    instructor.photo || instructor.user?.profileImageUrl || "";
+
   const onSubmit = () => {
     createBooking.mutate();
   };
@@ -79,11 +104,21 @@ export default function Booking() {
         {/* Summary Card */}
         <Card className="border-none shadow-sm">
           <CardContent className="p-4 flex gap-4 items-center">
-            <img src={instructor.photo} className="w-16 h-16 rounded-full object-cover" />
+            {instructorPhoto ? (
+              <img
+                src={instructorPhoto}
+                className="w-16 h-16 rounded-full object-cover"
+                alt={instructorName}
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm font-semibold">
+                {instructorName.charAt(0)}
+              </div>
+            )}
             <div>
               <p className="text-sm text-slate-500">Instrutor</p>
-              <h3 className="font-bold text-slate-900">{instructor.name}</h3>
-              <p className="text-xs text-slate-400">{instructor.vehicle}</p>
+              <h3 className="font-bold text-slate-900">{instructorName}</h3>
+              <p className="text-xs text-slate-400">{instructorVehicle}</p>
             </div>
           </CardContent>
         </Card>

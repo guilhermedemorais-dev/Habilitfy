@@ -4,8 +4,12 @@ import { ResponsiveContainer, LineChart, Line, XAxis, Tooltip } from "recharts";
 import { Calendar as CalendarIcon, Users, User, AlertCircle } from "lucide-react";
 import Calendar from "react-calendar";
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { toast } from "sonner";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
 import {
   useInstructorBookings,
   getTodayBookings,
@@ -25,6 +29,25 @@ export default function InstructorDashboard() {
   const { data: bookings, isLoading, error } = useInstructorBookings(
     instructorProfile?.id
   );
+  const queryClient = useQueryClient();
+  const completeLesson = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const res = await apiRequest("PATCH", `/api/bookings/${bookingId}`, {
+        status: "completed",
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/bookings/instructor", instructorProfile?.id],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/student"] });
+      toast.success("Aula concluida com sucesso.");
+    },
+    onError: () => {
+      toast.error("Nao foi possivel concluir a aula.");
+    },
+  });
 
   const todayLessons = getTodayBookings(bookings);
   const weekData = getWeekEarnings(bookings);
@@ -119,18 +142,19 @@ export default function InstructorDashboard() {
                 </div>
               )}
             </div>
-            <Link href="/chat">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full bg-gray-100 text-slate-600 hover:bg-gray-200 ml-4"
-              >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full bg-gray-100 text-slate-600 hover:bg-gray-200 ml-4"
+              asChild
+            >
+              <Link href="/chat">
                 <div className="relative">
                   <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 </div>
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </header>
 
@@ -247,6 +271,16 @@ export default function InstructorDashboard() {
                           • {lesson.duration} min
                         </p>
                       </div>
+                      {lesson.status !== "completed" && (
+                        <Button
+                          size="sm"
+                          className="rounded-full"
+                          onClick={() => completeLesson.mutate(lesson.id)}
+                          disabled={completeLesson.isPending}
+                        >
+                          Concluir aula
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>

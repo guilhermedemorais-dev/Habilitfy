@@ -18,10 +18,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { navItems } from "@/components/layout/navigation";
-import { instructors, type Instructor } from "@/lib/data";
+import { useQuery } from "@tanstack/react-query";
+import type { Instructor } from "@shared/schema";
 import heroImg from "@assets/generated_images/happy_driving_lesson_in_brazil.png";
 
-const logoBlue = "/logo-new-blue.svg";
+const logoBlue = "/logo-topo.webp";
 
 const categories = [
   { icon: Bike, label: "Moto" },
@@ -42,11 +43,30 @@ const headerNav = [
 ];
 
 const howSteps = [
-  "Cadastro",
-  "Validação documental",
-  "Agendamento online",
-  "Pagamento seguro",
-  "Avaliação",
+  {
+    title: "Cadastro",
+    description:
+      "Aluno e instrutor fazem o cadastro com dados básicos para iniciar a jornada.",
+  },
+  {
+    title: "Validação documental",
+    description:
+      "Documentos são analisados para garantir segurança e conformidade.",
+  },
+  {
+    title: "Agendamento online",
+    description:
+      "O aluno escolhe o instrutor e agenda a aula no melhor horário.",
+  },
+  {
+    title: "Pagamento seguro",
+    description: "Pagamento dentro da plataforma, com transparência total.",
+  },
+  {
+    title: "Avaliação",
+    description:
+      "Após a aula, o aluno avalia e o instrutor acompanha a evolução.",
+  },
 ];
 
 const whyItems = [
@@ -101,7 +121,7 @@ const CategoryPill = ({
     onClick={onClick}
     aria-pressed={active}
     className={cn(
-      "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-sm transition",
+      "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-sm transition shrink-0 snap-start",
       active
         ? "border-transparent bg-[#2746e0] text-white shadow-md shadow-blue-900/20"
         : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600"
@@ -112,27 +132,55 @@ const CategoryPill = ({
   </button>
 );
 
-const InstructorCard = ({ instructor }: { instructor: Instructor }) => {
-  const categoryLabel = instructor.category;
+type InstructorListItem = Instructor & {
+  name?: string;
+  photo?: string;
+  user?: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    profileImageUrl?: string | null;
+  } | null;
+};
+
+const InstructorCard = ({ instructor }: { instructor: InstructorListItem }) => {
+  const categoryLabel =
+    instructor.vehicleType || instructor.serviceAreas || "Carro";
+  const instructorName =
+    instructor.name ||
+    `${instructor.user?.firstName || ""} ${instructor.user?.lastName || ""}`.trim() ||
+    instructor.user?.email ||
+    "Instrutor";
+  const instructorPhoto =
+    instructor.photo || instructor.user?.profileImageUrl || "";
+  const ratingValue = Number(instructor.rating || 0);
+  const priceValue = Number(instructor.pricePerHour || 0);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center gap-3">
         <div className="h-12 w-12 overflow-hidden rounded-xl bg-slate-100">
-          <img
-            src={instructor.photo}
-            alt={`Foto de ${instructor.name}`}
-            className="h-full w-full object-cover"
-          />
+          {instructorPhoto ? (
+            <img
+              src={instructorPhoto}
+              alt={`Foto de ${instructorName}`}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-slate-400">
+              {instructorName.charAt(0)}
+            </div>
+          )}
         </div>
         <div>
           <p className="text-sm font-semibold text-slate-900">
-            {instructor.name}
+            {instructorName}
           </p>
           <div className="flex items-center gap-1 text-xs text-slate-500">
             <Star className="h-3.5 w-3.5 text-amber-400" />
             <span>
-              {instructor.rating.toFixed(1)} ({instructor.reviewsCount})
+              {ratingValue.toFixed(1)} ({instructor.reviewsCount || 0})
             </span>
           </div>
         </div>
@@ -146,14 +194,12 @@ const InstructorCard = ({ instructor }: { instructor: Instructor }) => {
           {categoryLabel}
         </span>
         <span className="text-sm font-semibold text-slate-900">
-          R$ {instructor.price}/aula
+          R$ {priceValue.toFixed(0)}/aula
         </span>
       </div>
-      <Link href={`/instrutor/${instructor.id}`}>
-        <Button className="mt-4 w-full rounded-full" size="sm">
-          Agendar
-        </Button>
-      </Link>
+      <Button className="mt-4 w-full rounded-full" size="sm" asChild>
+        <Link href={`/instrutor/${instructor.id}`}>Agendar</Link>
+      </Button>
     </div>
   );
 };
@@ -167,20 +213,20 @@ const DesktopSidebar = () => {
         {navItems.map((item) => {
           const isActive = location === item.href;
           return (
-            <Link key={item.href} href={item.href}>
-              <a
-                aria-label={item.label}
-                title={item.label}
-                className={cn(
-                  "flex h-12 w-12 items-center justify-center rounded-2xl transition",
-                  isActive
-                    ? "border border-blue-500/40 bg-blue-600/25 text-blue-200 shadow-lg shadow-blue-900/20"
-                    : "text-slate-400 hover:bg-white/5 hover:text-white"
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                <span className="sr-only">{item.label}</span>
-              </a>
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-label={item.label}
+              title={item.label}
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-2xl transition",
+                isActive
+                  ? "border border-blue-500/40 bg-blue-600/25 text-blue-200 shadow-lg shadow-blue-900/20"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="sr-only">{item.label}</span>
             </Link>
           );
         })}
@@ -197,7 +243,13 @@ export default function Home() {
   const [minRating, setMinRating] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const featuredInstructors = instructors.slice(0, 4);
+  const [activeStep, setActiveStep] = useState(0);
+  const { data: apiInstructors = [], isLoading: instructorsLoading } = useQuery<
+    InstructorListItem[]
+  >({
+    queryKey: ["/api/instructors"],
+  });
+  const featuredInstructors = apiInstructors.slice(0, 4);
 
   const hasActiveFilters =
     activeCategories.length > 0 ||
@@ -243,11 +295,11 @@ export default function Home() {
       <div className="md:ml-20">
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 md:px-8">
-            <div className="flex w-32 items-center">
+            <div className="flex w-24 items-center md:w-28">
               <img
                 src={logoBlue}
                 alt="HabilitFy"
-                className="h-12 w-auto md:h-14"
+                className="h-7 w-auto max-w-full object-contain md:h-8"
               />
             </div>
             <nav className="hidden flex-1 items-center justify-center gap-6 text-sm font-semibold text-slate-600 md:flex">
@@ -261,7 +313,7 @@ export default function Home() {
                 </a>
               ))}
             </nav>
-            <div className="hidden w-32 md:block" />
+            <div className="hidden w-24 md:block md:w-28" />
           </div>
         </header>
 
@@ -275,13 +327,14 @@ export default function Home() {
               alt="Aula prática de direção"
               className="absolute inset-0 h-full w-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-900/45 to-transparent" />
+            <div className="absolute inset-0 bg-slate-950/20" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/65 to-slate-900/30" />
             <div className="relative z-10 max-w-3xl px-6 py-12 md:px-12 md:py-16">
               <h1
-                className="text-3xl font-semibold leading-tight text-[#2746e0] md:text-4xl lg:text-5xl"
+                className="text-3xl font-semibold leading-tight text-[#589dff] md:text-4xl lg:text-5xl"
                 style={{ textShadow: "0 2px 12px rgba(0,0,0,0.35)" }}
               >
-                Mais liberdade para aprender. Mais autonomia para ensinar.
+                Mais liberdade para aprender e mais autonomia para ensinar
               </h1>
               <p
                 className="mt-5 text-base text-white/80 md:text-lg"
@@ -292,22 +345,24 @@ export default function Home() {
                 seguro e tudo dentro das regras do processo de habilitação.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/login?role=student">
-                  <Button className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-blue-600 hover:bg-slate-100">
-                    Sou aluno
-                  </Button>
-                </Link>
-                <Link href="/login?role=instructor">
-                  <Button className="h-12 rounded-full border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white hover:bg-white/20">
-                    Sou instrutor
-                  </Button>
-                </Link>
+                <Button
+                  className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-blue-600 hover:bg-slate-100"
+                  asChild
+                >
+                  <Link href="/login?role=student">Sou aluno</Link>
+                </Button>
+                <Button
+                  className="h-12 rounded-full border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white hover:bg-white/20"
+                  asChild
+                >
+                  <Link href="/login?role=instructor">Sou instrutor</Link>
+                </Button>
               </div>
             </div>
           </section>
 
           <section className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar snap-x snap-mandatory">
               {categories.map((category) => (
                 <CategoryPill
                   key={category.label}
@@ -321,7 +376,7 @@ export default function Home() {
                 onClick={() => setShowFilters((prev) => !prev)}
                 aria-expanded={showFilters}
                 className={cn(
-                  "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-sm transition",
+                  "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-sm transition shrink-0 snap-start",
                   showFilters || hasActiveFilters
                     ? "border-blue-200 bg-blue-50 text-[#2746e0]"
                     : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600",
@@ -449,11 +504,26 @@ export default function Home() {
                 alunos reais.
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {featuredInstructors.map((instructor) => (
-                <InstructorCard key={instructor.id} instructor={instructor} />
-              ))}
-            </div>
+            {instructorsLoading ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={`instructor-skeleton-${index}`}
+                    className="h-44 rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : featuredInstructors.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {featuredInstructors.map((instructor) => (
+                  <InstructorCard key={instructor.id} instructor={instructor} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                Nenhum instrutor cadastrado ainda.
+              </div>
+            )}
           </section>
 
           <section
@@ -461,20 +531,47 @@ export default function Home() {
             className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8"
           >
             <h3 className="text-xl font-semibold text-slate-900">Como funciona</h3>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {howSteps.map((step, index) => (
+            <div className="mt-6 flex gap-3 overflow-x-auto pb-2">
+              {howSteps.map((step, index) => {
+                const isActive = index === activeStep;
+                return (
+                  <button
+                    key={step.title}
+                    type="button"
+                    onClick={() => setActiveStep(index)}
+                    className={cn(
+                      "min-w-[180px] rounded-2xl border px-4 py-4 text-left transition",
+                      isActive
+                        ? "border-transparent bg-[#2746e0] text-white shadow-lg shadow-blue-900/20"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-200 hover:text-blue-700",
+                    )}
+                  >
+                    <span className={cn(
+                      "text-[11px] font-semibold uppercase tracking-[0.2em]",
+                      isActive ? "text-white/70" : "text-slate-400",
+                    )}>
+                      0{index + 1}
+                    </span>
+                    <p className="mt-2 text-sm font-semibold">{step.title}</p>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+              <p className="text-sm font-semibold text-slate-900">
+                {howSteps[activeStep]?.title}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                {howSteps[activeStep]?.description}
+              </p>
+              <div className="mt-4 h-1 w-full rounded-full bg-white">
                 <div
-                  key={step}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                >
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    0{index + 1}
-                  </span>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">
-                    {step}
-                  </p>
-                </div>
-              ))}
+                  className="h-1 rounded-full bg-[#2746e0] transition-all"
+                  style={{
+                    width: `${((activeStep + 1) / howSteps.length) * 100}%`,
+                  }}
+                />
+              </div>
             </div>
           </section>
 
@@ -522,8 +619,8 @@ export default function Home() {
                 <div className="mt-5 space-y-4">
                   {whyItems.map((item) => (
                     <div key={item.title} className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <CheckCircle2 className="h-5 w-5" />
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shrink-0">
+                        <CheckCircle2 className="h-4 w-4" />
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-900">
@@ -548,8 +645,8 @@ export default function Home() {
                 <div className="mt-6 space-y-4">
                   {complianceItems.map((item) => (
                     <div key={item.title} className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-blue-200">
-                        <item.icon className="h-5 w-5" />
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-blue-200 shrink-0">
+                        <item.icon className="h-4 w-4" />
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-white">
@@ -585,11 +682,9 @@ export default function Home() {
                   prática de direção de forma mais flexível e organizada.
                 </p>
               </div>
-              <Link href="/login?role=student">
-                <Button className="h-12 rounded-full px-6 text-sm font-semibold">
-                  Sou aluno
-                </Button>
-              </Link>
+              <Button className="h-12 rounded-full px-6 text-sm font-semibold" asChild>
+                <Link href="/login?role=student">Sou aluno</Link>
+              </Button>
             </div>
           </section>
 
@@ -613,11 +708,9 @@ export default function Home() {
                   profissional.
                 </p>
               </div>
-              <Link href="/login?role=instructor">
-                <Button className="h-12 rounded-full px-6 text-sm font-semibold">
-                  Sou instrutor
-                </Button>
-              </Link>
+              <Button className="h-12 rounded-full px-6 text-sm font-semibold" asChild>
+                <Link href="/login?role=instructor">Sou instrutor</Link>
+              </Button>
             </div>
           </section>
 

@@ -132,11 +132,16 @@ export default function MapPage() {
     <div className="relative h-screen w-full bg-background flex flex-col">
       {/* Header Float */}
       <div className="absolute top-0 left-0 right-0 z-[1000] p-4 flex justify-between items-start pointer-events-none">
-        <Link href="/">
-            <Button size="icon" variant="secondary" className="bg-white shadow-md pointer-events-auto rounded-full h-10 w-10">
-                <ChevronLeft className="w-5 h-5 text-slate-700" />
-            </Button>
-        </Link>
+        <Button
+          size="icon"
+          variant="secondary"
+          className="bg-white shadow-md pointer-events-auto rounded-full h-10 w-10"
+          asChild
+        >
+          <Link href="/">
+            <ChevronLeft className="w-5 h-5 text-slate-700" />
+          </Link>
+        </Button>
         
         <div className="flex gap-2 pointer-events-auto">
              <Button 
@@ -215,11 +220,15 @@ export default function MapPage() {
                                     >
                                         Fechar
                                     </Button>
-                                    <Link href={`/instrutor/${currentInstructor.id}`} className="flex-1">
-                                        <Button size="sm" className="w-full h-8 text-xs bg-primary hover:bg-green-700 text-white shadow-sm">
-                                            Ver Perfil
-                                        </Button>
-                                    </Link>
+                                    <Button
+                                      size="sm"
+                                      className="h-8 flex-1 text-xs bg-primary hover:bg-green-700 text-white shadow-sm"
+                                      asChild
+                                    >
+                                      <Link href={`/instrutor/${currentInstructor.id}`}>
+                                        Ver Perfil
+                                      </Link>
+                                    </Button>
                                 </div>
                             </div>
                         </CardContent>
@@ -261,7 +270,9 @@ export default function MapPage() {
                                     <p className="text-sm text-slate-400 mt-1">{instructor.neighborhood}</p>
                                     <div className="mt-2 flex items-center justify-between">
                                         <span className="font-bold text-primary">R$ {instructor.pricePerHour}<span className="text-xs font-normal text-slate-400">/aula</span></span>
-                                        <Button size="sm" variant="ghost" className="h-7 text-primary hover:text-primary hover:bg-green-50 px-2">Ver detalhes</Button>
+                                        <span className="h-7 px-2 text-primary text-xs font-semibold flex items-center">
+                                          Ver detalhes
+                                        </span>
                                     </div>
                                 </div>
                             </CardContent>

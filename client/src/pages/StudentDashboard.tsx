@@ -132,18 +132,19 @@ export default function StudentDashboard() {
               </p>
               <p className="text-white text-2xl font-bold">R$ 0,00</p>
             </div>
-            <Link href="/chat">
-              <Button
-                variant="secondary"
-                size="icon"
-                className="rounded-full bg-white/20 hover:bg-white/30 text-white border-0 ml-4"
-              >
+            <Button
+              variant="secondary"
+              size="icon"
+              className="rounded-full bg-white/20 hover:bg-white/30 text-white border-0 ml-4"
+              asChild
+            >
+              <Link href="/chat">
                 <div className="relative">
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-primary" />
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 </div>
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </header>
 
@@ -184,19 +185,23 @@ export default function StudentDashboard() {
                       </div>
                     </div>
                     <div className="space-y-2 mt-4">
-                      <Link
-                        href={`/booking/${upcomingLesson.id}/details`}
-                        className="w-full"
+                      <Button
+                        className="w-full bg-primary hover:bg-green-700 text-white"
+                        asChild
                       >
-                        <Button className="w-full bg-primary hover:bg-green-700 text-white">
+                        <Link href={`/booking/${upcomingLesson.id}/details`}>
                           Ver Detalhes
-                        </Button>
-                      </Link>
-                      <Link href={`/chat/${upcomingLesson.instructor.userId}`}>
-                        <Button variant="outline" className="w-full border-primary text-primary hover:bg-primary/5">
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full border-primary text-primary hover:bg-primary/5"
+                        asChild
+                      >
+                        <Link href={`/chat/${upcomingLesson.instructor.userId}`}>
                           Falar com Instrutor
-                        </Button>
-                      </Link>
+                        </Link>
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -213,11 +218,9 @@ export default function StudentDashboard() {
                   <p className="text-slate-500 text-sm mb-4">
                     Que tal agendar sua próxima aula?
                   </p>
-                  <Link href="/instrutores">
-                    <Button className="bg-primary hover:bg-green-700">
-                      Encontrar Instrutor
-                    </Button>
-                  </Link>
+                  <Button className="bg-primary hover:bg-green-700" asChild>
+                    <Link href="/instrutores">Encontrar Instrutor</Link>
+                  </Button>
                 </CardContent>
               </Card>
             )}
