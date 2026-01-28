@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { User } from "@shared/schema";
 
 const LOGIN_REDIRECT_KEY = "habilitfy.postLoginRedirect";
@@ -41,6 +42,37 @@ export function useAuth() {
     }
   }, [user, navigate]);
 
+  const loginMutation = useMutation({
+    mutationFn: async (credentials: any) => {
+      const res = await apiRequest("POST", "/api/login", credentials);
+      return await res.json();
+    },
+    onSuccess: (user) => {
+      queryClient.setQueryData(["/api/auth/user"], user);
+
+      const redirectTo = consumeRedirect();
+      if (redirectTo) {
+        navigate(redirectTo);
+      } else {
+        if (user.role === "admin") {
+          navigate("/admin");
+        } else if (user.role === "instructor") {
+          navigate("/dashboard/instrutor");
+        } else {
+          // Default to student dashboard or home
+          navigate("/dashboard/aluno");
+        }
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro no login",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const login = useCallback(
     (redirectTo?: string) => {
       if (user) {
@@ -57,12 +89,26 @@ export function useAuth() {
     [navigate, user]
   );
 
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/logout");
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(["/api/auth/user"], null);
+      navigate("/login");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao sair",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const logout = useCallback(() => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem(LOGIN_REDIRECT_KEY);
-      window.location.assign("/api/logout");
-    }
-  }, []);
+    logoutMutation.mutate();
+  }, [logoutMutation]);
 
   return {
     user,
@@ -71,5 +117,6 @@ export function useAuth() {
     login,
     logout,
     refetchUser: refetch,
+    loginMutation,
   };
 }

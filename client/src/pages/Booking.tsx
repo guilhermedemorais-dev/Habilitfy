@@ -5,11 +5,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ChevronLeft, Car } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Instructor } from "@shared/schema";
+import type { Availability, Instructor } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { formatISO } from "date-fns";
+import { buildAvailableTimes } from "@/lib/availability";
 
 type InstructorDetails = Instructor & {
   name?: string;
@@ -30,27 +31,47 @@ export default function Booking() {
   const [rentVehicle, setRentVehicle] = useState(false);
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState<string>("10:00");
+  const [meetingAddress, setMeetingAddress] = useState<string>("");
   const { data: instructor, isLoading } = useQuery<InstructorDetails>({
     queryKey: ["/api/instructors", id],
     enabled: !!id,
   });
+  const { data: availability = [] } = useQuery<Availability[]>({
+    queryKey: ["/api/instructors", id, "availability"],
+    enabled: !!id,
+  });
+  const slotDuration = instructor?.slotDurationMinutes ?? 50;
+  const availableTimes = useMemo(() => {
+    const selectedDate = new Date(`${date}T00:00:00`);
+    return buildAvailableTimes(availability, selectedDate, slotDuration);
+  }, [availability, date, slotDuration]);
+  useEffect(() => {
+    if (availableTimes.length > 0) {
+      setTime(availableTimes[0]);
+    } else {
+      setTime("");
+    }
+  }, [availableTimes]);
   const basePrice = useMemo(() => Number(instructor?.pricePerHour || 0), [instructor]);
   const rentalPrice = rentVehicle ? 50 : 0;
   const total = useMemo(() => basePrice + rentalPrice, [rentVehicle, basePrice, rentalPrice]);
+  const canBook = instructor?.status === "approved";
 
   const createBooking = useMutation({
     mutationFn: async () => {
       if (!instructor || !id) throw new Error("Instrutor não encontrado");
+      if (!canBook) throw new Error("Instrutor ainda nao aprovado");
+      if (!time) throw new Error("Selecione um horário disponível");
       const dateTime = new Date(`${date}T${time}:00`);
       const payload = {
         instructorId: id,
         date: formatISO(dateTime),
-        duration: 50,
-        price: basePrice,
+        duration: slotDuration,
+        price: basePrice.toFixed(2),
         rentVehicle,
-        vehicleRentalPrice: rentalPrice,
-        totalPrice: total,
-        meetingAddress: "A combinar via WhatsApp",
+        vehicleRentalPrice: rentalPrice.toFixed(2),
+        totalPrice: total.toFixed(2),
+        meetingAddress: meetingAddress.trim() || "A combinar via WhatsApp",
         status: "pending",
       };
       const res = await apiRequest("POST", "/api/bookings", payload);
@@ -126,6 +147,11 @@ export default function Booking() {
         {/* Options */}
         <div className="space-y-4">
           <h2 className="font-bold text-slate-900">Opções da Aula</h2>
+          {!canBook && (
+            <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
+              Este instrutor ainda nao foi aprovado para receber agendamentos.
+            </div>
+          )}
           <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
             <div className="space-y-2">
               <Label htmlFor="date">Data</Label>
@@ -140,13 +166,37 @@ export default function Booking() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="time">Horário</Label>
+              {availableTimes.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  Nenhum horário disponível para esta data.
+                </p>
+              ) : (
+                <select
+                  id="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+                >
+                  {availableTimes.map((availableTime) => (
+                    <option key={availableTime} value={availableTime}>
+                      {availableTime}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="meetingAddress">Ponto de encontro</Label>
               <Input
-                type="time"
-                id="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
+                id="meetingAddress"
+                placeholder="Ex: Praça central, Copacabana"
+                value={meetingAddress}
+                onChange={(e) => setMeetingAddress(e.target.value)}
                 className="bg-gray-50 border-gray-200"
               />
+              <p className="text-xs text-slate-500">
+                Se preferir, deixe em branco e combine pelo chat.
+              </p>
             </div>
           </div>
           
@@ -192,7 +242,7 @@ export default function Booking() {
         {/* Price Breakdown */}
         <div className="space-y-2 pt-4">
             <div className="flex justify-between text-sm text-slate-500">
-                <span>Aula Prática (50min)</span>
+                <span>Aula Prática ({slotDuration}min)</span>
                 <span>R$ {basePrice},00</span>
             </div>
             {rentVehicle && (
@@ -209,10 +259,10 @@ export default function Booking() {
 
         <Button 
             className="w-full h-14 text-lg bg-primary hover:bg-green-700 text-white rounded-xl shadow-lg shadow-green-200 mt-6"
-            disabled={createBooking.isLoading}
+            disabled={createBooking.isPending || availableTimes.length === 0 || !canBook}
             onClick={onSubmit}
         >
-            {createBooking.isLoading ? "Criando reserva..." : "Ir para Pagamento"}
+            {createBooking.isPending ? "Criando reserva..." : "Ir para Pagamento"}
         </Button>
      </div>
     </div>

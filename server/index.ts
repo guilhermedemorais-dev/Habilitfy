@@ -14,6 +14,7 @@ declare module "http" {
 
 app.use(
   express.json({
+    limit: "50mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
@@ -22,16 +23,33 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
+import rateLimit from "express-rate-limit";
 
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
+// Trust proxy is required if behind a proxy (like Replit/Heroku/NGINX)
+// server/auth.ts already sets 'trust proxy' to 1, but we should probably set it here too if widely used.
+app.set("trust proxy", 1);
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 requests per windowMs
+  message: { message: "Too many requests, please try again later." },
+});
+
+app.use("/api/auth", authLimiter);
+app.use("/api/login", authLimiter);
+app.use("/api/users/register", authLimiter);
+app.use("/api", apiLimiter);
+
+
+import { logger } from "./utils/logger";
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -47,12 +65,13 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+      logger.info(`${req.method} ${path} ${res.statusCode} in ${duration}ms`, {
+        method: req.method,
+        path,
+        statusCode: res.statusCode,
+        duration,
+        response: capturedJsonResponse
+      });
     }
   });
 
@@ -60,29 +79,27 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  console.log("Starting server IIFE...");
+  logger.info("Starting server...");
   try {
-    console.log("Calling registerRoutes...");
-    await registerRoutes(app);
-    console.log("registerRoutes finished.");
+    logger.info("Calling registerRoutes...");
+    await registerRoutes(app, httpServer);
+    logger.info("registerRoutes finished.");
   } catch (err) {
-    console.error("CRITICAL: registerRoutes failed!", err);
+    logger.error("CRITICAL: registerRoutes failed!", err);
   }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    logger.error(`Unhandled Error: ${message}`, err);
     res.status(status).json({ message });
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "production") {
     if (process.env.SKIP_STATIC === "true") {
-      log("SKIP_STATIC=true, não servindo client build", "express");
+      logger.info("SKIP_STATIC=true, não servindo client build");
     } else {
       serveStatic(app);
     }
@@ -91,10 +108,6 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "0.0.0.0";
   const reusePort = process.env.REUSE_PORT === "true";
@@ -105,7 +118,7 @@ app.use((req, res, next) => {
       reusePort,
     },
     () => {
-      log(`serving on ${host}:${port}`);
+      logger.info(`serving on ${host}:${port}`);
     },
   );
 })();

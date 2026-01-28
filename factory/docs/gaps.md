@@ -8,3 +8,17 @@
 - Terminação TLS/HTTPS e flags de cookie seguro na Hostinger não documentadas; risco de sessão se `SESSION_COOKIE_SECURE` não estiver alinhado ao ambiente.
 - Não há instruções para executar o mock do AbacatePay em pipelines; e2e dependem disso.
 - URL do webhook AbacatePay ainda indisponível (sistema não publicado), impedindo cadastro do webhook no painel do PSP no momento.
+- Modulo de agendamento (docs_legacy) menciona requisitos que não estão implementados ou não foram encontrados no codigo atual: check-in/check-out via QR Code com liberação de pagamento 50/50, chat e ponto de encontro pos-booking, bloqueio de agendamento sem KYC aprovado, e avaliacao/primeira aula avaliativa com sugestao de pacote.
+- KYC do aluno nao esta modelado no schema atual; bloqueio de agendamento cobre apenas instrutor com status diferente de "approved".
+- Novo fluxo definido: codigo de seguranca gerado no pagamento para iniciar aula, cronometro sincronizado aluno/instrutor e confirmacao de fim com codigo/QR do aluno. Nao ha modelo/rotas para codigos, cronometro ou status de aula.
+- Regra de saque mudou: valor do instrutor fica bloqueado ate aula concluida, com fluxo de disputa para fraude. Nao ha carteira/estado de bloqueio nem fluxo de disputa no codigo atual.
+- Regra de cancelamento: taxa percentual configuravel no admin com split entre plataforma e instrutor. Configuracao criada, mas a logica de aplicacao ainda nao esta implementada.
+- Regra adicional: se o instrutor nao concluir a aula, abre disputa para decidir se o credito volta ao aluno ou fica com o instrutor. Fluxo basico criado, sem ajuste financeiro automatico.
+- Logica financeira da taxa de cancelamento (pro-rata e split entre instrutor/plataforma) ainda nao aplicada em transacoes/carteira.
+- Resolucao de disputa nao aplica ajustes financeiros automaticamente (refund/repasse).
+- Selfie/liveness: captura e envio de selfie feitos no cadastro, mas a verificacao humana automatica ainda nao existe (apenas analise manual).
+- KYC aluno: flag de status existe e bloqueia booking quando nao aprovado, mas nao ha UI/admin para atualizar status.
+- Modulo IA (futuro): geracao de imagens para seeds internas nao implementada.
+- Modulo IA (futuro): KYC automatico com liveness + match facial nao definido nem implementado.
+- Modulo IA (futuro): requisitos LGPD/biometria (consentimento, armazenamento, retencao e auditoria) pendentes.
+- Modulo IA (futuro): provedor/limites/custos (Hugging Face MCP) ainda nao definidos operacionalmente.

@@ -1,9 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { navItems } from "@/components/layout/navigation";
+import { getNavItems } from "@/components/layout/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 export function BottomNav() {
   const [location] = useLocation();
+  const { user } = useAuth();
+  const navItems = getNavItems(user?.role);
 
   return (
     <nav className="fixed bottom-4 left-4 right-4 z-50 md:hidden">

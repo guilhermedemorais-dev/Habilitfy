@@ -1,11 +1,18 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { logger } from "./utils/logger";
+import type { Server } from "http";
+import { db } from "./db";
+import { users, kycVerifications, kycStatusEnum, instructors } from "@shared/schema";
+import { kycVerifications as kycVerificationsTable } from "@shared/kyc-schema";
+import { saveBase64Image } from "./kyc";
+import { eq } from "drizzle-orm";
+import { setupAuth, isAuthenticated, hashPassword } from "./auth";
 import { insertInstructorSchema, insertBookingSchema, insertReviewSchema, insertAvailabilitySchema, insertMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } from "./abacatepay";
 import rateLimit from "express-rate-limit";
+import { storage } from "./storage";
+
+// Trigger server restart for stability check
 
 // Rate limiters for different types of operations
 const bookingLimiter = rateLimit({
@@ -113,6 +120,9 @@ const parseLimit = (value: unknown, fallback: number, max = 200) => {
   return Math.min(Math.max(parsed, 1), max);
 };
 
+const generateSecurityCode = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
+
 const maskApiKey = (value?: string | null) => {
   if (!value) return null;
   const trimmed = value.trim();
@@ -185,11 +195,33 @@ const mergeSecretIntegrationFields = (
   });
 };
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express, httpServer: Server): Promise<Server> {
   await setupAuth(app);
 
   app.get('/api/ping', (req, res) => {
     res.json({ message: 'pong', timestamp: new Date().toISOString() });
+  });
+
+  // Health check endpoint for Docker and load balancers
+  app.get('/api/health', async (req, res) => {
+    try {
+      // Basic health check
+      const healthData = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        version: process.env.npm_package_version || '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+      };
+
+      res.status(200).json(healthData);
+    } catch (error) {
+      res.status(503).json({
+        status: 'error',
+        message: 'Service unavailable',
+        timestamp: new Date().toISOString()
+      });
+    }
   });
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -212,6 +244,288 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- Admin Routes ---
+
+  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const instructors = await storage.getAllInstructors();
+      const enriched = await Promise.all(
+        instructors.map(async (instructor) => {
+          const user = await storage.getUser(instructor.userId);
+          return {
+            ...instructor,
+            user: user ? user : null,
+            status: instructor.status, // Ensure status is explicitly returned
+            credentialImageUrl: instructor.credentialImageUrl,
+            selfieImageUrl: instructor.selfieImageUrl,
+            documentImageUrl: instructor.documentImageUrl,
+          };
+        })
+      );
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching admin instructors:", error);
+      res.status(500).json({ message: "Failed to fetch instructors" });
+    }
+  });
+
+  app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const role = req.query.role as string | undefined;
+      const users = await storage.getUsers(role);
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.post('/api/admin/users/:id/approve', isAuthenticated, async (req: any, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const userId = req.params.id;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      await storage.updateUser(userId, { kycStatus: 'approved' });
+
+      // Also update kyc_verifications table if needed
+      // await db.update(kycVerificationsTable).set({ status: 'approved' }).where(eq(kycVerificationsTable.userId, userId));
+
+      if (user.role === 'instructor') {
+        const instructor = await storage.getInstructorByUserId(userId);
+        if (instructor) {
+          await storage.updateInstructor(instructor.id, { status: 'approved' });
+        }
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error approving user:", error);
+      res.status(500).json({ message: "Failed to approve user" });
+    }
+  });
+
+  app.post('/api/admin/users/:id/reject', isAuthenticated, async (req: any, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const userId = req.params.id;
+      await storage.updateUser(userId, { kycStatus: 'rejected' });
+      // await db.update(kycVerificationsTable).set({ status: 'rejected' }).where(eq(kycVerificationsTable.userId, userId));
+
+      const user = await storage.getUser(userId);
+      if (user?.role === 'instructor') {
+        const instructor = await storage.getInstructorByUserId(userId);
+        if (instructor) {
+          await storage.updateInstructor(instructor.id, { status: 'rejected' });
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error rejecting user:", error);
+      res.status(500).json({ message: "Failed to reject user" });
+    }
+  });
+
+  // --- End Admin Routes ---
+
+  // Register new user (student or instructor)
+  // Register new user (student or instructor)
+  app.post('/api/users/register', async (req, res) => {
+    try {
+      const {
+        firstName, lastName, email, cpf, phone, addressLine, zipCode, neighborhood, city, state, role,
+        birthDate, selfieImageUrl, documentFrontImageUrl, documentBackImageUrl, theoreticalProofImageUrl, licenseImageUrl, isLicensed,
+        password, confirmPassword
+      } = req.body;
+
+      // Validate required fields
+      if (!firstName || !lastName || !email) {
+        return res.status(400).json({ message: 'Nome, sobrenome e e-mail são obrigatórios' });
+      }
+
+      if (password && password !== confirmPassword) {
+        return res.status(400).json({ message: 'As senhas não coincidem' });
+      }
+
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail?.(email);
+      if (existingUser) {
+        return res.status(400).json({ message: 'Este e-mail já está cadastrado' });
+      }
+
+      // Generate a unique ID
+      const userId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      const hashedPassword = password ? await hashPassword(password) : undefined;
+
+      // 1. Create User
+      const newUser = await storage.upsertUser({
+        id: userId,
+        email: email.toLowerCase().trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        cpf: cpf?.replace(/\D/g, '') || null,
+        phone: phone?.replace(/\D/g, '') || null,
+        addressLine: addressLine?.trim() || null,
+        zipCode: zipCode?.replace(/\D/g, '') || null,
+        neighborhood: neighborhood?.trim() || null,
+        city: city?.trim() || null,
+        state: state?.trim() || null,
+        role: role === 'instructor' ? 'instructor' : 'student',
+        kycStatus: 'pending',
+        password: hashedPassword,
+      });
+
+      // 2. Process KYC Documents and Instructor Images
+      let savedSelfieUrl = null;
+      let savedDocumentFrontUrl = null;
+      let savedDocumentBackUrl = null;
+
+      // Instructor specific images
+      let savedCredentialImageUrl = null;
+      let savedVehicleAuthorizationImageUrl = null;
+      let savedVehicleImageUrl = null;
+      let savedVehicleDocImageUrl = null;
+      let savedVehiclePlateImageUrl = null;
+
+      if (selfieImageUrl) {
+        savedSelfieUrl = await saveBase64Image(selfieImageUrl, userId, 'selfie');
+      }
+      if (documentFrontImageUrl) {
+        savedDocumentFrontUrl = await saveBase64Image(documentFrontImageUrl, userId, 'document_front');
+      }
+      if (documentBackImageUrl) {
+        savedDocumentBackUrl = await saveBase64Image(documentBackImageUrl, userId, 'document_back');
+      }
+
+      if (role === 'instructor') {
+        const { credentialImageUrl, vehicleAuthorizationImageUrl, vehicleImageUrl, vehicleDocImageUrl, vehiclePlateImageUrl } = req.body;
+        // Reuse 'document_front' type for generic docs or add specific types to saveBase64Image if needed, but 'document_front' works for storage organization
+        if (credentialImageUrl) savedCredentialImageUrl = await saveBase64Image(credentialImageUrl, userId, 'document_front');
+        if (vehicleAuthorizationImageUrl) savedVehicleAuthorizationImageUrl = await saveBase64Image(vehicleAuthorizationImageUrl, userId, 'document_front');
+        if (vehicleImageUrl) savedVehicleImageUrl = await saveBase64Image(vehicleImageUrl, userId, 'document_front');
+        if (vehicleDocImageUrl) savedVehicleDocImageUrl = await saveBase64Image(vehicleDocImageUrl, userId, 'document_front');
+        if (vehiclePlateImageUrl) savedVehiclePlateImageUrl = await saveBase64Image(vehiclePlateImageUrl, userId, 'document_front');
+      }
+
+      // 3. Create KYC Verification Record
+      if (savedSelfieUrl || savedDocumentFrontUrl) {
+        await db.insert(kycVerificationsTable).values({
+          userId: userId,
+          selfieUrl: savedSelfieUrl,
+          documentFrontUrl: savedDocumentFrontUrl,
+          documentBackUrl: savedDocumentBackUrl,
+          status: 'pending',
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        });
+      }
+
+      // 4. Create Instructor Record if role is instructor
+      if (role === 'instructor') {
+        const {
+          bio, pricePerHour, vehicleModel, vehicleYear, vehicleType, vehiclePlate,
+          credentialNumber, documentNumber
+        } = req.body;
+
+        await storage.createInstructor({
+          userId: userId,
+          bio: bio || "",
+          pricePerHour: pricePerHour ? String(pricePerHour) : "0",
+          vehicleModel: vehicleModel || "",
+          vehicleYear: vehicleYear || "",
+          vehicleType: vehicleType || "",
+          vehiclePlate: vehiclePlate || "",
+          credentialNumber: credentialNumber || "",
+          documentNumber: documentNumber || "",
+          selfieImageUrl: savedSelfieUrl,
+          documentImageUrl: savedDocumentFrontUrl, // Use front image for legacy/instructor table field
+          credentialImageUrl: savedCredentialImageUrl,
+          vehicleAuthorizationImageUrl: savedVehicleAuthorizationImageUrl,
+          vehicleImageUrl: savedVehicleImageUrl,
+          vehicleDocImageUrl: savedVehicleDocImageUrl,
+          vehiclePlateImageUrl: savedVehiclePlateImageUrl,
+          status: "pending",
+          maxBookingsPerStudent: 0 // Default
+        });
+      }
+
+      logger.info(`[register] User created: ${userId} (${email})`, { userId, email });
+
+      // Auto-login
+      req.login(newUser, (err) => {
+        if (err) {
+          console.error("Auto-login failed:", err);
+          // Return success even if auto-login fails, frontend should handle redirect to login
+          return res.status(201).json({
+            success: true,
+            message: 'Cadastro realizado com sucesso',
+            user: {
+              id: userId,
+              email: email,
+              firstName: firstName,
+              lastName: lastName,
+              role: role || 'student',
+            },
+          });
+        }
+        return res.status(201).json({
+          success: true,
+          message: 'Cadastro realizado com sucesso',
+          user: {
+            id: userId,
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            role: role || 'student',
+          },
+        });
+      });
+    } catch (error: any) {
+      console.error('Error registering user:', error);
+      res.status(500).json({ message: error.message || 'Erro ao criar conta' });
+    }
+  });
+
+  app.patch('/api/users/me', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const payload = {
+        firstName: typeof req.body?.firstName === "string" ? req.body.firstName.trim() : undefined,
+        lastName: typeof req.body?.lastName === "string" ? req.body.lastName.trim() : undefined,
+        cpf: typeof req.body?.cpf === "string" ? req.body.cpf.trim() : undefined,
+        phone: typeof req.body?.phone === "string" ? req.body.phone.trim() : undefined,
+        addressLine:
+          typeof req.body?.addressLine === "string" ? req.body.addressLine.trim() : undefined,
+        zipCode: typeof req.body?.zipCode === "string" ? req.body.zipCode.trim() : undefined,
+        neighborhood:
+          typeof req.body?.neighborhood === "string" ? req.body.neighborhood.trim() : undefined,
+        city: typeof req.body?.city === "string" ? req.body.city.trim() : undefined,
+        state: typeof req.body?.state === "string" ? req.body.state.trim() : undefined,
+        // Campos adicionais do cadastro de aluno
+        birthDate: typeof req.body?.birthDate === "string" ? req.body.birthDate.trim() : undefined,
+        selfieImageUrl: typeof req.body?.selfieImageUrl === "string" ? req.body.selfieImageUrl : undefined,
+        documentImageUrl: typeof req.body?.documentImageUrl === "string" ? req.body.documentImageUrl : undefined,
+        theoreticalProofImageUrl: req.body?.theoreticalProofImageUrl !== undefined ? req.body.theoreticalProofImageUrl : undefined,
+        licenseImageUrl: req.body?.licenseImageUrl !== undefined ? req.body.licenseImageUrl : undefined,
+        isLicensed: typeof req.body?.isLicensed === "boolean" ? req.body.isLicensed : undefined,
+      };
+
+      const updated = await storage.updateUser(userId, payload);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ message: "Failed to update user" });
+    }
+  });
+
   app.get('/api/instructors', async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
@@ -228,12 +542,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...instructor,
             user: user
               ? {
-                  id: user.id,
-                  firstName: user.firstName,
-                  lastName: user.lastName,
-                  email: user.email,
-                  profileImageUrl: user.profileImageUrl,
-                }
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                profileImageUrl: user.profileImageUrl,
+              }
               : null,
             name,
             photo: user?.profileImageUrl || "",
@@ -266,12 +580,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...instructor,
         user: user
           ? {
-              id: user.id,
-              firstName: user.firstName,
-              lastName: user.lastName,
-              email: user.email,
-              profileImageUrl: user.profileImageUrl,
-            }
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            profileImageUrl: user.profileImageUrl,
+          }
           : null,
         name,
         photo: user?.profileImageUrl || "",
@@ -313,7 +627,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden: You don't have permission to modify this instructor" });
       }
 
-      const updated = await storage.updateInstructor(req.params.id, req.body);
+      const payload = { ...req.body };
+      if (Object.prototype.hasOwnProperty.call(payload, "slotDurationMinutes")) {
+        const duration = Number(payload.slotDurationMinutes);
+        if (!Number.isFinite(duration) || duration <= 0) {
+          return res.status(400).json({ message: "slotDurationMinutes inválido" });
+        }
+        payload.slotDurationMinutes = Math.round(duration);
+      }
+      if (Object.prototype.hasOwnProperty.call(payload, "maxBookingsPerStudent")) {
+        const limit = Number(payload.maxBookingsPerStudent);
+        if (!Number.isFinite(limit) || limit < 0) {
+          return res.status(400).json({ message: "maxBookingsPerStudent inválido" });
+        }
+        payload.maxBookingsPerStudent = Math.round(limit);
+      }
+
+      const updated = await storage.updateInstructor(req.params.id, payload);
       res.json(updated);
     } catch (error) {
       console.error("Error updating instructor:", error);
@@ -394,12 +724,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/bookings', bookingLimiter, isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const data = insertBookingSchema.parse({ ...req.body, studentId: userId });
+      const incoming = { ...req.body, studentId: userId };
+      const parsedDate =
+        typeof incoming.date === "string" ? new Date(incoming.date) : incoming.date;
+      const data = insertBookingSchema.parse({ ...incoming, date: parsedDate });
+      const instructor = await storage.getInstructor(data.instructorId);
+      if (!instructor) {
+        return res.status(404).json({ message: "Instructor not found" });
+      }
+      const student = await storage.getUser(userId);
+      if (student?.kycStatus && student.kycStatus !== "approved") {
+        return res.status(403).json({
+          message: "Cadastro ainda nao aprovado. Complete o KYC para agendar.",
+        });
+      }
+      if (instructor.status !== "approved") {
+        return res.status(403).json({
+          message: "Instrutor ainda nao aprovado para receber agendamentos.",
+        });
+      }
+
+      const slotDuration =
+        typeof instructor.slotDurationMinutes === "number" && instructor.slotDurationMinutes > 0
+          ? instructor.slotDurationMinutes
+          : data.duration || 50;
+      const bookingData = { ...data, duration: slotDuration };
+
+      if ((instructor.maxBookingsPerStudent || 0) > 0) {
+        const activeCount = await storage.countActiveBookingsByStudent(
+          data.instructorId,
+          userId,
+        );
+        if (activeCount >= instructor.maxBookingsPerStudent) {
+          return res.status(400).json({
+            message: "Limite de aulas por aluno atingido para este instrutor.",
+          });
+        }
+      }
 
       // 1. Check for booking conflicts (same instructor, overlapping time)
-      const existingBookings = await storage.getBookingsByInstructor(data.instructorId);
-      const newStart = new Date(data.date);
-      const newEnd = new Date(newStart.getTime() + (data.duration || 60) * 60000);
+      const existingBookings = await storage.getBookingsByInstructor(bookingData.instructorId);
+      const newStart = new Date(bookingData.date);
+      const newEnd = new Date(newStart.getTime() + (bookingData.duration || 60) * 60000);
 
       const hasConflict = existingBookings.some(booking => {
         if (booking.status === 'cancelled') return false;
@@ -418,9 +784,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 2. Check if instructor has availability for this time slot
-      const availability = await storage.getAvailabilityByInstructor(data.instructorId);
+      const availability = await storage.getAvailabilityByInstructor(bookingData.instructorId);
       if (availability.length > 0) {
-        const bookingDate = new Date(data.date);
+        const bookingDate = new Date(bookingData.date);
         const dayOfWeek = bookingDate.getDay();
         const bookingTime = bookingDate.toTimeString().slice(0, 5); // "HH:mm"
 
@@ -437,7 +803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const booking = await storage.createBooking(data);
+      const booking = await storage.createBooking(bookingData);
       res.status(201).json(booking);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -476,13 +842,214 @@ export async function registerRoutes(app: Express): Promise<Server> {
         String(booking.paymentStatus ?? "").toLowerCase() === "paid"
       ) {
         storage.upsertBookingTransaction(booking).catch((error) => {
-          console.error("Error syncing booking transaction:", error);
+          logger.error("Error syncing booking transaction:", error);
         });
       }
       res.json(booking);
     } catch (error) {
       console.error("Error updating booking:", error);
       res.status(500).json({ message: "Failed to update booking" });
+    }
+  });
+
+  app.post('/api/bookings/:id/start', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const booking = await storage.getBooking(req.params.id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const instructor = await storage.getInstructor(booking.instructorId);
+      const user = await storage.getUser(userId);
+      const isInstructor = instructor?.userId === userId;
+      const isAdmin = user?.role === "admin";
+      if (!isInstructor && !isAdmin) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      if (booking.startedAt) {
+        return res.status(409).json({ message: "Aula ja iniciada" });
+      }
+
+      if (
+        booking.paymentStatus?.toLowerCase() !== "paid" &&
+        booking.status !== "paid"
+      ) {
+        return res.status(400).json({ message: "Pagamento nao confirmado" });
+      }
+
+      if (!booking.startCode) {
+        return res.status(400).json({ message: "Codigo de inicio nao gerado" });
+      }
+
+      const code = String(req.body?.code ?? "").trim();
+      if (!code || booking.startCode !== code) {
+        return res.status(400).json({ message: "Codigo de inicio invalido" });
+      }
+
+      const updated = await storage.updateBooking(booking.id, {
+        startedAt: new Date(),
+        status: booking.status === "paid" ? "confirmed" : booking.status,
+      });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error starting booking:", error);
+      res.status(500).json({ message: "Failed to start booking" });
+    }
+  });
+
+  app.post('/api/bookings/:id/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const booking = await storage.getBooking(req.params.id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const instructor = await storage.getInstructor(booking.instructorId);
+      const user = await storage.getUser(userId);
+      const isInstructor = instructor?.userId === userId;
+      const isAdmin = user?.role === "admin";
+      if (!isInstructor && !isAdmin) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      if (!booking.startedAt) {
+        return res.status(400).json({ message: "Aula ainda nao iniciada" });
+      }
+      if (booking.completedAt || booking.status === "completed") {
+        return res.status(409).json({ message: "Aula ja concluida" });
+      }
+
+      if (!booking.endCode) {
+        return res.status(400).json({ message: "Codigo de conclusao nao gerado" });
+      }
+
+      const code = String(req.body?.code ?? "").trim();
+      if (!code || booking.endCode !== code) {
+        return res.status(400).json({ message: "Codigo de conclusao invalido" });
+      }
+
+      const updated = await storage.updateBooking(booking.id, {
+        status: "completed",
+        completedAt: new Date(),
+      });
+
+      storage.upsertBookingTransaction(updated).catch((err) => {
+        console.error("Error syncing booking transaction:", err);
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error completing booking:", error);
+      res.status(500).json({ message: "Failed to complete booking" });
+    }
+  });
+
+  app.post('/api/bookings/:id/cancel', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const booking = await storage.getBooking(req.params.id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (booking.status === "completed") {
+        return res.status(400).json({ message: "Aula ja concluida" });
+      }
+
+      const user = await storage.getUser(userId);
+      const instructor = await storage.getInstructor(booking.instructorId);
+      const isStudent = booking.studentId === userId;
+      const isInstructor = instructor?.userId === userId;
+      const isAdmin = user?.role === "admin";
+      if (!isStudent && !isInstructor && !isAdmin) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const reason = String(req.body?.reason ?? "").trim();
+      if (!reason) {
+        return res.status(400).json({ message: "Motivo obrigatorio" });
+      }
+
+      const now = new Date();
+      let cancelledMinutes = 0;
+      if (booking.startedAt) {
+        const diffMs = now.getTime() - new Date(booking.startedAt).getTime();
+        const diffMinutes = Math.ceil(diffMs / 60000);
+        const maxDuration = booking.duration || 0;
+        cancelledMinutes = Math.min(Math.max(diffMinutes, 0), maxDuration);
+      }
+
+      const updated = await storage.updateBooking(booking.id, {
+        status: "cancelled",
+        cancelledAt: now,
+        cancelledByRole: user?.role ?? "student",
+        cancelledByUserId: userId,
+        cancelReason: reason,
+        cancelledMinutes,
+      });
+
+      const existingDispute = await storage.getDisputeByBooking(booking.id);
+      if (!existingDispute && (booking.startedAt || isInstructor)) {
+        await storage.createDispute({
+          bookingId: booking.id,
+          openedByUserId: userId,
+          openedByRole: (user?.role ?? "student") as any,
+          reason,
+        });
+      }
+
+      storage.upsertBookingTransaction(updated).catch((err) => {
+        console.error("Error syncing booking transaction:", err);
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error cancelling booking:", error);
+      res.status(500).json({ message: "Failed to cancel booking" });
+    }
+  });
+
+  app.post('/api/bookings/:id/disputes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const booking = await storage.getBooking(req.params.id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      const instructor = await storage.getInstructor(booking.instructorId);
+      const isStudent = booking.studentId === userId;
+      const isInstructor = instructor?.userId === userId;
+      const isAdmin = user?.role === "admin";
+      if (!isStudent && !isInstructor && !isAdmin) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const reason = String(req.body?.reason ?? "").trim();
+      if (!reason) {
+        return res.status(400).json({ message: "Motivo obrigatorio" });
+      }
+
+      const existingDispute = await storage.getDisputeByBooking(booking.id);
+      if (existingDispute && existingDispute.status !== "resolved") {
+        return res.status(409).json({ message: "Disputa ja aberta" });
+      }
+
+      const dispute = await storage.createDispute({
+        bookingId: booking.id,
+        openedByUserId: userId,
+        openedByRole: (user?.role ?? "student") as any,
+        reason,
+      });
+
+      res.status(201).json(dispute);
+    } catch (error) {
+      console.error("Error creating dispute:", error);
+      res.status(500).json({ message: "Failed to create dispute" });
     }
   });
 
@@ -575,6 +1142,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         instructorId: req.params.id,
       });
+      if (data.startTime >= data.endTime) {
+        return res.status(400).json({ message: "Horario inicial deve ser menor que o final" });
+      }
 
       const slot = await storage.createAvailability(data);
       res.status(201).json(slot);
@@ -584,6 +1154,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error creating availability:", error);
       res.status(500).json({ message: "Failed to create availability" });
+    }
+  });
+
+  app.patch('/api/instructors/:id/availability/:slotId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const instructor = await storage.getInstructor(req.params.id);
+      if (!instructor) {
+        return res.status(404).json({ message: "Instructor not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (instructor.userId !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const slot = await storage.getAvailabilityById(req.params.slotId);
+      if (!slot || slot.instructorId !== instructor.id) {
+        return res.status(404).json({ message: "Availability not found" });
+      }
+
+      const data = insertAvailabilitySchema
+        .partial()
+        .parse({ ...req.body, instructorId: instructor.id });
+      if (data.startTime && data.endTime && data.startTime >= data.endTime) {
+        return res.status(400).json({ message: "Horario inicial deve ser menor que o final" });
+      }
+
+      const updated = await storage.updateAvailability(req.params.slotId, data);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating availability:", error);
+      res.status(500).json({ message: "Failed to update availability" });
+    }
+  });
+
+  app.delete('/api/instructors/:id/availability/:slotId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const instructor = await storage.getInstructor(req.params.id);
+      if (!instructor) {
+        return res.status(404).json({ message: "Instructor not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (instructor.userId !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const slot = await storage.getAvailabilityById(req.params.slotId);
+      if (!slot || slot.instructorId !== instructor.id) {
+        return res.status(404).json({ message: "Availability not found" });
+      }
+
+      await storage.deleteAvailability(req.params.slotId);
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Error deleting availability:", error);
+      res.status(500).json({ message: "Failed to delete availability" });
+    }
+  });
+
+  app.post('/api/withdrawals', isAuthenticated, async (req: any, res) => {
+    try {
+      const instructor = await storage.getInstructorByUserId(req.user.claims.sub);
+      if (!instructor) {
+        return res.status(403).json({ message: "Apenas instrutores podem solicitar saque." });
+      }
+
+      const { amount, pixKey } = req.body;
+      const amountNum = Number(amount);
+
+      if (!amount || amountNum <= 0) {
+        return res.status(400).json({ message: "Valor inválido" });
+      }
+
+      // Use the pixKey provided in the request or fallback to the instructor's saved pixKey
+      const destinationKey = pixKey || instructor.pixKey;
+
+      if (!destinationKey) {
+        return res.status(400).json({ message: "Chave Pix não informada." });
+      }
+
+      // Create withdrawal request
+      const withdrawal = await storage.createWithdrawal({
+        userId: req.user.claims.sub,
+        amount: amountNum.toString(),
+        status: "pending",
+        destinationType: "pix",
+        destinationKey: destinationKey,
+      });
+
+      res.status(201).json(withdrawal);
+    } catch (err) {
+      console.error("Withdrawal error:", err);
+      res.status(500).json({ message: "Erro ao solicitar saque" });
     }
   });
 
@@ -613,6 +1282,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching instructors:", error);
       res.status(500).json({ message: "Failed to fetch instructors" });
+    }
+  });
+
+  app.get('/api/admin/settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const settings = await storage.getAdminSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching admin settings:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  app.patch('/api/admin/settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const payload = req.body ?? {};
+      const cancellationFeePercent = Number(payload.cancellationFeePercent);
+      const cancellationInstructorSharePercent = Number(
+        payload.cancellationInstructorSharePercent,
+      );
+      const platformFeePercent = Number(payload.platformFeePercent);
+
+      if (
+        !Number.isFinite(cancellationFeePercent) ||
+        cancellationFeePercent < 0 ||
+        cancellationFeePercent > 100
+      ) {
+        return res.status(400).json({ message: "Percentual de cancelamento invalido" });
+      }
+      if (
+        !Number.isFinite(cancellationInstructorSharePercent) ||
+        cancellationInstructorSharePercent < 0 ||
+        cancellationInstructorSharePercent > 100
+      ) {
+        return res.status(400).json({ message: "Percentual do instrutor invalido" });
+      }
+      if (
+        !Number.isFinite(platformFeePercent) ||
+        platformFeePercent < 0 ||
+        platformFeePercent > 100
+      ) {
+        return res.status(400).json({ message: "Taxa da plataforma invalida" });
+      }
+
+      const updated = await storage.updateAdminSettings({
+        cancellationFeePercent: cancellationFeePercent.toFixed(2),
+        cancellationInstructorSharePercent: cancellationInstructorSharePercent.toFixed(2),
+        platformFeePercent: platformFeePercent.toFixed(2),
+      });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating admin settings:", error);
+      res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+
+  app.get('/api/admin/disputes', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const disputes = await storage.getDisputes();
+      res.json(disputes);
+    } catch (error) {
+      console.error("Error fetching disputes:", error);
+      res.status(500).json({ message: "Failed to fetch disputes" });
+    }
+  });
+
+  app.patch('/api/admin/disputes/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const status = String(req.body?.status ?? "").trim();
+      const resolution = String(req.body?.resolution ?? "").trim();
+      if (!status) {
+        return res.status(400).json({ message: "Status obrigatorio" });
+      }
+
+      const payload: any = { status };
+      if (status === "resolved") {
+        if (!resolution) {
+          return res.status(400).json({ message: "Resolution obrigatoria" });
+        }
+        payload.resolution = resolution;
+        payload.resolvedByUserId = user.id;
+        payload.resolvedAt = new Date();
+      }
+
+      const updated = await storage.updateDispute(req.params.id, payload);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating dispute:", error);
+      res.status(500).json({ message: "Failed to update dispute" });
     }
   });
 
@@ -1209,7 +1984,236 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
+  // AI Chat routes
+  app.post('/api/chat/ai', isAuthenticated, async (req: any, res) => {
+    try {
+      const { chatWithAI } = await import("./ai");
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      const user = await storage.getUser(userId);
+
+      const messagesPayload = z.array(z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().min(1).max(2000),
+      })).parse(req.body.messages);
+
+      if (messagesPayload.length === 0) {
+        return res.status(400).json({ message: "Mensagens não podem estar vazias" });
+      }
+
+      const result = await chatWithAI(
+        messagesPayload,
+        {
+          userId,
+          role: user?.role,
+          name: user?.firstName || undefined,
+        }
+      );
+
+      res.json({
+        reply: result.reply,
+        model: result.model,
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      if (error.message?.includes("API key")) {
+        return res.status(503).json({
+          message: "Assistente IA não configurado. Configure a integração OpenAI no painel admin.",
+          code: "AI_NOT_CONFIGURED"
+        });
+      }
+      console.error("Error in AI chat:", error);
+      res.status(500).json({ message: "Erro ao processar mensagem com IA" });
+    }
+  });
+
+  app.get('/api/chat/quick-replies', async (req, res) => {
+    try {
+      const { getQuickReplies } = await import("./ai");
+      const context = (req.query.context as "greeting" | "booking" | "payment") || "greeting";
+      const replies = getQuickReplies(context);
+      res.json({ replies });
+    } catch (error) {
+      console.error("Error fetching quick replies:", error);
+      res.status(500).json({ message: "Failed to fetch quick replies" });
+    }
+  });
+
+  // ==================== KYC ROUTES ====================
+
+  // KYC rate limiter (stricter for face verification)
+  const kycLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5, // max 5 verification attempts per hour
+    message: { message: 'Muitas tentativas de verificação. Tente novamente em 1 hora.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Get KYC status
+  app.get('/api/kyc/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'Não autenticado' });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'Usuário não encontrado' });
+      }
+
+      // Check KYC status from user record
+      const kycStatus = user.kycStatus || 'pending';
+
+      res.json({
+        status: kycStatus === 'approved' ? 'approved' :
+          kycStatus === 'rejected' ? 'rejected' : 'not_started',
+        canRetry: kycStatus === 'rejected',
+        userId: user.id,
+      });
+    } catch (error) {
+      console.error('Error fetching KYC status:', error);
+      res.status(500).json({ message: 'Erro ao buscar status do KYC' });
+    }
+  });
+
+  // Get KYC requirements
+  app.get('/api/kyc/requirements', async (req, res) => {
+    try {
+      const { KYC_REQUIREMENTS } = await import('./kyc');
+      res.json(KYC_REQUIREMENTS);
+    } catch (error) {
+      console.error('Error fetching KYC requirements:', error);
+      res.status(500).json({ message: 'Erro ao buscar requisitos' });
+    }
+  });
+
+  // Verify KYC (submit images for verification)
+  app.post('/api/kyc/verify', kycLimiter, isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'Não autenticado' });
+      }
+
+      const { selfie, documentFront, documentBack } = req.body;
+
+      if (!selfie || !documentFront) {
+        return res.status(400).json({
+          message: 'Selfie e documento são obrigatórios'
+        });
+      }
+
+      // Import KYC service
+      const { performKycVerification, saveBase64Image } = await import('./kyc');
+
+      // Save images
+      const selfieUrl = await saveBase64Image(selfie, userId, 'selfie');
+      const documentFrontUrl = await saveBase64Image(documentFront, userId, 'document_front');
+      let documentBackUrl;
+      if (documentBack) {
+        documentBackUrl = await saveBase64Image(documentBack, userId, 'document_back');
+      }
+
+      // Extract base64 data (remove data URL prefix)
+      const selfieBase64 = selfie.replace(/^data:image\/\w+;base64,/, '');
+      const documentFrontBase64 = documentFront.replace(/^data:image\/\w+;base64,/, '');
+
+      // Perform verification
+      const result = await performKycVerification(
+        userId,
+        selfieBase64,
+        documentFrontBase64,
+        documentBack ? documentBack.replace(/^data:image\/\w+;base64,/, '') : undefined
+      );
+
+      // Update user KYC status
+      const newKycStatus = result.overallStatus === 'approved' ? 'approved' :
+        result.overallStatus === 'rejected' ? 'rejected' : 'pending';
+
+      await storage.upsertUser({
+        id: userId,
+        kycStatus: newKycStatus as any,
+      });
+
+      logger.info(`[KYC] User ${userId} verification: ${result.overallStatus}`, { userId, status: result.overallStatus });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error in KYC verification:', error);
+      res.status(500).json({
+        message: 'Erro na verificação de identidade',
+        error: error.message
+      });
+    }
+  });
+
+  // Admin: List pending KYC verifications
+  app.get('/api/admin/kyc/pending', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminUser = req.user;
+      if (adminUser?.role !== 'admin') {
+        return res.status(403).json({ message: 'Acesso negado' });
+      }
+
+      // Get users with pending KYC
+      const pendingUsers = await storage.getUsers?.() || [];
+      const pending = pendingUsers.filter((u: any) => u.kycStatus === 'pending');
+
+      res.json({
+        verifications: pending.map((u: any) => ({
+          userId: u.id,
+          email: u.email,
+          name: `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+          status: u.kycStatus,
+          createdAt: u.createdAt,
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching pending KYC:', error);
+      res.status(500).json({ message: 'Erro ao buscar verificações pendentes' });
+    }
+  });
+
+  // Admin: Approve/Reject KYC manually
+  app.post('/api/admin/kyc/:userId/review', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminUser = req.user;
+      if (adminUser?.role !== 'admin') {
+        return res.status(403).json({ message: 'Acesso negado' });
+      }
+
+      const { userId } = req.params;
+      const { action, notes } = req.body;
+
+      if (!['approve', 'reject'].includes(action)) {
+        return res.status(400).json({ message: 'Ação inválida' });
+      }
+
+      const newStatus = action === 'approve' ? 'approved' : 'rejected';
+
+      await storage.upsertUser({
+        id: userId,
+        kycStatus: newStatus as any,
+      });
+
+      logger.info(`[KYC] Admin ${adminUser.id} ${action}d KYC for user ${userId}`, { adminId: adminUser.id, action, userId });
+
+      res.json({
+        success: true,
+        userId,
+        status: newStatus,
+        reviewedBy: adminUser.id,
+      });
+    } catch (error) {
+      console.error('Error reviewing KYC:', error);
+      res.status(500).json({ message: 'Erro ao revisar verificação' });
+    }
+  });
+
+
 
   app.post('/api/payments/abacatepay', paymentLimiter, isAuthenticated, async (req: any, res) => {
     try {
@@ -1252,6 +2256,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const created = await createAbacateBilling(booking, integrationConfig);
       const bookingStatus = mapAbacateStatusToBooking(created.paymentStatus as any);
+      const shouldGenerateCodes = bookingStatus === "paid";
+      const startCode = shouldGenerateCodes
+        ? (booking.startCode ?? generateSecurityCode())
+        : booking.startCode;
+      const endCode = shouldGenerateCodes
+        ? (booking.endCode ?? generateSecurityCode())
+        : booking.endCode;
 
       const updated = await storage.updateBooking(booking.id, {
         paymentId: created.paymentId,
@@ -1262,10 +2273,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentDevMode: created.paymentDevMode,
         status: bookingStatus,
         paidAt: bookingStatus === "paid" ? new Date() : booking.paidAt,
+        startCode,
+        endCode,
       });
 
       storage.upsertBookingTransaction(updated).catch((error) => {
-        console.error("Error syncing booking transaction:", error);
+        logger.error("Error syncing booking transaction:", error);
       });
 
       res.json({
@@ -1276,15 +2289,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bookingStatus: updated.status,
       });
     } catch (error: any) {
-      console.error("Error creating AbacatePay billing:", error);
+      logger.error("Error creating AbacatePay billing:", error);
       res.status(500).json({ message: error?.message || "Failed to create payment" });
     }
   });
 
   app.post('/api/webhooks/abacatepay', async (req: any, res) => {
     try {
+      const { verifyAbacateWebhookSignature, getAbacateBilling } = await import("./abacatepay");
       const raw = req.rawBody;
-      // TODO: validar assinatura com ABACATEPAY_WEBHOOK_SECRET usando raw body + header
+      const signature = req.headers["x-webhook-signature"] || req.headers["abacate-signature"];
+      const secret = process.env.ABACATEPAY_WEBHOOK_SECRET;
+
+      if (!secret) {
+        logger.error("ABACATEPAY_WEBHOOK_SECRET not configured, skipping validation (DANGEROUS)");
+        // In production this should be an error
+        if (process.env.NODE_ENV === "production") {
+          return res.status(500).json({ message: "Webhook secret not configured" });
+        }
+      } else if (!signature || !verifyAbacateWebhookSignature(raw, signature as string, secret)) {
+        logger.warn("Invalid AbacatePay webhook signature");
+        return res.status(401).json({ message: "Invalid signature" });
+      }
+
       const payload = req.body as any;
       const status = payload?.data?.status as string | undefined;
       const paymentId = payload?.data?.id as string | undefined;
@@ -1307,14 +2334,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(202).json({ ok: true, message: "Booking não encontrado para paymentId" });
       }
 
+      const shouldGenerateCodes = bookingStatus === "paid";
+      const startCode = shouldGenerateCodes
+        ? (booking.startCode ?? generateSecurityCode())
+        : booking.startCode;
+      const endCode = shouldGenerateCodes
+        ? (booking.endCode ?? generateSecurityCode())
+        : booking.endCode;
+
       const updatedBooking = await storage.updateBooking(booking.id, {
         paymentStatus: effectiveStatus,
         status: bookingStatus,
         paidAt: bookingStatus === "paid" ? new Date() : booking.paidAt,
+        startCode,
+        endCode,
       });
 
+      if (bookingStatus === "paid") {
+        import("./services/fees").then(({ feesService }) => {
+          feesService.distributeBookingRevenue(updatedBooking.id).catch(err => {
+            console.error("Error distributing revenue:", err);
+          });
+        });
+      }
+
       storage.upsertBookingTransaction(updatedBooking).catch((error) => {
-        console.error("Error syncing booking transaction:", error);
+        logger.error("Error syncing booking transaction:", error);
       });
 
       res.json({ ok: true });

@@ -27,6 +27,9 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
+  if (!process.env.SESSION_SECRET && process.env.AUTH_MODE === "local") {
+    process.env.SESSION_SECRET = "local-dev-secret";
+  }
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
@@ -259,16 +262,31 @@ export async function setupAuth(app: Express) {
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   // Modo local/offline: aceitar sempre se usuário fake foi injetado
   if (process.env.AUTH_MODE === "local") {
-    const user = (req as any).user;
-    if (user) {
+    let user = (req as any).user;
+    if (!user) {
+      const isTestEnv =
+        process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+      const allowBypass =
+        process.env.E2E_AUTH_BYPASS === "true" ||
+        process.env.E2E_AUTH_BYPASS === "1";
+      if (!isTestEnv && !allowBypass) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const localUserId = process.env.LOCAL_USER_ID || "local-admin";
+      user = {
+        id: localUserId,
+        role: process.env.LOCAL_USER_ROLE,
+        claims: { sub: localUserId },
+      };
+      (req as any).user = user;
+    } else {
       if (!user.claims) {
         user.claims = { sub: user.id };
       } else if (!user.claims.sub) {
         user.claims.sub = user.id;
       }
-      return next();
     }
-    return res.status(401).json({ message: "Unauthorized" });
+    return next();
   }
 
   const user = req.user as any;

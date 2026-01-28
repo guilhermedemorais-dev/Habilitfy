@@ -62,7 +62,7 @@ export function getWeekEarnings(bookings: BookingWithStudent[] | undefined) {
         return (
             bookingDate >= weekAgo &&
             bookingDate <= today &&
-            (b.status === "paid" || b.status === "completed")
+            b.status === "completed"
         );
     });
 
@@ -84,6 +84,6 @@ export function getPendingEarnings(bookings: BookingWithStudent[] | undefined) {
     if (!bookings || bookings.length === 0) return 0;
 
     return bookings
-        .filter((b) => b.status === "paid" || b.status === "completed")
+        .filter((b) => b.status !== "completed" && b.paymentStatus === "paid")
         .reduce((sum, b) => sum + Number(b.totalPrice || 0), 0);
 }

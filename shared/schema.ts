@@ -25,8 +25,11 @@ export const sessions = pgTable(
 );
 
 export const userRoleEnum = pgEnum('user_role', ['student', 'instructor', 'admin']);
+export const kycStatusEnum = pgEnum('kyc_status', ['pending', 'approved', 'rejected']);
 export const bookingStatusEnum = pgEnum('booking_status', ['pending', 'confirmed', 'paid', 'completed', 'cancelled']);
 export const instructorStatusEnum = pgEnum('instructor_status', ['pending', 'approved', 'rejected']);
+export const disputeStatusEnum = pgEnum('dispute_status', ['open', 'in_review', 'resolved']);
+export const disputeResolutionEnum = pgEnum('dispute_resolution', ['refund_student', 'release_instructor', 'split']);
 export const transactionTypeEnum = pgEnum('transaction_type', [
   'booking',
   'withdrawal',
@@ -68,12 +71,16 @@ export const integrationEnvironmentEnum = pgEnum('integration_environment', [
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
+  googleId: varchar("google_id").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   role: userRoleEnum("role").default('student').notNull(),
+  kycStatus: kycStatusEnum("kyc_status").default("approved").notNull(),
   phone: varchar("phone"),
   cpf: varchar("cpf"),
+  addressLine: varchar("address_line"),
+  zipCode: varchar("zip_code"),
   neighborhood: varchar("neighborhood"),
   city: varchar("city"),
   state: varchar("state"),
@@ -89,6 +96,8 @@ export const instructors = pgTable("instructors", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   bio: text("bio"),
   pricePerHour: decimal("price_per_hour", { precision: 10, scale: 2 }).notNull(),
+  slotDurationMinutes: integer("slot_duration_minutes").default(50).notNull(),
+  maxBookingsPerStudent: integer("max_bookings_per_student").default(0).notNull(),
   vehicleModel: varchar("vehicle_model").notNull(),
   vehicleYear: varchar("vehicle_year"),
   vehicleType: varchar("vehicle_type").notNull(),
@@ -102,7 +111,13 @@ export const instructors = pgTable("instructors", {
   state: varchar("state"),
   credentialNumber: varchar("credential_number"),
   credentialImageUrl: varchar("credential_image_url"),
+  documentNumber: varchar("document_number"),
+  documentImageUrl: varchar("document_image_url"),
+  selfieImageUrl: varchar("selfie_image_url"),
   vehicleImageUrl: varchar("vehicle_image_url"),
+  vehicleDocImageUrl: varchar("vehicle_doc_image_url"),
+  vehiclePlateImageUrl: varchar("vehicle_plate_image_url"),
+  vehicleAuthorizationImageUrl: varchar("vehicle_authorization_image_url"),
   status: instructorStatusEnum("status").default('pending').notNull(),
   serviceAreas: text("service_areas"),
   pixKey: varchar("pix_key"),
@@ -130,6 +145,38 @@ export const bookings = pgTable("bookings", {
   paymentMethods: jsonb("payment_methods"),
   paymentDevMode: boolean("payment_dev_mode"),
   paidAt: timestamp("paid_at"),
+  startCode: varchar("start_code"),
+  endCode: varchar("end_code"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  cancelledByRole: userRoleEnum("cancelled_by_role"),
+  cancelledByUserId: varchar("cancelled_by_user_id").references(() => users.id),
+  cancelReason: text("cancel_reason"),
+  cancelledMinutes: integer("cancelled_minutes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const disputes = pgTable("disputes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bookingId: varchar("booking_id").references(() => bookings.id).notNull(),
+  openedByUserId: varchar("opened_by_user_id").references(() => users.id).notNull(),
+  openedByRole: userRoleEnum("opened_by_role").notNull(),
+  reason: text("reason").notNull(),
+  status: disputeStatusEnum("status").default("open").notNull(),
+  resolution: disputeResolutionEnum("resolution"),
+  resolvedByUserId: varchar("resolved_by_user_id").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const adminSettings = pgTable("admin_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  platformFeePercent: decimal("platform_fee_percent", { precision: 5, scale: 2 }).default("0"),
+  cancellationFeePercent: decimal("cancellation_fee_percent", { precision: 5, scale: 2 }).default("0"),
+  cancellationInstructorSharePercent: decimal("cancellation_instructor_share_percent", { precision: 5, scale: 2 }).default("0"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -284,6 +331,7 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
     references: [instructors.id],
   }),
   review: one(reviews),
+  disputes: many(disputes),
 }));
 
 export const reviewsRelations = relations(reviews, ({ one }) => ({
@@ -298,6 +346,21 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
   instructor: one(instructors, {
     fields: [reviews.instructorId],
     references: [instructors.id],
+  }),
+}));
+
+export const disputesRelations = relations(disputes, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [disputes.bookingId],
+    references: [bookings.id],
+  }),
+  openedBy: one(users, {
+    fields: [disputes.openedByUserId],
+    references: [users.id],
+  }),
+  resolvedBy: one(users, {
+    fields: [disputes.resolvedByUserId],
+    references: [users.id],
   }),
 }));
 
@@ -415,6 +478,8 @@ export const insertReviewSchema = createInsertSchema(reviews).omit({
 });
 export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type Review = typeof reviews.$inferSelect;
+export type Dispute = typeof disputes.$inferSelect;
+export type AdminSettings = typeof adminSettings.$inferSelect;
 
 export type Transaction = typeof transactions.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;

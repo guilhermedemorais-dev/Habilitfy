@@ -125,11 +125,11 @@ export default function Checkout() {
 
           <Button
             className="w-full h-14 text-lg bg-[#009EE3] hover:bg-[#0081B9] text-white rounded-xl shadow-lg mt-4 flex items-center justify-center gap-2"
-            disabled={payBooking.isLoading || !bookingId}
+            disabled={payBooking.isPending || !bookingId}
             onClick={() => payBooking.mutate()}
           >
             <Lock className="w-4 h-4" />
-            {payBooking.isLoading ? "Processando..." : "Gerar link de pagamento"}
+            {payBooking.isPending ? "Processando..." : "Gerar link de pagamento"}
           </Button>
 
           <div className="flex justify-center gap-2 text-slate-400">

@@ -21,6 +21,7 @@ DOC_BOTS = {
     "qa-unit",
     "qa-integration",
     "qa-e2e",
+    "qa-e2e-browser-audit",
     "qa-security",
     "qa-load",
     "devops",

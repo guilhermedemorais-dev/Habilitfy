@@ -17,6 +17,11 @@ Servidores MCP fornecem contexto confiavel, documentacao e padroes externos.
 1. Servidores aprovados internos.
 2. Servidores externos aprovados.
 
+## Servidores recomendados
+- Context7: `factory/libs/mcp/servers/context7.md`
+- Chrome DevTools: `factory/libs/mcp/servers/chrome-devtools.md`
+- StackOverflow (auxiliar): `factory/libs/mcp/servers/stackoverflow.md`
+
 ## Evidencias em PR
 - Link ou referencia ao servidor consultado.
 - Resumo curto do que foi utilizado.

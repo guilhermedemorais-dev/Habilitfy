@@ -1,27 +1,43 @@
-# MCP Policy
+# Politica MCP (Model/Context/Component Providers)
 
 ## Objetivo
-Definir politica obrigatoria de uso de MCP (Model/Context/Component Providers).
+Garantir reuso, evidencias e governanca no uso de MCPs.
 
-## Regra principal
-Reuso antes de criar. MCP/registry e primeira opcao quando aplicavel.
+## Regras principais
+- **Reuso antes de criar.**
+- Prioridade de consulta:
+  1) Docs oficiais
+  2) MCP de docs oficiais (ex.: Context7)
+  3) UI registry (ex.: shadcn) quando houver UI
+  4) Auditoria (Chrome DevTools MCP) para evidencias de UI/usabilidade/performance
+  5) StackOverflow (auxiliar, nunca autoridade final)
+- **Nao inventar:** se nao cobrir, registrar GAP e parar.
 
-## Quando MCP e obrigatorio
-- Mudancas em componentes UI.
-- Uso de libs ou templates existentes em registry.
-- Integracoes com componentes padronizados.
+## Regras de evidencia
+- Sempre guardar links/fontes no `research.md` e/ou `plan.md`.
+- Evidencia deve incluir **o trecho relevante** ou sumario do achado.
+- Se a evidenca vier de auditoria (Chrome DevTools MCP), anexar relatorio e artefatos.
 
-## Evidencias exigidas em PR
-- Registro da busca em MCP/registry.
-- Justificativa quando nao houver componente adequado.
-- Referencia ao design-system quando aplicavel.
+## Mapeamento canonico (recomendado)
+- **Context7**: documentacao oficial e API
+- **shadcn**: UI registry/components
+- **Playwright**: QA automation
+- **Chrome DevTools**: auditoria de UI/usabilidade/performance (CDP)
+- **GitHub**: issues/PRs/operacoes
+- **Security audit**: auditoria de dependencias
+- **HuggingFace (futuro)**: IA multimodal/artefatos
+- **StackOverflow**: auxiliar, com validacao cruzada
 
-## Quando nao existir componente adequado
-- Registrar gap em `factory/context/core/gaps.md`.
-- Documentar decisao antes de criar.
+## Convivencia Playwright x Chrome DevTools
+- Playwright cobre fluxos E2E funcionais.
+- Chrome DevTools cobre auditoria/inspecao/performance/UX com evidencias objetivas.
+
+## Politica de MCP blob
+- Outputs grandes **vao para arquivo** dedicado.
+- O contexto ativo recebe apenas **sumario curto**.
 
 ## Relacoes
-- Registries e servers: `factory/libs/mcp/*`
-- Design system: `factory/design-system/*`
+- Servidores MCP: `factory/libs/mcp/servers/README.md`
+- Registries MCP: `factory/libs/mcp/registries/README.md`
 - Quality bars: `factory/context/quality/quality-bars.md`
 - Gates: `factory/cicd/gates.md`

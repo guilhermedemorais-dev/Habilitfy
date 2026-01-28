@@ -125,3 +125,21 @@ export async function getAbacateBilling(
   }
   return json.data;
 }
+
+export function verifyAbacateWebhookSignature(
+  rawBody: Buffer | string,
+  signature: string,
+  secret: string
+): boolean {
+  const crypto = require("crypto");
+  const hmac = crypto.createHmac("sha256", secret);
+  const digest = hmac.update(rawBody).digest("hex");
+  const signatureBuffer = Buffer.from(signature);
+  const digestBuffer = Buffer.from(digest);
+
+  if (signatureBuffer.length !== digestBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(signatureBuffer, digestBuffer);
+}

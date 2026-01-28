@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { AIChatFAB } from "@/components/chat/AIChatFAB";
 import { cn } from "@/lib/utils";
 
 import Home from "@/pages/Home";
@@ -15,98 +16,27 @@ import Success from "@/pages/Success";
 import StudentDashboard from "@/pages/StudentDashboard";
 import InstructorDashboard from "@/pages/InstructorDashboard";
 import SignupInstructor from "@/pages/SignupInstructor";
-import Admin from "@/pages/Admin";
+import SignupStudent from "@/pages/SignupStudent";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/Login";
-import ChatPage from "@/pages/ChatPage";
-import Styleguide from "@/pages/Styleguide";
+import Admin from "@/pages/Admin";
 
-import { Link } from "wouter";
-import { Loader2 } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+// ... existing code ...
 
-function AuthGuard({ component: Component, allowedRoles }: { component: React.ComponentType<any>, allowedRoles?: string[] }) {
-  const { user, isLoading } = useAuth();
-  const [location, setLocation] = useLocation();
 
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
-  if (!user) {
-    const redirectTarget =
-      typeof window !== "undefined"
-        ? `${window.location.pathname}${window.location.search}`
-        : location;
-    setTimeout(
-      () => setLocation(`/login?redirect=${encodeURIComponent(redirectTarget)}`),
-      0,
-    );
-    return null;
-  }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background p-4 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">Acesso Negado</h1>
-        <p className="text-slate-600">Você não tem permissão para acessar esta página.</p>
-        <Button asChild>
-          <Link href="/">Voltar ao Início</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  return <Component />;
-}
-
-function Router() {
-  return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/login" component={Login} />
-      <Route path="/cadastro-instrutor" component={SignupInstructor} />
-      <Route path="/styleguide" component={Styleguide} />
-
-      {/* Protected Routes */}
-      <Route path="/instrutores" component={MapPage} />
-      <Route path="/instrutor/:id" component={InstructorProfile} />
-      <Route path="/agendar/:id">
-        {(params) => <AuthGuard component={Booking} {...params} />}
-      </Route>
-      <Route path="/checkout">
-        {() => <AuthGuard component={Checkout} />}
-      </Route>
-      <Route path="/sucesso">
-        {() => <AuthGuard component={Success} />}
-      </Route>
-      <Route path="/chat/:contactId?">
-        {(params) => <AuthGuard component={ChatPage} {...params} />}
-      </Route>
-      <Route path="/dashboard/aluno">
-        {() => <AuthGuard component={StudentDashboard} allowedRoles={['student']} />}
-      </Route>
-      <Route path="/dashboard/instrutor">
-        {() => <AuthGuard component={InstructorDashboard} allowedRoles={['instructor']} />}
-      </Route>
-      <Route path="/admin">
-        {() => <AuthGuard component={Admin} allowedRoles={['admin']} />}
-      </Route>
-
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
-
+// Main App Component
 function App() {
   const [location] = useLocation();
   const isAdminRoute = location.startsWith("/admin");
-  const isAuthRoute = location.startsWith("/login") || location.startsWith("/cadastro-instrutor");
+  const isAuthRoute = location.startsWith("/login") || location.startsWith("/cadastro");
   const isStyleguideRoute = location.startsWith("/styleguide");
+
+  const isChatRoute = location.startsWith("/chat");
+
+  // Show AI FAB on main user pages (not admin, auth, styleguide, or existing chat)
+  const showAIChatFAB = !isAdminRoute && !isAuthRoute && !isStyleguideRoute && !isChatRoute;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -119,8 +49,28 @@ function App() {
             : "pb-16 md:pb-0",
         )}
       >
-        <Router />
+        <Switch>
+          <Route path="/" component={Home} />
+          <Route path="/login" component={Login} />
+          <Route path="/cadastro-instrutor" component={SignupInstructor} />
+          <Route path="/signup-instructor" component={SignupInstructor} />
+          <Route path="/cadastro-aluno" component={SignupStudent} />
+          <Route path="/signup-student" component={SignupStudent} />
+          <Route path="/mapa" component={MapPage} />
+          <Route path="/instrutor/:id" component={InstructorProfile} />
+          <Route path="/agendar/:instructorId" component={Booking} />
+          <Route path="/checkout" component={Checkout} />
+          <Route path="/sucesso" component={Success} />
+          <Route path="/dashboard/student" component={StudentDashboard} />
+          <Route path="/dashboard/aluno" component={StudentDashboard} />
+          <Route path="/dashboard/instructor" component={InstructorDashboard} />
+          <Route path="/dashboard/instrutor" component={InstructorDashboard} />
+          <Route path="/admin" component={Admin} />
+
+          <Route component={NotFound} />
+        </Switch>
         {!isAdminRoute && !isAuthRoute && !isStyleguideRoute && <BottomNav />}
+        {showAIChatFAB && <AIChatFAB />}
       </div>
     </QueryClientProvider>
   );

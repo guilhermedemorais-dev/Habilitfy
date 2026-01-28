@@ -6,8 +6,9 @@ Esta pasta define ferramentas e infraestrutura de apoio ao desenvolvimento. Tool
 ## Ordem de leitura
 1. factory/context/tooling/toolchain.md
 2. factory/context/tooling/local-env.md
-3. factory/context/tooling/mcp-policy.md
-4. factory/context/tooling/observability.md
+3. factory/context/tooling/runtime.md
+4. factory/context/tooling/mcp-policy.md
+5. factory/context/tooling/observability.md
 
 ## Relacoes
 - Contexto e requisitos: factory/context/core/*

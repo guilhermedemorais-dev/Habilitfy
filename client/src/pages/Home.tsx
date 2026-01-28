@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { navItems } from "@/components/layout/navigation";
+import { getNavItems } from "@/components/layout/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import type { Instructor } from "@shared/schema";
 import heroImg from "@assets/generated_images/happy_driving_lesson_in_brazil.png";
@@ -206,6 +207,8 @@ const InstructorCard = ({ instructor }: { instructor: InstructorListItem }) => {
 
 const DesktopSidebar = () => {
   const [location] = useLocation();
+  const { user } = useAuth();
+  const navItems = getNavItems(user?.role);
 
   return (
     <aside className="fixed left-0 top-0 hidden h-screen w-20 flex-col items-center bg-slate-950 py-6 text-white md:flex">
@@ -349,13 +352,13 @@ export default function Home() {
                   className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-blue-600 hover:bg-slate-100"
                   asChild
                 >
-                  <Link href="/login?role=student">Sou aluno</Link>
+                  <Link href="/cadastro-aluno">Sou aluno</Link>
                 </Button>
                 <Button
                   className="h-12 rounded-full border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white hover:bg-white/20"
                   asChild
                 >
-                  <Link href="/login?role=instructor">Sou instrutor</Link>
+                  <Link href="/cadastro-instrutor">Sou instrutor</Link>
                 </Button>
               </div>
             </div>
@@ -683,7 +686,7 @@ export default function Home() {
                 </p>
               </div>
               <Button className="h-12 rounded-full px-6 text-sm font-semibold" asChild>
-                <Link href="/login?role=student">Sou aluno</Link>
+                <Link href="/cadastro-aluno">Sou aluno</Link>
               </Button>
             </div>
           </section>
@@ -709,7 +712,7 @@ export default function Home() {
                 </p>
               </div>
               <Button className="h-12 rounded-full px-6 text-sm font-semibold" asChild>
-                <Link href="/login?role=instructor">Sou instrutor</Link>
+                <Link href="/cadastro-instrutor">Sou instrutor</Link>
               </Button>
             </div>
           </section>

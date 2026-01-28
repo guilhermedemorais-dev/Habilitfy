@@ -1,215 +1,108 @@
 # 🏭 Factory
 
-> **Framework público para Engenharia de Contexto, Agentes de IA e Governança de Entrega de Software.**
+> **Framework publico para Context Engineering, Spec-driven Delivery e governanca de entrega de software.**
 
 Factory existe para resolver um problema simples e ignorado:
 
-🚨 **IA não falha por código.  
-IA falha por CONTEXTO mal definido.**
+🚨 **IA nao falha por codigo.**  
+**IA falha por CONTEXTO mal definido.**
 
 ---
 
-## 🎯 O que é a Factory
+## 🎯 O que e a Factory
 
-Factory é o **sistema operacional do desenvolvimento de software**.
+Factory e o **sistema operacional do desenvolvimento de software**.
 
-Ela não gera código sozinha.  
-Ela define **como pensar, decidir, organizar, validar e automatizar** a construção de software — **antes**, **durante** e **depois** da implementação.
-
----
-
-## 🚫 O que a Factory NÃO é
-
-- ❌ Framework frontend/backend  
-- ❌ Boilerplate de código  
-- ❌ Gerador mágico de software  
-- ❌ Prompt solto de IA  
-
-👉 Factory é **governança + contexto + automação consciente**.
+Ela nao gera codigo sozinha.  
+Ela define **como pesquisar, decidir, planejar, validar e automatizar** a construcao de software — **antes**, **durante** e **depois** da implementacao.
 
 ---
 
-## 👥 Para quem isso é
+## 🧭 Workflow canonico: RPI (Research → Plan → Implement)
 
-- 👨‍💻 Times que usam ou vão usar **IA / agentes / bots**
-- 🧠 Engenheiros que querem **menos improviso**
-- 🏢 Projetos críticos que exigem **auditoria e rastreabilidade**
-- 🚀 Produtos que precisam **escalar sem virar bagunça**
-
----
-
-## 🧠 A ideia central
-
-> **Nada executa sem contexto fechado.  
-Nada entrega sem qualidade validada.  
-Nada vai para produção sem controle.**
-
----
-
-## 🔄 Como a Factory funciona (fluxo real)
-
-### Fluxo conceitual
+### Fluxo (Mermaid)
 
 ```mermaid
 flowchart TD
-    A[💡 Ideia] --> B[📄 docs.md<br/>Documento Mestre]
-    B --> C[🧩 Distribuição de Contexto<br/>factory/context/*]
-    C --> D[📏 Quality Bars & Gates]
-    D --> E[🤖 Bots / Humanos]
-    E --> F[🧪 Testes]
-    F --> G[🚦 CI/CD Gates]
-    G --> H[🚀 Deploy (staging)]
-    H --> I[🛑 Aprovação Humana]
-    I --> J[✅ Produção]
+    A[💡 Ideia] --> B[🔎 Research]
+    B --> C[🧭 Plan]
+    C --> D[🧱 Implement]
+    D --> E[🧪 Testes]
+    E --> F[🚦 Gates]
+    F --> G[🚀 Deploy]
 ```
 
-### Versão mental (simples)
+### Fluxo (fallback)
 
 ```
 IDEIA
   ↓
-DOCUMENTO MESTRE
+RESEARCH (evidencias + gaps)
   ↓
-CONTEXTO OPERACIONAL
+PLAN (escopo + passos + testes)
   ↓
-REGRAS + GATES
-  ↓
-EXECUÇÃO (BOTS/HUMANOS)
+IMPLEMENT (codigo + docs)
   ↓
 TESTES
   ↓
-DEPLOY CONTROLADO
+GATES
+  ↓
+DEPLOY
 ```
 
 ---
 
-## 📁 Estrutura do Framework (visão clara)
+## 🤖 Execucao e bots
 
-### 🧩 Contexto — Fonte da Verdade
+- **Executor de IA** (IDE assistant / LLM executor) edita arquivos.
+- **Bots Python** executam **apenas via CLI local** (ou CI configurado).
+- Nada executa sem contexto fechado; gaps devem ser registrados.
 
-`factory/context/*`
-
-- 🧠 **core** → visão, escopo, requisitos, regras, dados
-- 📏 **quality** → quality bars, DoD, estratégia de testes
-- 🛠️ **tooling** → stack, MCP, observabilidade
-- 🎨 **ui** → políticas de UI, registry, acessibilidade
-- 🤖 **codex** → regras de comportamento dos agentes
+👉 **Como executar bots:** veja `factory/docs/quickstart.md`.
 
 ---
 
-### 🎨 Design System
+## 🧠 Contexto e governanca
 
-`factory/design-system/*`
-
-- tokens (cor, spacing, tipografia)
-- componentes
-- padrões
-- acessibilidade
-
-> UI sem design system = dívida técnica antecipada.
+- **Contexto e fonte de verdade:** `factory/context/*`.
+- **Reuso antes de criar:** politica MCP em `factory/context/tooling/mcp-policy.md`.
+- **Seguranca e gates:** `factory/cicd/*`.
+- **Governanca e auditoria:** `factory/governance/*`.
 
 ---
 
-### 🧠 MCP — Reuso antes de criar
+## 📁 Estrutura essencial
 
-`factory/libs/mcp/*`
-
-- 🌐 **servers** → fontes confiáveis de contexto/documentação
-- 📦 **registries** → componentes reutilizáveis
-
-> Regra de ouro: **buscar antes de criar**.
-
----
-
-### 🚦 CI/CD & Deploy
-
-`factory/cicd/*`
-
-- estratégia
-- gates
-- checklist
-- deploy com **aprovação humana em produção**
+- `factory/docs/` → onboarding, workflow, templates
+- `factory/context/` → core, quality, tooling, UI, codex
+- `factory/bots/` → contratos de bots (Markdown)
+- `factory/bots/runtime/` → runtime local (CLI)
+- `factory/libs/mcp/` → servers e registries MCP
+- `factory/cicd/` → gates, checklist, deploy
 
 ---
 
-### 🏛️ Governança
+## 🚀 Por onde comecar
 
-`factory/governance/*`
-
-- ownership
-- decisões (ADR)
-- riscos
-- mudanças
-- política de git
-
-> Nada crítico fica implícito.
+1) `factory/docs/quickstart.md`  
+2) `factory/docs/workflow.md`  
+3) `factory/docs/templates/README.md`  
+4) `factory/docs/examples/README.md`
 
 ---
 
-### 🗺️ Planejamento
+## 🔐 Regras inegociaveis
 
-`factory/plan/*`
-
-- roadmap
-- milestones
-- dependências
-
----
-
-### 🧠 Prompts
-
-`factory/prompts/*`
-
-- templates canônicos para agentes
-- prompts auditáveis e reutilizáveis
-
-> Prompt freestyle não escala.
+- Contexto fechado antes de executar.
+- Plan aprovado antes de implementar.
+- Evidencias e links em Research/Plan.
+- Producao exige aprovacao humana.
 
 ---
 
-### 📚 Docs Públicos (onde tudo começa)
+## 🔗 Referencias rapidas
 
-`factory/docs/*`
-
-- quickstart
-- workflow
-- templates oficiais
-- exemplos reais
-
----
-
-## 🚀 Onde começar
-
-👉 **Siga nesta ordem (não pule):**
-
-1️⃣ `factory/docs/quickstart.md`  
-2️⃣ `factory/docs/workflow.md`  
-3️⃣ `factory/docs/templates/README.md`  
-4️⃣ `factory/docs/examples/README.md`
-
-Se você pular o Quickstart, vai usar errado.
-
----
-
-## 🧩 Regras fundamentais (não negociáveis)
-
-- 📌 Contexto é **fonte de verdade**
-- 🚦 Qualidade é **gate**, não sugestão
-- 🔁 Reuso vem antes de criação
-- 🛑 Produção exige aprovação humana
-- ❓ Falta de informação → **GAP**, não suposição
-
----
-
-## 🤝 Colaboração
-
-- 📄 Decisões devem ser registradas (ADR)
-- 🔀 Commits e PRs seguem `factory/governance/git-policy.md`
-- 🚦 Gates definidos em `factory/cicd/gates.md`
-
----
-
-## 📜 Licença
-
-Framework público e não comercial.  
-Veja o arquivo de licença para detalhes.
+- Workflow RPI: `factory/docs/workflow.md`
+- Politica MCP: `factory/context/tooling/mcp-policy.md`
+- Runtime local (CLI): `factory/context/tooling/runtime.md`
+- Quickstart: `factory/docs/quickstart.md`

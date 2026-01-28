@@ -6,7 +6,9 @@ const resolveEnv = (key: string, fallback?: string) =>
   process.env[key] || envFile[key] || fallback;
 
 const port = resolveEnv("E2E_PORT", "5001");
-const baseURL = `http://127.0.0.1:${port}`;
+const host = resolveEnv("E2E_HOST", "0.0.0.0");
+const baseHost = resolveEnv("E2E_BASE_HOST", "127.0.0.1");
+const baseURL = `http://${baseHost}:${port}`;
 const abacateMockPort = resolveEnv("ABACATEPAY_MOCK_PORT", "5555");
 
 export default defineConfig({
@@ -29,7 +31,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NODE_ENV: "development",
-      HOST: "127.0.0.1",
+      HOST: host,
       PORT: port,
       DATABASE_URL: resolveEnv("DATABASE_URL"),
       SESSION_SECRET: resolveEnv("SESSION_SECRET", "dev-secret-habilitfy"),
@@ -40,9 +42,10 @@ export default defineConfig({
       LOCAL_USER_FIRSTNAME: "E2E",
       LOCAL_USER_LASTNAME: "Admin",
       ABACATEPAY_MOCK_PORT: abacateMockPort,
-      ABACATEPAY_BASE_URL: `http://127.0.0.1:${abacateMockPort}`,
+      ABACATEPAY_BASE_URL: `http://${baseHost}:${abacateMockPort}`,
       ABACATEPAY_API_KEY: resolveEnv("ABACATEPAY_API_KEY", "e2e-key"),
       ABACATEPAY_DEV_MODE: "true",
+      E2E_AUTH_BYPASS: "1",
     },
   },
   projects: [

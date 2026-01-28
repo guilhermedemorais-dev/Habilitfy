@@ -1,46 +1,52 @@
 # CI/CD Gates
 
-## Objective
-Define non-executable gate requirements for pipelines.
+## Objetivo
+Definir requisitos de gate (nao executaveis) para pipelines.
 
-## Sources of truth
+## Fontes de verdade
 - factory/context/quality/quality-bars.md
 - factory/context/quality/test-strategy.md
 - factory/context/tooling/mcp-policy.md
+- factory/context/tooling/runtime.md
 - factory/context/ui/component-policy.md
 - factory/context/codex/implementation-rules.md
+- factory/docs/workflow.md
 - factory/cicd/deploy.md
 - factory/governance/git-policy.md
 
 ## Gates
-1. Context compliance
-   - Context read order validated (`factory/context/INDEX.md`)
-   - No unresolved gaps (`factory/context/core/gaps.md`)
-2. Reuse and design compliance
-   - MCP/registry reuse verified
-   - Design system alignment verified
-3. Quality and testing
-   - Quality bars met
-   - Tests executed per strategy
-4. Documentation
-   - Context and decision records updated
-5. Security and risk (when applicable)
-   - Security checks per `factory/tests/security.md`
-6. Release readiness
-   - Versioning follows semver and tag policy (`factory/governance/git-policy.md`)
-   - Changelog present for release
-7. Production deploy control
-   - Production deploy requires human approval (manual gate)
-   - Pre-deploy checklist completed (`factory/cicd/deploy.md`)
+1) **Context compliance**
+   - Ordem de leitura valida (`factory/context/INDEX.md`).
+   - Sem gaps bloqueantes em `factory/context/core/gaps.md`.
+2) **Reuse + design**
+   - Reuso MCP/registry verificado.
+   - Design system alinhado (quando aplicavel).
+3) **Qualidade e testes**
+   - Quality bars atendidas.
+   - Testes executados conforme estrategia.
+   - Projetos com UI navegavel rodam `qa-e2e-browser-audit` com relatorio e evidencias.
+4) **Documentacao e evidencias**
+   - Research/Plan atualizados com links e evidencias.
+   - Decision records quando aplicavel.
+5) **Seguranca e risco**
+   - Auditoria de dependencias obrigatoria quando deps mudarem.
+   - Checks de seguranca conforme `factory/tests/security.md`.
+6) **Release readiness**
+   - Versionamento e tags conforme `factory/governance/git-policy.md`.
+   - Changelog atualizado quando houver release.
+7) **Controle de deploy**
+   - Staging validado.
+   - **Producao exige aprovacao humana**.
 
-## Checklist
-- [ ] Context compliance verified.
-- [ ] Reuse verified.
-- [ ] Tests complete.
-- [ ] Docs updated.
-- [ ] Risk checks completed.
-- [ ] Release readiness confirmed.
-- [ ] Production approval recorded.
+## Checklist (resumo)
+- [ ] Context compliance verificado.
+- [ ] Reuso verificado.
+- [ ] Testes completos.
+- [ ] Browser audit executado quando houver UI navegavel.
+- [ ] Docs/evidencias atualizadas.
+- [ ] Seguranca auditada.
+- [ ] Release readiness confirmada.
+- [ ] Aprovacao humana registrada para producao.
 
-## How to use
-- Map each gate to a pipeline stage in `factory/cicd/templates.md`.
+## Como usar
+Mapear cada gate para um estagio em `factory/cicd/templates.md`.

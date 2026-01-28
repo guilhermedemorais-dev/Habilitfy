@@ -1,0 +1,78 @@
+# Dependencies
+node_modules
+*/node_modules
+**/node_modules
+
+# Build outputs
+dist
+*/dist
+**/dist
+.next
+.nuxt
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage
+.nyc_output
+jest.config.*
+*.test.*
+*.spec.*
+__tests__
+
+# Documentation
+docs
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+
+# Development
+.env
+.env.local
+.env.development
+.env.test
+*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp
+temp
+.tmp
+.temp
+*.tmp
+*.bak
+
+# Cache
+.cache
+.parcel-cache
+.eslintcache
+.npm
+
+# Database
+*.sql
+*.dump

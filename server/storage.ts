@@ -10,6 +10,8 @@ import {
   withdrawals,
   paymentGateways,
   integrations,
+  adminSettings,
+  disputes,
   type User,
   type UpsertUser,
   type Instructor,
@@ -18,6 +20,8 @@ import {
   type InsertBooking,
   type Review,
   type InsertReview,
+  type Dispute,
+  type AdminSettings,
   type Availability,
   type InsertAvailability,
   type Transaction,
@@ -32,14 +36,17 @@ import {
   type InsertMessage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, gte, lte, desc, sql, ne, isNotNull } from "drizzle-orm";
+import { eq, and, or, gte, lte, desc, sql, ne, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(email: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
   getUsers(role?: string): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUser(id: string, data: Partial<User>): Promise<User>;
 
   getInstructor(id: string): Promise<Instructor | undefined>;
   getInstructorByUserId(userId: string): Promise<Instructor | undefined>;
@@ -51,6 +58,7 @@ export interface IStorage {
   getBooking(id: string): Promise<Booking | undefined>;
   getBookingsByStudent(studentId: string): Promise<Booking[]>;
   getBookingsByInstructor(instructorId: string): Promise<Booking[]>;
+  countActiveBookingsByStudent(instructorId: string, studentId: string): Promise<number>;
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBooking(id: string, data: Partial<InsertBooking>): Promise<Booking>;
   getBookingByPaymentId(paymentId: string): Promise<Booking | undefined>;
@@ -132,6 +140,13 @@ export interface IStorage {
       processedBy: User | null;
     }>
   >;
+  createWithdrawal(data: {
+    userId: string;
+    amount: string;
+    status: "pending";
+    destinationType: string;
+    destinationKey: string;
+  }): Promise<Withdrawal>;
   updateWithdrawal(id: string, data: Partial<Withdrawal>): Promise<Withdrawal>;
   getPaymentGateways(): Promise<PaymentGateway[]>;
   createPaymentGateway(data: {
@@ -186,6 +201,20 @@ export interface IStorage {
 
   createAvailability(avail: InsertAvailability): Promise<Availability>;
   getAvailabilityByInstructor(instructorId: string): Promise<Availability[]>;
+  getAvailabilityById(id: string): Promise<Availability | undefined>;
+  updateAvailability(id: string, data: Partial<InsertAvailability>): Promise<Availability>;
+  deleteAvailability(id: string): Promise<Availability | undefined>;
+  getAdminSettings(): Promise<AdminSettings>;
+  updateAdminSettings(data: Partial<AdminSettings>): Promise<AdminSettings>;
+  createDispute(data: {
+    bookingId: string;
+    openedByUserId: string;
+    openedByRole: "student" | "instructor" | "admin";
+    reason: string;
+  }): Promise<Dispute>;
+  getDisputeByBooking(bookingId: string): Promise<Dispute | undefined>;
+  getDisputes(): Promise<Dispute[]>;
+  updateDispute(id: string, data: Partial<Dispute>): Promise<Dispute>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -196,6 +225,16 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByUsername(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
     return user;
   }
 
@@ -219,6 +258,15 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async updateUser(id: string, data: Partial<User>): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return updated;
   }
 
   async getInstructor(id: string): Promise<Instructor | undefined> {
@@ -285,6 +333,20 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(bookings)
       .where(eq(bookings.instructorId, instructorId))
       .orderBy(desc(bookings.date));
+  }
+
+  async countActiveBookingsByStudent(instructorId: string, studentId: string): Promise<number> {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.instructorId, instructorId),
+          eq(bookings.studentId, studentId),
+          inArray(bookings.status, ["pending", "confirmed", "paid"]),
+        ),
+      );
+    return row?.count ?? 0;
   }
 
   async getAdminBookings(limit = 20): Promise<
@@ -470,7 +532,7 @@ export class DatabaseStorage implements IStorage {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    const periodExpression = sql<Date>`date_trunc('${period}', ${transactions.createdAt})`;
+    const periodExpression = sql<Date>`date_trunc(${sql.raw(`'${period}'`)}, ${transactions.createdAt})`;
     const conditions = [gte(transactions.createdAt, since)];
 
     if (options?.status) {
@@ -654,6 +716,8 @@ export class DatabaseStorage implements IStorage {
         )
         .groupBy(users.city),
     ]);
+    const instructorTotalsRow = instructorTotals[0];
+    const studentTotalsRow = studentTotals[0];
 
     const mapPoint = (row: {
       lat: string | null;
@@ -692,10 +756,10 @@ export class DatabaseStorage implements IStorage {
         ...studentCities.map((row) => row.city),
       ]),
       totals: {
-        instructorsTotal: instructorTotals?.instructorsTotal ?? 0,
-        instructorsWithLocation: instructorTotals?.instructorsWithLocation ?? 0,
-        studentsTotal: studentTotals?.studentsTotal ?? 0,
-        studentsWithLocation: studentTotals?.studentsWithLocation ?? 0,
+        instructorsTotal: instructorTotalsRow?.instructorsTotal ?? 0,
+        instructorsWithLocation: instructorTotalsRow?.instructorsWithLocation ?? 0,
+        studentsTotal: studentTotalsRow?.studentsTotal ?? 0,
+        studentsWithLocation: studentTotalsRow?.studentsWithLocation ?? 0,
       },
     };
   }
@@ -742,11 +806,8 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(transactions.createdAt))
       .limit(limit);
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    const rows = await query;
+    const rows =
+      conditions.length > 0 ? await query.where(and(...conditions)) : await query;
     return rows.map((row) => ({
       transaction: row.transaction,
       fromUser: row.fromUser ?? null,
@@ -762,11 +823,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(wallets.userId, users.id))
       .orderBy(desc(wallets.updatedAt));
 
-    if (role) {
-      query = query.where(eq(users.role, role as any));
-    }
-
-    const rows = await query;
+    const rows = role ? await query.where(eq(users.role, role as any)) : await query;
     return rows.map((row) => ({
       ...row.wallet,
       user: row.user ?? null,
@@ -809,11 +866,8 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(walletEntries.createdAt))
       .limit(limit);
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    const rows = await query;
+    const rows =
+      conditions.length > 0 ? await query.where(and(...conditions)) : await query;
     return rows.map((row) => ({
       entry: row.entry,
       user: row.user ?? null,
@@ -844,11 +898,9 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(withdrawals.requestedAt))
       .limit(limit);
 
-    if (filters?.status) {
-      query = query.where(eq(withdrawals.status, filters.status as any));
-    }
-
-    const rows = await query;
+    const rows = filters?.status
+      ? await query.where(eq(withdrawals.status, filters.status as any))
+      : await query;
     return rows.map((row) => ({
       withdrawal: row.withdrawal,
       user: row.user ?? null,
@@ -951,13 +1003,13 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(integrations.environment, filters.environment as any));
     }
 
-    let query = db.select().from(integrations).orderBy(desc(integrations.updatedAt));
+    const query = db.select().from(integrations).orderBy(desc(integrations.updatedAt));
     if (conditions.length === 1) {
-      query = query.where(conditions[0]);
-    } else if (conditions.length > 1) {
-      query = query.where(and(...conditions));
+      return query.where(conditions[0]);
     }
-
+    if (conditions.length > 1) {
+      return query.where(and(...conditions));
+    }
     return query;
   }
 
@@ -1010,17 +1062,18 @@ export class DatabaseStorage implements IStorage {
         );
     }
 
+    const integrationValues: IntegrationInsert = {
+      name: data.name,
+      slug: data.slug,
+      category: data.category,
+      status: (data.status ?? "active") as IntegrationInsert["status"],
+      environment: environment as IntegrationInsert["environment"],
+      isDefault: data.isDefault ?? false,
+      fields: data.fields ?? [],
+    };
     const [integration] = await db
       .insert(integrations)
-      .values({
-        name: data.name,
-        slug: data.slug,
-        category: data.category,
-        status: data.status ?? "active",
-        environment,
-        isDefault: data.isDefault ?? false,
-        fields: data.fields ?? [],
-      })
+      .values(integrationValues)
       .returning();
     return integration;
   }
@@ -1115,11 +1168,12 @@ export class DatabaseStorage implements IStorage {
   private getTransactionStatusFromBooking(booking: Booking) {
     const paymentStatus = String(booking.paymentStatus ?? "").toLowerCase();
     if (
-      booking.status === "paid" ||
-      booking.status === "completed" ||
-      paymentStatus === "paid"
+      booking.status === "completed"
     ) {
       return "paid";
+    }
+    if (paymentStatus === "paid" || booking.status === "paid") {
+      return "processing";
     }
     if (
       booking.status === "cancelled" ||
@@ -1216,9 +1270,9 @@ export class DatabaseStorage implements IStorage {
         .where(eq(transactions.id, existing.id))
         .returning();
 
-      if (status === "paid") {
-        await this.ensureWalletEntry(updated);
-      }
+      // if (status === "paid") {
+      //   await this.ensureWalletEntry(updated);
+      // }
 
       return updated;
     }
@@ -1238,9 +1292,9 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
 
-    if (status === "paid") {
-      await this.ensureWalletEntry(created);
-    }
+    // if (status === "paid") {
+    //   await this.ensureWalletEntry(created);
+    // }
 
     return created;
   }
@@ -1283,6 +1337,109 @@ export class DatabaseStorage implements IStorage {
   async getAvailabilityByInstructor(instructorId: string): Promise<Availability[]> {
     return db.select().from(availability)
       .where(eq(availability.instructorId, instructorId));
+  }
+
+  async getAvailabilityById(id: string): Promise<Availability | undefined> {
+    const [slot] = await db.select().from(availability).where(eq(availability.id, id));
+    return slot;
+  }
+
+  async updateAvailability(id: string, data: Partial<InsertAvailability>): Promise<Availability> {
+    const [slot] = await db
+      .update(availability)
+      .set(data)
+      .where(eq(availability.id, id))
+      .returning();
+    return slot;
+  }
+
+  async deleteAvailability(id: string): Promise<Availability | undefined> {
+    const [slot] = await db
+      .delete(availability)
+      .where(eq(availability.id, id))
+      .returning();
+    return slot;
+  }
+
+  async getAdminSettings(): Promise<AdminSettings> {
+    const [settings] = await db.select().from(adminSettings).limit(1);
+    if (settings) return settings;
+    const [created] = await db.insert(adminSettings).values({}).returning();
+    return created;
+  }
+
+  async updateAdminSettings(data: Partial<AdminSettings>): Promise<AdminSettings> {
+    const current = await this.getAdminSettings();
+    const [updated] = await db
+      .update(adminSettings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(adminSettings.id, current.id))
+      .returning();
+    return updated;
+  }
+
+  async createDispute(data: {
+    bookingId: string;
+    openedByUserId: string;
+    openedByRole: "student" | "instructor" | "admin";
+    reason: string;
+  }): Promise<Dispute> {
+    const [dispute] = await db
+      .insert(disputes)
+      .values({
+        bookingId: data.bookingId,
+        openedByUserId: data.openedByUserId,
+        openedByRole: data.openedByRole,
+        reason: data.reason,
+      })
+      .returning();
+    return dispute;
+  }
+
+  async getDisputeByBooking(bookingId: string): Promise<Dispute | undefined> {
+    const [dispute] = await db
+      .select()
+      .from(disputes)
+      .where(eq(disputes.bookingId, bookingId))
+      .orderBy(desc(disputes.createdAt))
+      .limit(1);
+    return dispute;
+  }
+
+  async getDisputes(): Promise<Dispute[]> {
+    return db
+      .select()
+      .from(disputes)
+      .orderBy(desc(disputes.createdAt));
+  }
+
+  async updateDispute(id: string, data: Partial<Dispute>): Promise<Dispute> {
+    const [updated] = await db
+      .update(disputes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(disputes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async createWithdrawal(data: {
+    userId: string;
+    amount: string;
+    status: "pending";
+    destinationType: string;
+    destinationKey: string;
+  }): Promise<Withdrawal> {
+    const [withdrawal] = await db
+      .insert(withdrawals)
+      .values({
+        userId: data.userId,
+        amount: data.amount,
+        status: data.status,
+        destinationType: data.destinationType,
+        destinationKey: data.destinationKey,
+      })
+      .returning();
+    return withdrawal;
   }
 
   async createMessage(data: InsertMessage): Promise<Message> {

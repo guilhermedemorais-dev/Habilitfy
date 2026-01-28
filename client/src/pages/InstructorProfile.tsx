@@ -2,21 +2,27 @@ import { useLocation, useParams, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Star, ShieldCheck, MapPin, Calendar as CalendarIcon, Share2 } from "lucide-react";
 import Calendar from "react-calendar";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
-import type { Instructor, Review } from "@shared/schema";
+import type { Availability, Instructor, Review } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
+import { buildAvailableTimes } from "@/lib/availability";
 
 export default function InstructorProfile() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const [date, setDate] = useState<Date>(new Date());
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   const { data: instructor, isLoading } = useQuery<Instructor & { name?: string }>({
     queryKey: ["/api/instructors", id],
+    enabled: !!id,
+  });
+  const { data: availability = [] } = useQuery<Availability[]>({
+    queryKey: ["/api/instructors", id, "availability"],
     enabled: !!id,
   });
 
@@ -24,6 +30,13 @@ export default function InstructorProfile() {
     queryKey: ["/api/instructors", id, "reviews"],
     enabled: !!id,
   });
+
+  const slotDuration = instructor?.slotDurationMinutes || 50;
+  const canBook = instructor?.status === "approved";
+  const availableTimes = useMemo(() => {
+    if (!instructor) return [];
+    return buildAvailableTimes(availability, date, slotDuration);
+  }, [availability, date, slotDuration, instructor]);
 
   if (isLoading) {
     return (
@@ -86,7 +99,7 @@ export default function InstructorProfile() {
       </div>
 
       <div className="px-6 py-6 -mt-6 bg-white rounded-t-3xl relative z-20">
-        
+        <div className="mx-auto w-full max-w-5xl">
         {/* Info Grid */}
         <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
@@ -97,7 +110,7 @@ export default function InstructorProfile() {
             <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
                 <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Preço/Aula</p>
                 <p className="font-semibold text-primary text-xl">R$ {instructor.pricePerHour}</p>
-                <p className="text-xs text-slate-500">50 minutos</p>
+                <p className="text-xs text-slate-500">{slotDuration} minutos</p>
             </div>
         </div>
 
@@ -115,7 +128,11 @@ export default function InstructorProfile() {
             </h2>
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                  <Calendar 
-                    onChange={(val) => setDate(val as Date)} 
+                    onChange={(val) => {
+                      const nextDate = val as Date;
+                      setDate(nextDate);
+                      setSelectedTime(null);
+                    }} 
                     value={date}
                     locale="pt-BR"
                     minDate={new Date()}
@@ -128,13 +145,33 @@ export default function InstructorProfile() {
                  />
                  <div className="mt-4 pt-4 border-t border-gray-200">
                      <p className="text-sm font-bold mb-2 text-slate-700">Horários Livres em {format(date, "dd 'de' MMMM", { locale: ptBR })}:</p>
-                     <div className="flex flex-wrap gap-2">
-                         {["08:00", "10:00", "14:00", "16:30"].map(time => (
-                             <Button key={time} variant="outline" size="sm" className="rounded-full border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300">
-                                 {time}
+                     {availableTimes.length === 0 ? (
+                       <p className="text-xs text-slate-500">
+                         Nenhum horario disponivel para esta data.
+                       </p>
+                     ) : (
+                       <div className="flex flex-wrap gap-2">
+                         {availableTimes.map((time) => {
+                           const isSelected = selectedTime === time;
+                           return (
+                             <Button
+                               key={time}
+                               type="button"
+                               variant={isSelected ? "default" : "outline"}
+                               size="sm"
+                               className={
+                                 isSelected
+                                   ? "rounded-full bg-green-600 text-white hover:bg-green-700"
+                                   : "rounded-full border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
+                               }
+                               onClick={() => setSelectedTime(time)}
+                             >
+                               {time}
                              </Button>
-                         ))}
-                     </div>
+                           );
+                         })}
+                       </div>
+                     )}
                  </div>
             </div>
         </div>
@@ -160,18 +197,22 @@ export default function InstructorProfile() {
                 ))}
             </div>
         </div>
+        </div>
       </div>
 
       {/* Floating Action Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-50 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <div className="flex items-center justify-between mb-2 px-1">
+      <div className="fixed bottom-20 left-0 right-0 z-40 border-t border-gray-100 bg-white p-4 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] md:bottom-0">
+        <div className="mx-auto w-full max-w-2xl">
+          <div className="mb-2 flex items-center justify-between px-1">
             <div className="text-xs text-slate-500">Total para 1 aula</div>
-            <div className="font-bold text-lg text-slate-900">R$ {instructor.pricePerHour},00</div>
-        </div>
-        <Button
-          size="lg"
-          className="w-full bg-primary hover:bg-green-700 text-white rounded-xl h-12 font-bold shadow-lg shadow-green-200"
+            <div className="text-lg font-bold text-slate-900">R$ {instructor.pricePerHour},00</div>
+          </div>
+          <Button
+            size="lg"
+            className="h-12 w-full rounded-xl bg-primary font-bold text-white shadow-lg shadow-green-200 hover:bg-green-700"
+          disabled={!canBook}
           onClick={() => {
+            if (!canBook) return;
             const target = `/agendar/${instructor.id}`;
             if (!user) {
               setLocation(`/login?redirect=${encodeURIComponent(target)}`);
@@ -180,8 +221,9 @@ export default function InstructorProfile() {
             setLocation(target);
           }}
         >
-          Agendar Horário
+          {canBook ? "Agendar Horário" : "Instrutor pendente"}
         </Button>
+        </div>
       </div>
     </div>
   );

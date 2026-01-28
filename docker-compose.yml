@@ -1,0 +1,149 @@
+# HabilitFy - Docker Compose Production
+# Usage: docker-compose -f docker-compose.yml up -d
+
+version: '3.8'
+
+services:
+  # =====================
+  # PostgreSQL Database
+  # =====================
+  db:
+    image: postgres:16-alpine
+    container_name: habilitfy-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-habilitfy}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-habilitfy_secret}
+      POSTGRES_DB: ${DB_NAME:-habilitfy}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-habilitfy} -d ${DB_NAME:-habilitfy}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - habilitfy-network
+    ports:
+      - "5432:5432"
+
+  # =====================
+  # Redis Cache (Optional)
+  # =====================
+  redis:
+    image: redis:7-alpine
+    container_name: habilitfy-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - habilitfy-network
+    ports:
+      - "6379:6379"
+
+  # =====================
+  # HabilitFy Application
+  # =====================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: habilitfy-app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      HOST: 0.0.0.0
+
+      # Database
+      DATABASE_URL: postgresql://${DB_USER:-habilitfy}:${DB_PASSWORD:-habilitfy_secret}@db:5432/${DB_NAME:-habilitfy}
+
+      # Session
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+
+      # Authentication
+      AUTH_MODE: production
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-/api/auth/google/callback}
+
+      # AI Services
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "5000:5000"
+    networks:
+      - habilitfy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.habilitfy.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.habilitfy.tls=true"
+      - "traefik.http.routers.habilitfy.tls.certresolver=letsencrypt"
+      - "traefik.http.services.habilitfy.loadbalancer.server.port=5000"
+
+  # =====================
+  # Traefik Reverse Proxy (Optional)
+  # =====================
+  traefik:
+    image: traefik:v3.0
+    container_name: habilitfy-traefik
+    restart: always
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt_data:/letsencrypt
+    networks:
+      - habilitfy-network
+    profiles:
+      - production
+
+# =====================
+# Volumes
+# =====================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+  letsencrypt_data:
+    driver: local
+
+# =====================
+# Networks
+# =====================
+networks:
+  habilitfy-network:
+    driver: bridge
