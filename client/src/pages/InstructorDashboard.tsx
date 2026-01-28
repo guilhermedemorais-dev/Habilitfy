@@ -22,6 +22,8 @@ import {
 } from "@/hooks/useInstructorBookings";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { WalletCard } from "@/components/dashboard/wallet/WalletCard";
+import { TransactionHistory } from "@/components/dashboard/wallet/TransactionHistory";
 
 export default function InstructorDashboard() {
   const [date, setDate] = useState<Date>(new Date());
@@ -375,24 +377,7 @@ export default function InstructorDashboard() {
             <>
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-4">
-                <Card className="border-none shadow-sm bg-primary text-white">
-                  <CardContent className="p-4">
-                    <p className="text-green-100 text-xs uppercase font-bold tracking-wider mb-1">
-                      A Receber
-                    </p>
-                    <h3 className="text-2xl font-bold">
-                      R$ {pendingEarnings.toFixed(2)}
-                    </h3>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="mt-3 w-full h-7 text-xs bg-white/20 text-white hover:bg-white/30 border-none"
-                    >
-                      Sacar Pix
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="border-none shadow-sm">
+                <WalletCard />                <Card className="border-none shadow-sm">
                   <CardContent className="p-4">
                     <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">
                       Aulas Hoje
@@ -445,6 +430,11 @@ export default function InstructorDashboard() {
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
+
+              {/* Transaction History */}
+              <div className="mt-6 mb-6">
+                <TransactionHistory />
+              </div>
 
               {/* Calendar & Schedule */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

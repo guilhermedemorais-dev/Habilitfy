@@ -146,6 +146,14 @@ export class WalletService {
         });
     }
 
+    async getHistory(userId: string, limit = 50): Promise<WalletEntry[]> {
+        return await db.query.walletEntries.findMany({
+            where: eq(walletEntries.userId, userId),
+            orderBy: (entries, { desc }) => [desc(entries.createdAt)],
+            limit,
+        });
+    }
+
     async getBalance(userId: string): Promise<number> {
         const wallet = await this.getWallet(userId);
         return Number(wallet.balance);

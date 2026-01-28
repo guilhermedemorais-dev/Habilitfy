@@ -24,6 +24,7 @@ function consumeRedirect() {
 }
 
 export function useAuth() {
+  const { toast } = useToast();
   const [, navigate] = useLocation();
   const hasNavigated = useRef(false);
 

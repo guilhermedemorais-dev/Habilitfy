@@ -1,7 +1,9 @@
 import { logger } from "./utils/logger";
+import { walletService } from "./services/wallet";
 import type { Server } from "http";
+import { type Request, type Response } from "express";
 import { db } from "./db";
-import { users, kycVerifications, kycStatusEnum, instructors } from "@shared/schema";
+import { users, kycStatusEnum, instructors } from "@shared/schema";
 import { kycVerifications as kycVerificationsTable } from "@shared/kyc-schema";
 import { saveBase64Image } from "./kyc";
 import { eq } from "drizzle-orm";
@@ -195,15 +197,15 @@ const mergeSecretIntegrationFields = (
   });
 };
 
-export async function registerRoutes(app: Express, httpServer: Server): Promise<Server> {
+export async function registerRoutes(app: any, httpServer: Server): Promise<Server> {
   await setupAuth(app);
 
-  app.get('/api/ping', (req, res) => {
+  app.get('/api/ping', (req: Request, res: Response) => {
     res.json({ message: 'pong', timestamp: new Date().toISOString() });
   });
 
   // Health check endpoint for Docker and load balancers
-  app.get('/api/health', async (req, res) => {
+  app.get('/api/health', async (req: Request, res: Response) => {
     try {
       // Basic health check
       const healthData = {
@@ -224,9 +226,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.claims?.sub ?? req.user?.id;
+      const userId = (req.user as any)?.claims?.sub ?? (req.user as any)?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -246,7 +248,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   // --- Admin Routes ---
 
-  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res: Response) => {
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
     try {
       const instructors = await storage.getAllInstructors();
@@ -270,7 +272,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/users', isAuthenticated, async (req: any, res: Response) => {
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
     try {
       const role = req.query.role as string | undefined;
@@ -282,7 +284,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/admin/users/:id/approve', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/users/:id/approve', isAuthenticated, async (req: any, res: Response) => {
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
     try {
       const userId = req.params.id;
@@ -307,7 +309,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/admin/users/:id/reject', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/users/:id/reject', isAuthenticated, async (req: any, res: Response) => {
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
     try {
       const userId = req.params.id;
@@ -333,7 +335,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   // Register new user (student or instructor)
   // Register new user (student or instructor)
-  app.post('/api/users/register', async (req, res) => {
+  app.post('/api/users/register', async (req: Request, res: Response) => {
     try {
       const {
         firstName, lastName, email, cpf, phone, addressLine, zipCode, neighborhood, city, state, role,
@@ -456,7 +458,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       logger.info(`[register] User created: ${userId} (${email})`, { userId, email });
 
       // Auto-login
-      req.login(newUser, (err) => {
+      req.login(newUser, (err: any) => {
         if (err) {
           console.error("Auto-login failed:", err);
           // Return success even if auto-login fails, frontend should handle redirect to login
@@ -490,7 +492,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/users/me', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/users/me', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user?.claims?.sub ?? req.user?.id;
       if (!userId) {
@@ -526,7 +528,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/instructors', async (req, res) => {
+  app.get('/api/instructors', async (req: Request, res: Response) => {
     try {
       const status = req.query.status as string | undefined;
       const instructors = await storage.getAllInstructors(status || 'approved');
@@ -563,7 +565,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/instructors/:id', async (req, res) => {
+  app.get('/api/instructors/:id', async (req: Request, res: Response) => {
     try {
       const instructor = await storage.getInstructor(req.params.id);
       if (!instructor) {
@@ -597,7 +599,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/instructors', isAuthenticated, async (req: any, res) => {
+  app.post('/api/instructors', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const data = insertInstructorSchema.parse({ ...req.body, userId });
@@ -612,7 +614,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/instructors/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/instructors/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const instructor = await storage.getInstructor(req.params.id);
@@ -651,7 +653,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/instructors/:id/reviews', async (req, res) => {
+  app.get('/api/instructors/:id/reviews', async (req: Request, res: Response) => {
     try {
       const reviews = await storage.getReviewsByInstructor(req.params.id);
       res.json(reviews);
@@ -661,7 +663,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/bookings/student', isAuthenticated, async (req: any, res) => {
+  app.get('/api/bookings/student', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const bookings = await storage.getBookingsByStudent(userId);
@@ -694,7 +696,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/bookings/instructor/:instructorId', isAuthenticated, async (req, res) => {
+  app.get('/api/bookings/instructor/:instructorId', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const bookings = await storage.getBookingsByInstructor(req.params.instructorId);
 
@@ -721,7 +723,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/bookings', bookingLimiter, isAuthenticated, async (req: any, res) => {
+  app.post('/api/bookings', bookingLimiter, isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const incoming = { ...req.body, studentId: userId };
@@ -814,7 +816,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/bookings/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/bookings/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const existingBooking = await storage.getBooking(req.params.id);
@@ -852,7 +854,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/bookings/:id/start', isAuthenticated, async (req: any, res) => {
+  app.post('/api/bookings/:id/start', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const booking = await storage.getBooking(req.params.id);
@@ -899,7 +901,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/bookings/:id/complete', isAuthenticated, async (req: any, res) => {
+  app.post('/api/bookings/:id/complete', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const booking = await storage.getBooking(req.params.id);
@@ -947,7 +949,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/bookings/:id/cancel', isAuthenticated, async (req: any, res) => {
+  app.post('/api/bookings/:id/cancel', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const booking = await storage.getBooking(req.params.id);
@@ -1012,7 +1014,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/bookings/:id/disputes', isAuthenticated, async (req: any, res) => {
+  app.post('/api/bookings/:id/disputes', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const booking = await storage.getBooking(req.params.id);
@@ -1055,7 +1057,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   // Availability routes
   // Reviews routes
-  app.post('/api/reviews', isAuthenticated, async (req: any, res) => {
+  app.post('/api/reviews', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const data = insertReviewSchema.parse({ ...req.body, studentId: userId });
@@ -1098,7 +1100,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/instructors/:id/reviews', async (req, res) => {
+  app.get('/api/instructors/:id/reviews', async (req: Request, res: Response) => {
     try {
       const reviews = await storage.getReviewsByInstructor(req.params.id);
 
@@ -1113,7 +1115,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/instructors/:id/availability', async (req, res) => {
+  app.get('/api/instructors/:id/availability', async (req: Request, res: Response) => {
     try {
       const slots = await storage.getAvailabilityByInstructor(req.params.id);
       res.json(slots);
@@ -1123,7 +1125,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/instructors/:id/availability', isAuthenticated, async (req: any, res) => {
+  app.post('/api/instructors/:id/availability', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const instructor = await storage.getInstructor(req.params.id);
@@ -1157,7 +1159,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/instructors/:id/availability/:slotId', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/instructors/:id/availability/:slotId', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const instructor = await storage.getInstructor(req.params.id);
@@ -1193,7 +1195,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.delete('/api/instructors/:id/availability/:slotId', isAuthenticated, async (req: any, res) => {
+  app.delete('/api/instructors/:id/availability/:slotId', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const instructor = await storage.getInstructor(req.params.id);
@@ -1219,7 +1221,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/withdrawals', isAuthenticated, async (req: any, res) => {
+  app.post('/api/withdrawals', isAuthenticated, async (req: any, res: Response) => {
     try {
       const instructor = await storage.getInstructorByUserId(req.user.claims.sub);
       if (!instructor) {
@@ -1256,7 +1258,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/instructors/pending', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/instructors/pending', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1270,7 +1272,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1285,7 +1287,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/settings', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/settings', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1299,7 +1301,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/admin/settings', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/admin/settings', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1346,7 +1348,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/disputes', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/disputes', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1360,7 +1362,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/admin/disputes/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/admin/disputes/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1391,7 +1393,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/bookings', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/bookings', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1411,7 +1413,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/dashboard', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/dashboard', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1426,7 +1428,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/geo-summary', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/geo-summary', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1447,7 +1449,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/users', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1462,7 +1464,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/admin/instructors/:id/status', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/admin/instructors/:id/status', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1482,7 +1484,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/finance/summary', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/finance/summary', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1497,7 +1499,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/finance/timeseries', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/finance/timeseries', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1527,7 +1529,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/transactions', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/transactions', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1559,7 +1561,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/wallets', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/wallets', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1575,7 +1577,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/wallet-entries', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/wallet-entries', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1598,7 +1600,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/withdrawals', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/withdrawals', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1623,7 +1625,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/admin/withdrawals/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/admin/withdrawals/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1658,7 +1660,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/payment-gateways', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/payment-gateways', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1683,7 +1685,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/admin/payment-gateways', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/payment-gateways', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1718,7 +1720,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/admin/payment-gateways/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/admin/payment-gateways/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1754,7 +1756,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/admin/integrations', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/integrations', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1790,7 +1792,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/admin/integrations', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/integrations', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1834,7 +1836,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.patch('/api/admin/integrations/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/admin/integrations/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
@@ -1932,7 +1934,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   };
 
   // Chat routes
-  app.get('/api/chat/contacts', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chat/contacts', isAuthenticated, async (req: any, res: Response) => {
     try {
       const contacts = await storage.getContacts(req.user.claims.sub);
       res.json(contacts);
@@ -1942,7 +1944,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/chat/:userId', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chat/:userId', isAuthenticated, async (req: any, res: Response) => {
     try {
       const messages = await storage.getMessages(req.params.userId, req.user.claims.sub);
       res.json(messages);
@@ -1952,7 +1954,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/chat', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chat', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const data = insertMessageSchema.parse({ ...req.body, senderId: userId });
@@ -1974,7 +1976,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/chat/:userId/read', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chat/:userId/read', isAuthenticated, async (req: any, res: Response) => {
     try {
       await storage.markMessagesAsRead(req.params.userId, req.user.claims.sub);
       res.sendStatus(200);
@@ -1985,7 +1987,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   });
 
   // AI Chat routes
-  app.post('/api/chat/ai', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chat/ai', isAuthenticated, async (req: any, res: Response) => {
     try {
       const { chatWithAI } = await import("./ai");
       const userId = req.user?.claims?.sub ?? req.user?.id;
@@ -2028,7 +2030,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.get('/api/chat/quick-replies', async (req, res) => {
+  app.get('/api/chat/quick-replies', async (req: Request, res: Response) => {
     try {
       const { getQuickReplies } = await import("./ai");
       const context = (req.query.context as "greeting" | "booking" | "payment") || "greeting";
@@ -2052,7 +2054,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   });
 
   // Get KYC status
-  app.get('/api/kyc/status', isAuthenticated, async (req: any, res) => {
+  app.get('/api/kyc/status', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -2080,7 +2082,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   });
 
   // Get KYC requirements
-  app.get('/api/kyc/requirements', async (req, res) => {
+  app.get('/api/kyc/requirements', async (req: Request, res: Response) => {
     try {
       const { KYC_REQUIREMENTS } = await import('./kyc');
       res.json(KYC_REQUIREMENTS);
@@ -2091,7 +2093,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   });
 
   // Verify KYC (submit images for verification)
-  app.post('/api/kyc/verify', kycLimiter, isAuthenticated, async (req: any, res) => {
+  app.post('/api/kyc/verify', kycLimiter, isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -2151,7 +2153,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   });
 
   // Admin: List pending KYC verifications
-  app.get('/api/admin/kyc/pending', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/kyc/pending', isAuthenticated, async (req: any, res: Response) => {
     try {
       const adminUser = req.user;
       if (adminUser?.role !== 'admin') {
@@ -2178,7 +2180,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   });
 
   // Admin: Approve/Reject KYC manually
-  app.post('/api/admin/kyc/:userId/review', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/kyc/:userId/review', isAuthenticated, async (req: any, res: Response) => {
     try {
       const adminUser = req.user;
       if (adminUser?.role !== 'admin') {
@@ -2215,7 +2217,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
 
 
-  app.post('/api/payments/abacatepay', paymentLimiter, isAuthenticated, async (req: any, res) => {
+  app.post('/api/payments/abacatepay', paymentLimiter, isAuthenticated, async (req: any, res: Response) => {
     try {
       const bookingId = req.body.bookingId as string;
       if (!bookingId) {
@@ -2294,7 +2296,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  app.post('/api/webhooks/abacatepay', async (req: any, res) => {
+  app.post('/api/webhooks/abacatepay', async (req: Request, res: Response) => {
     try {
       const { verifyAbacateWebhookSignature, getAbacateBilling } = await import("./abacatepay");
       const raw = req.rawBody;
@@ -2307,7 +2309,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         if (process.env.NODE_ENV === "production") {
           return res.status(500).json({ message: "Webhook secret not configured" });
         }
-      } else if (!signature || !verifyAbacateWebhookSignature(raw, signature as string, secret)) {
+      } else if (!signature || !verifyAbacateWebhookSignature(raw as string | Buffer, signature as string, secret)) {
         logger.warn("Invalid AbacatePay webhook signature");
         return res.status(401).json({ message: "Invalid signature" });
       }
@@ -2366,6 +2368,69 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     } catch (error) {
       console.error("Error handling AbacatePay webhook:", error);
       res.status(500).json({ message: "Webhook error" });
+    }
+  });
+
+  // =============================================================================
+  // Wallet & Financial Routes
+  // =============================================================================
+
+  // Get Wallet Balance & History
+  app.get("/api/wallet", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+      const balance = await walletService.getBalance(user.id);
+      const history = await walletService.getHistory(user.id);
+
+      res.json({
+        balance,
+        currency: "BRL",
+        history,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching wallet data:", error);
+      res.status(500).json({ message: "Failed to fetch wallet data" });
+    }
+  });
+
+  // Withdraw Request
+  app.post("/api/wallet/withdraw", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { amount, pixKey } = req.body;
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: "Invalid amount" });
+      }
+
+      if (!pixKey) {
+        return res.status(400).json({ message: "Pix Key is required" });
+      }
+
+      const balance = await walletService.getBalance(user.id);
+      if (balance < amount) {
+        return res.status(400).json({ message: "Saldo insuficiente" });
+      }
+
+      // Debit wallet (creates transaction record)
+      await walletService.debit(
+        user.id,
+        amount,
+        "withdrawal",
+        `Saque solicitado para chave PIX: ${pixKey}`
+      );
+
+      // TODO: Here we would trigger an actual payout via AbacatePay or notify admin
+      // For now, it's just a debit/ledger record.
+
+      logger.info(`Withdrawal requested by user ${user.id}: ${amount} BRL to ${pixKey}`);
+
+      res.json({ success: true, message: "Saque solicitado com sucesso" });
+    } catch (error: any) {
+      logger.error("Error processing withdrawal:", error);
+      res.status(500).json({ message: error.message || "Withdrawal failed" });
     }
   });
 
