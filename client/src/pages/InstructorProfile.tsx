@@ -61,23 +61,23 @@ export default function InstructorProfile() {
           <div className="w-full h-full bg-gradient-to-br from-green-100 to-yellow-100 flex items-center justify-center text-5xl">🚗</div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-        
+
         <div className="absolute top-4 left-4 z-10">
           <Button
             size="icon"
             variant="ghost"
-            className="text-white hover:bg-white/20 rounded-full"
+            className="bg-white/90 shadow-sm text-slate-700 hover:bg-white rounded-full"
             asChild
           >
-            <Link href="/instrutores">
+            <Link href="/mapa">
               <ChevronLeft className="w-6 h-6" />
             </Link>
           </Button>
         </div>
-         <div className="absolute top-4 right-4 z-10">
-            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 rounded-full">
-              <Share2 className="w-5 h-5" />
-            </Button>
+        <div className="absolute top-4 right-4 z-10">
+          <Button size="icon" variant="ghost" className="bg-white/90 shadow-sm text-slate-700 hover:bg-white rounded-full">
+            <Share2 className="w-5 h-5" />
+          </Button>
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
@@ -100,103 +100,103 @@ export default function InstructorProfile() {
 
       <div className="px-6 py-6 -mt-6 bg-white rounded-t-3xl relative z-20">
         <div className="mx-auto w-full max-w-5xl">
-        {/* Info Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
+          {/* Info Grid */}
+          <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Veículo</p>
-                <p className="font-semibold text-slate-800 text-sm">{instructor.vehicleModel}</p>
-                <p className="text-xs text-slate-500">{instructor.vehicleType}</p>
+              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Veículo</p>
+              <p className="font-semibold text-slate-800 text-sm">{instructor.vehicleModel}</p>
+              <p className="text-xs text-slate-500">{instructor.vehicleType}</p>
             </div>
             <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Preço/Aula</p>
-                <p className="font-semibold text-primary text-xl">R$ {instructor.pricePerHour}</p>
-                <p className="text-xs text-slate-500">{slotDuration} minutos</p>
+              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Preço/Aula</p>
+              <p className="font-semibold text-primary text-xl">R$ {instructor.pricePerHour}</p>
+              <p className="text-xs text-slate-500">{slotDuration} minutos</p>
             </div>
-        </div>
+          </div>
 
-        {/* Bio */}
-        <div className="mb-8">
+          {/* Bio */}
+          <div className="mb-8">
             <h2 className="font-bold text-lg mb-2 text-slate-900">Sobre o Instrutor</h2>
             <p className="text-slate-600 text-sm leading-relaxed">{instructor.bio || "Instrutor cadastrado na plataforma."}</p>
-        </div>
+          </div>
 
-        {/* Calendar */}
-        <div className="mb-8">
+          {/* Calendar */}
+          <div className="mb-8">
             <h2 className="font-bold text-lg mb-4 text-slate-900 flex items-center gap-2">
-                <CalendarIcon className="w-5 h-5 text-primary" />
-                Disponibilidade
+              <CalendarIcon className="w-5 h-5 text-primary" />
+              Disponibilidade
             </h2>
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                 <Calendar 
-                    onChange={(val) => {
-                      const nextDate = val as Date;
-                      setDate(nextDate);
-                      setSelectedTime(null);
-                    }} 
-                    value={date}
-                    locale="pt-BR"
-                    minDate={new Date()}
-                    className="w-full bg-transparent"
-                    tileClassName={({ date, view }) => {
-                        // Randomly disable some dates for mock effect
-                        if (view === 'month' && date.getDay() === 0) return 'opacity-25 pointer-events-none';
-                        return null;
-                    }}
-                 />
-                 <div className="mt-4 pt-4 border-t border-gray-200">
-                     <p className="text-sm font-bold mb-2 text-slate-700">Horários Livres em {format(date, "dd 'de' MMMM", { locale: ptBR })}:</p>
-                     {availableTimes.length === 0 ? (
-                       <p className="text-xs text-slate-500">
-                         Nenhum horario disponivel para esta data.
-                       </p>
-                     ) : (
-                       <div className="flex flex-wrap gap-2">
-                         {availableTimes.map((time) => {
-                           const isSelected = selectedTime === time;
-                           return (
-                             <Button
-                               key={time}
-                               type="button"
-                               variant={isSelected ? "default" : "outline"}
-                               size="sm"
-                               className={
-                                 isSelected
-                                   ? "rounded-full bg-green-600 text-white hover:bg-green-700"
-                                   : "rounded-full border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
-                               }
-                               onClick={() => setSelectedTime(time)}
-                             >
-                               {time}
-                             </Button>
-                           );
-                         })}
-                       </div>
-                     )}
-                 </div>
+              <Calendar
+                onChange={(val) => {
+                  const nextDate = val as Date;
+                  setDate(nextDate);
+                  setSelectedTime(null);
+                }}
+                value={date}
+                locale="pt-BR"
+                minDate={new Date()}
+                className="w-full bg-transparent"
+                tileClassName={({ date, view }) => {
+                  // Randomly disable some dates for mock effect
+                  if (view === 'month' && date.getDay() === 0) return 'opacity-25 pointer-events-none';
+                  return null;
+                }}
+              />
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <p className="text-sm font-bold mb-2 text-slate-700">Horários Livres em {format(date, "dd 'de' MMMM", { locale: ptBR })}:</p>
+                {availableTimes.length === 0 ? (
+                  <p className="text-xs text-slate-500">
+                    Nenhum horario disponivel para esta data.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {availableTimes.map((time) => {
+                      const isSelected = selectedTime === time;
+                      return (
+                        <Button
+                          key={time}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          className={
+                            isSelected
+                              ? "rounded-full bg-green-600 text-white hover:bg-green-700"
+                              : "rounded-full border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
+                          }
+                          onClick={() => setSelectedTime(time)}
+                        >
+                          {time}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-        </div>
+          </div>
 
-        {/* Reviews */}
-        <div className="mb-8">
+          {/* Reviews */}
+          <div className="mb-8">
             <h2 className="font-bold text-lg mb-4 text-slate-900 flex items-center gap-2">
-                Avaliações Recentes
+              Avaliações Recentes
             </h2>
             <div className="space-y-4">
-                {instructorReviews.length === 0 && <p className="text-sm text-slate-500">Ainda não há avaliações.</p>}
-                {instructorReviews.map(review => (
-                    <div key={review.id} className="border-b border-gray-100 pb-4 last:border-0">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="font-bold text-sm text-slate-800">Aluno</span>
-                            <span className="text-xs text-slate-400">{review.createdAt ? format(new Date(review.createdAt), "dd/MM", { locale: ptBR }) : ""}</span>
-                        </div>
-                        <div className="flex text-yellow-400 mb-1">
-                            {[...Array(review.rating)].map((_, i) => <Star key={i} className="w-3 h-3 fill-current" />)}
-                        </div>
-                        <p className="text-sm text-slate-600">{review.comment || "Avaliação enviada."}</p>
-                    </div>
-                ))}
+              {instructorReviews.length === 0 && <p className="text-sm text-slate-500">Ainda não há avaliações.</p>}
+              {instructorReviews.map(review => (
+                <div key={review.id} className="border-b border-gray-100 pb-4 last:border-0">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-sm text-slate-800">Aluno</span>
+                    <span className="text-xs text-slate-400">{review.createdAt ? format(new Date(review.createdAt), "dd/MM", { locale: ptBR }) : ""}</span>
+                  </div>
+                  <div className="flex text-yellow-400 mb-1">
+                    {[...Array(review.rating)].map((_, i) => <Star key={i} className="w-3 h-3 fill-current" />)}
+                  </div>
+                  <p className="text-sm text-slate-600">{review.comment || "Avaliação enviada."}</p>
+                </div>
+              ))}
             </div>
-        </div>
+          </div>
         </div>
       </div>
 
@@ -210,19 +210,19 @@ export default function InstructorProfile() {
           <Button
             size="lg"
             className="h-12 w-full rounded-xl bg-primary font-bold text-white shadow-lg shadow-green-200 hover:bg-green-700"
-          disabled={!canBook}
-          onClick={() => {
-            if (!canBook) return;
-            const target = `/agendar/${instructor.id}`;
-            if (!user) {
-              setLocation(`/login?redirect=${encodeURIComponent(target)}`);
-              return;
-            }
-            setLocation(target);
-          }}
-        >
-          {canBook ? "Agendar Horário" : "Instrutor pendente"}
-        </Button>
+            disabled={!canBook}
+            onClick={() => {
+              if (!canBook) return;
+              const target = `/agendar/${instructor.id}`;
+              if (!user) {
+                setLocation(`/login?redirect=${encodeURIComponent(target)}`);
+                return;
+              }
+              setLocation(target);
+            }}
+          >
+            {canBook ? "Agendar Horário" : "Instrutor pendente"}
+          </Button>
         </div>
       </div>
     </div>

@@ -39,22 +39,22 @@ export function WalletCard() {
     const canWithdraw = balance > 0;
 
     return (
-        <Card className="glass-premium border-l-4 border-l-emerald-500 card-lift">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xl font-heading font-bold text-slate-800 flex items-center gap-2">
-                    <Wallet className="h-5 w-5 text-emerald-600" />
-                    Sua Carteira
+        <Card className="glass-premium border-l-4 border-l-emerald-500 card-lift h-full flex flex-col justify-between">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-base md:text-xl font-heading font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <Wallet className="h-4 w-4 md:h-5 md:w-5 text-emerald-600 shrink-0" />
+                    <span className="truncate">Sua Carteira</span>
                 </CardTitle>
-                <span className="text-xs text-slate-500 font-medium px-2 py-1 bg-slate-100 rounded-full">
+                <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-medium px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full shrink-0">
                     Disponível
                 </span>
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-1">
                     {isLoading ? (
-                        <div className="h-10 w-32 skeleton rounded" />
+                        <div className="h-8 md:h-10 w-32 skeleton rounded" />
                     ) : (
-                        <div className="text-4xl font-bold font-heading text-slate-900 tracking-tight">
+                        <div className="text-2xl md:text-3xl lg:text-4xl font-bold font-heading text-slate-900 dark:text-white tracking-tight break-all">
                             {formattedBalance}
                         </div>
                     )}

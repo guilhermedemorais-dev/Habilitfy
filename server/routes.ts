@@ -13,6 +13,8 @@ import { z } from "zod";
 import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } from "./abacatepay";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
+import { insertVehicleSchema, insertSupportTicketSchema } from "@shared/schema";
+
 
 // Trigger server restart for stability check
 
@@ -652,6 +654,87 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       res.status(500).json({ message: "Failed to update instructor" });
     }
   });
+
+  // --- Vehicle Routes ---
+  app.get('/api/vehicles', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id || req.user?.claims?.sub;
+      const instructor = await storage.getInstructorByUserId(userId);
+      if (!instructor) return res.status(404).json({ message: "Instructor profile not found" });
+      const vehicles = await storage.getVehicles(instructor.id);
+      res.json(vehicles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch vehicles" });
+    }
+  });
+
+  app.post('/api/vehicles', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id || req.user?.claims?.sub;
+      const instructor = await storage.getInstructorByUserId(userId);
+      if (!instructor) return res.status(404).json({ message: "Instructor profile not found" });
+
+      const data = insertVehicleSchema.parse({ ...req.body, instructorId: instructor.id });
+      const vehicle = await storage.createVehicle(data);
+      res.status(201).json(vehicle);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json(error.errors);
+      res.status(500).json({ message: "Failed to create vehicle" });
+    }
+  });
+
+  app.patch('/api/vehicles/:id', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const updated = await storage.updateVehicle(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update vehicle" });
+    }
+  });
+
+  app.delete('/api/vehicles/:id', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      await storage.deleteVehicle(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete vehicle" });
+    }
+  });
+
+  // --- Support Tickets ---
+  app.post('/api/support', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id || req.user?.claims?.sub;
+      const data = insertSupportTicketSchema.parse({ ...req.body, userId });
+      const ticket = await storage.createSupportTicket(data);
+      res.status(201).json(ticket);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json(error.errors);
+      res.status(500).json({ message: "Failed to submit support request" });
+    }
+  });
+
+  app.get('/api/support', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id || req.user?.claims?.sub;
+      const tickets = await storage.getSupportTickets(userId);
+      res.json(tickets);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch support requests" });
+    }
+  });
+
+  app.get('/api/config/fees', async (req: Request, res: Response) => {
+    try {
+      const settings = await storage.getAdminSettings();
+      res.json({
+        platformFeePercent: Number(settings.platformFeePercent || 0)
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch fee configuration" });
+    }
+  });
+
 
   app.get('/api/instructors/:id/reviews', async (req: Request, res: Response) => {
     try {

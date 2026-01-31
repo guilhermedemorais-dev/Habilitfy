@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Moon, Sun } from "lucide-react"
+import { Moon, Sun, Bell, Check, ChevronRight, Home, Search, Settings, User, Mail, Plus, Minus, X, AlertCircle } from "lucide-react"
 import StyleguideLayout from "@/components/styleguide/StyleguideLayout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +18,48 @@ import {
 } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
+import { Slider } from "@/components/ui/slider"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Toggle } from "@/components/ui/toggle"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Progress } from "@/components/ui/progress"
+import { Separator } from "@/components/ui/separator"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 const scaleSteps = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900"]
 
@@ -119,6 +161,8 @@ function Section({
 export default function Styleguide() {
   const initialTheme = useRef<boolean | null>(null)
   const [isDark, setIsDark] = useState(false)
+  const [sliderValue, setSliderValue] = useState([50])
+  const [progressValue, setProgressValue] = useState(60)
 
   useEffect(() => {
     const root = document.documentElement
@@ -143,9 +187,9 @@ export default function Styleguide() {
           <header className="flex flex-col gap-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-2">
-                <h1 className="text-3xl font-bold">Design Tokens</h1>
+                <h1 className="text-3xl font-bold">Design Tokens & Components</h1>
                 <p className="text-sm text-muted-foreground">
-                  Tokens derived from the HabilitFy brand palette and logo.
+                  Tokens e componentes do design system HabilitFy.
                 </p>
               </div>
               <Button
@@ -305,71 +349,385 @@ export default function Styleguide() {
             </div>
           </Section>
 
-          <Section title="Components" subtitle="Core shadcn/ui components using tokens.">
+          <Separator className="my-4" />
+
+          {/* BUTTONS */}
+          <Section title="Buttons" subtitle="Variantes de botões do sistema.">
+            <div className="rounded-xl border bg-card p-6">
+              <div className="flex flex-wrap gap-3">
+                <Button>Primary</Button>
+                <Button variant="secondary">Secondary</Button>
+                <Button variant="outline">Outline</Button>
+                <Button variant="ghost">Ghost</Button>
+                <Button variant="link">Link</Button>
+                <Button variant="destructive">Destructive</Button>
+              </div>
+              <Separator className="my-4" />
+              <div className="flex flex-wrap gap-3 items-center">
+                <Button size="sm">Small</Button>
+                <Button size="default">Default</Button>
+                <Button size="lg">Large</Button>
+                <Button size="icon"><Plus className="h-4 w-4" /></Button>
+              </div>
+              <Separator className="my-4" />
+              <div className="flex flex-wrap gap-3">
+                <Button disabled>Disabled</Button>
+                <Button variant="outline" disabled>Disabled Outline</Button>
+              </div>
+            </div>
+          </Section>
+
+          {/* INPUTS */}
+          <Section title="Inputs" subtitle="Campos de entrada de texto.">
             <div className="grid gap-6 lg:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Card Title</CardTitle>
-                  <CardDescription>Supporting text for the card content.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    <Button>Primary</Button>
-                    <Button variant="secondary">Secondary</Button>
-                    <Button variant="outline">Outline</Button>
-                    <Button variant="destructive">Destructive</Button>
+              <div className="rounded-xl border bg-card p-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="input-default">Default Input</Label>
+                  <Input id="input-default" placeholder="Digite aqui..." />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="input-disabled">Disabled Input</Label>
+                  <Input id="input-disabled" placeholder="Desabilitado" disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="input-with-icon">Com ícone</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input id="input-with-icon" placeholder="Buscar..." className="pl-9" />
                   </div>
-                </CardContent>
-                <CardFooter className="flex flex-wrap gap-2">
-                  <Badge>Badge</Badge>
-                  <Badge variant="secondary">Secondary</Badge>
-                  <Badge variant="outline">Outline</Badge>
-                </CardFooter>
-              </Card>
-
-              <div className="space-y-4 rounded-xl border bg-card p-6">
-                <Alert>
-                  <AlertTitle>Alert title</AlertTitle>
-                  <AlertDescription>
-                    Alerts use the foreground and border tokens for clarity.
-                  </AlertDescription>
-                </Alert>
-
-                <Alert variant="destructive">
-                  <AlertTitle>Destructive alert</AlertTitle>
-                  <AlertDescription>
-                    Use for critical actions or destructive confirmations.
-                  </AlertDescription>
-                </Alert>
-
-                <div className="space-y-3">
-                  <div className="text-sm font-semibold">Radio group</div>
-                  <RadioGroup defaultValue="option-2" className="gap-3">
-                    <div className="flex items-center gap-3">
-                      <RadioGroupItem value="option-1" id="option-1" />
-                      <label htmlFor="option-1" className="text-sm">
-                        Option one
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <RadioGroupItem value="option-2" id="option-2" />
-                      <label htmlFor="option-2" className="text-sm">
-                        Option two
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <RadioGroupItem value="option-3" id="option-3" />
-                      <label htmlFor="option-3" className="text-sm">
-                        Option three
-                      </label>
-                    </div>
-                  </RadioGroup>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-card p-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="textarea">Textarea</Label>
+                  <Textarea id="textarea" placeholder="Digite sua mensagem..." />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="select">Select</Label>
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma opção" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="option1">Opção 1</SelectItem>
+                      <SelectItem value="option2">Opção 2</SelectItem>
+                      <SelectItem value="option3">Opção 3</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
           </Section>
+
+          {/* CHECKBOXES, SWITCHES, RADIOS */}
+          <Section title="Selections" subtitle="Checkboxes, Switches e Radio buttons.">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="rounded-xl border bg-card p-6 space-y-4">
+                <h4 className="font-semibold text-sm">Checkboxes</h4>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="check1" />
+                  <Label htmlFor="check1">Opção 1</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="check2" defaultChecked />
+                  <Label htmlFor="check2">Opção 2 (checked)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="check3" disabled />
+                  <Label htmlFor="check3">Disabled</Label>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-card p-6 space-y-4">
+                <h4 className="font-semibold text-sm">Switches</h4>
+                <div className="flex items-center space-x-2">
+                  <Switch id="switch1" />
+                  <Label htmlFor="switch1">Notificações</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch id="switch2" defaultChecked />
+                  <Label htmlFor="switch2">Dark Mode</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch id="switch3" disabled />
+                  <Label htmlFor="switch3">Disabled</Label>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-card p-6 space-y-4">
+                <h4 className="font-semibold text-sm">Radio Group</h4>
+                <RadioGroup defaultValue="opt1" className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="opt1" id="r1" />
+                    <Label htmlFor="r1">Opção A</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="opt2" id="r2" />
+                    <Label htmlFor="r2">Opção B</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="opt3" id="r3" />
+                    <Label htmlFor="r3">Opção C</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            </div>
+          </Section>
+
+          {/* SLIDER & PROGRESS */}
+          <Section title="Slider & Progress" subtitle="Controles de range e progresso.">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-xl border bg-card p-6 space-y-4">
+                <h4 className="font-semibold text-sm">Slider</h4>
+                <Slider value={sliderValue} onValueChange={setSliderValue} max={100} step={1} />
+                <p className="text-sm text-muted-foreground">Valor: {sliderValue[0]}</p>
+              </div>
+              <div className="rounded-xl border bg-card p-6 space-y-4">
+                <h4 className="font-semibold text-sm">Progress</h4>
+                <Progress value={progressValue} />
+                <p className="text-sm text-muted-foreground">{progressValue}% completo</p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setProgressValue(Math.max(0, progressValue - 10))}>
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setProgressValue(Math.min(100, progressValue + 10))}>
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          {/* TOGGLE & TOGGLE GROUP */}
+          <Section title="Toggle & Toggle Group" subtitle="Botões de alternância.">
+            <div className="rounded-xl border bg-card p-6 space-y-6">
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Toggle Individual</h4>
+                <div className="flex gap-2">
+                  <Toggle aria-label="Toggle bold"><strong>B</strong></Toggle>
+                  <Toggle aria-label="Toggle italic"><em>I</em></Toggle>
+                  <Toggle aria-label="Toggle underline"><u>U</u></Toggle>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Toggle Group (Single)</h4>
+                <ToggleGroup type="single" defaultValue="center">
+                  <ToggleGroupItem value="left">Left</ToggleGroupItem>
+                  <ToggleGroupItem value="center">Center</ToggleGroupItem>
+                  <ToggleGroupItem value="right">Right</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Toggle Group (Multiple)</h4>
+                <ToggleGroup type="multiple">
+                  <ToggleGroupItem value="bold">Bold</ToggleGroupItem>
+                  <ToggleGroupItem value="italic">Italic</ToggleGroupItem>
+                  <ToggleGroupItem value="underline">Underline</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            </div>
+          </Section>
+
+          {/* TABS */}
+          <Section title="Tabs" subtitle="Navegação em abas.">
+            <div className="rounded-xl border bg-card p-6">
+              <Tabs defaultValue="account" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="account">Conta</TabsTrigger>
+                  <TabsTrigger value="password">Senha</TabsTrigger>
+                  <TabsTrigger value="settings">Configurações</TabsTrigger>
+                </TabsList>
+                <TabsContent value="account" className="mt-4">
+                  <p className="text-sm text-muted-foreground">Gerencie as informações da sua conta aqui.</p>
+                </TabsContent>
+                <TabsContent value="password" className="mt-4">
+                  <p className="text-sm text-muted-foreground">Altere sua senha de acesso.</p>
+                </TabsContent>
+                <TabsContent value="settings" className="mt-4">
+                  <p className="text-sm text-muted-foreground">Personalize suas preferências.</p>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </Section>
+
+          {/* BADGES */}
+          <Section title="Badges" subtitle="Labels e tags de status.">
+            <div className="rounded-xl border bg-card p-6">
+              <div className="flex flex-wrap gap-3">
+                <Badge>Default</Badge>
+                <Badge variant="secondary">Secondary</Badge>
+                <Badge variant="outline">Outline</Badge>
+                <Badge variant="destructive">Destructive</Badge>
+              </div>
+            </div>
+          </Section>
+
+          {/* AVATARS */}
+          <Section title="Avatars" subtitle="Imagens de perfil e placeholders.">
+            <div className="rounded-xl border bg-card p-6">
+              <div className="flex items-center gap-4">
+                <Avatar>
+                  <AvatarImage src="https://github.com/shadcn.png" />
+                  <AvatarFallback>CN</AvatarFallback>
+                </Avatar>
+                <Avatar>
+                  <AvatarFallback>AB</AvatarFallback>
+                </Avatar>
+                <Avatar>
+                  <AvatarFallback>JD</AvatarFallback>
+                </Avatar>
+                <Avatar className="h-16 w-16">
+                  <AvatarFallback className="text-lg">LG</AvatarFallback>
+                </Avatar>
+              </div>
+            </div>
+          </Section>
+
+          {/* SKELETON */}
+          <Section title="Skeleton" subtitle="Placeholders de carregamento.">
+            <div className="rounded-xl border bg-card p-6 space-y-4">
+              <div className="flex items-center space-x-4">
+                <Skeleton className="h-12 w-12 rounded-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-[200px]" />
+                  <Skeleton className="h-4 w-[150px]" />
+                </div>
+              </div>
+              <Skeleton className="h-[100px] w-full" />
+            </div>
+          </Section>
+
+          {/* ALERTS */}
+          <Section title="Alerts" subtitle="Mensagens de feedback ao usuário.">
+            <div className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Default Alert</AlertTitle>
+                <AlertDescription>Informação neutra para o usuário.</AlertDescription>
+              </Alert>
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Erro!</AlertTitle>
+                <AlertDescription>Algo deu errado. Tente novamente.</AlertDescription>
+              </Alert>
+            </div>
+          </Section>
+
+          {/* CARDS */}
+          <Section title="Cards" subtitle="Containers de conteúdo.">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Card Title</CardTitle>
+                  <CardDescription>Descrição do card com informações adicionais.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm">Conteúdo do card com informações relevantes.</p>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline">Cancelar</Button>
+                  <Button>Salvar</Button>
+                </CardFooter>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Card Simples</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar><AvatarFallback>U1</AvatarFallback></Avatar>
+                    <div>
+                      <p className="text-sm font-medium">Usuário 1</p>
+                      <p className="text-xs text-muted-foreground">user@email.com</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </Section>
+
+          {/* DIALOGS & DRAWERS */}
+          <Section title="Dialog & Drawer" subtitle="Modais e painéis deslizantes.">
+            <div className="rounded-xl border bg-card p-6">
+              <div className="flex flex-wrap gap-4">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">Abrir Dialog</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Título do Dialog</DialogTitle>
+                      <DialogDescription>
+                        Esta é a descrição do dialog. Você pode adicionar formulários ou conteúdo aqui.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <p className="text-sm">Conteúdo do modal...</p>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline">Cancelar</Button>
+                      <Button>Confirmar</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Drawer>
+                  <DrawerTrigger asChild>
+                    <Button variant="outline">Abrir Drawer</Button>
+                  </DrawerTrigger>
+                  <DrawerContent>
+                    <DrawerHeader>
+                      <DrawerTitle>Título do Drawer</DrawerTitle>
+                      <DrawerDescription>Painel deslizante para ações ou formulários.</DrawerDescription>
+                    </DrawerHeader>
+                    <div className="p-4">
+                      <p className="text-sm">Conteúdo do drawer...</p>
+                    </div>
+                    <DrawerFooter>
+                      <Button>Confirmar</Button>
+                      <DrawerClose asChild>
+                        <Button variant="outline">Fechar</Button>
+                      </DrawerClose>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+              </div>
+            </div>
+          </Section>
+
+          {/* DROPDOWN & TOOLTIP */}
+          <Section title="Dropdown & Tooltip" subtitle="Menus contextuais e dicas.">
+            <div className="rounded-xl border bg-card p-6">
+              <div className="flex flex-wrap gap-4">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">Menu Dropdown</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem><User className="mr-2 h-4 w-4" /> Perfil</DropdownMenuItem>
+                    <DropdownMenuItem><Settings className="mr-2 h-4 w-4" /> Configurações</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive">Sair</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline">Hover para Tooltip</Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Esta é uma dica útil!</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+          </Section>
+
         </div>
       </div>
     </StyleguideLayout>
   )
 }
+

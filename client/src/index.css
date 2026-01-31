@@ -59,6 +59,26 @@
   /* 12px */
   --radius-xl: 1rem;
   /* 16px */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
 }
 
 :root {
@@ -306,12 +326,21 @@
 }
 
 /* Premium glassmorphism styles */
+/* Premium glassmorphism styles */
 .glass-premium {
-  @apply bg-white/70 backdrop-blur-xl;
+  @apply bg-white/70 backdrop-blur-xl transition-colors duration-300;
   border: 1px solid rgba(255, 255, 255, 0.4);
   box-shadow:
     0 4px 30px rgba(0, 0, 0, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+:is(.dark) .glass-premium {
+  @apply bg-slate-900/70 text-white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .glass-dark {
@@ -530,4 +559,13 @@
 
 .animate-scan {
   animation: scan 3s ease-in-out infinite;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

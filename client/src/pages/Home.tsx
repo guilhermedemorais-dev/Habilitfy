@@ -281,7 +281,7 @@ export default function Home() {
     if (maxPrice.trim() !== "") params.set("maxPrice", maxPrice.trim());
 
     const query = params.toString();
-    setLocation(`/instrutores${query ? `?${query}` : ""}`);
+    setLocation(`/mapa${query ? `?${query}` : ""}`);
   };
 
   const clearFilters = () => {
@@ -389,29 +389,27 @@ export default function Home() {
                 Filtros
               </button>
             </div>
-            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center">
-              <div className="flex flex-1 items-center gap-3 text-slate-400">
-                <Search className="h-5 w-5" />
-                <input
-                  type="text"
-                  placeholder="Digite seu bairro ou cidade"
-                  value={searchValue}
-                  onChange={(event) => setSearchValue(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      goToMap();
-                    }
-                  }}
-                  className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                />
-              </div>
-              <Button
-                className="h-10 rounded-full px-6 text-sm font-semibold"
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Digite seu bairro ou cidade"
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    goToMap();
+                  }
+                }}
+                className="w-full h-14 pl-5 pr-16 rounded-2xl border border-slate-200 bg-white text-base text-slate-700 outline-none placeholder:text-slate-400 shadow-sm focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
+              />
+              <button
+                type="button"
                 onClick={goToMap}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-xl bg-primary hover:bg-primary/90 flex items-center justify-center transition-colors shadow-sm"
               >
-                Buscar
-              </Button>
+                <Search className="h-5 w-5 text-white" />
+              </button>
             </div>
 
             {showFilters && (

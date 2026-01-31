@@ -34,7 +34,14 @@ import {
   messages,
   type Message,
   type InsertMessage,
+  vehicles,
+  type Vehicle,
+  type InsertVehicle,
+  supportTickets,
+  type SupportTicket,
+  type InsertSupportTicket,
 } from "@shared/schema";
+
 import { db } from "./db";
 import { eq, and, or, gte, lte, desc, sql, ne, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -215,7 +222,17 @@ export interface IStorage {
   getDisputeByBooking(bookingId: string): Promise<Dispute | undefined>;
   getDisputes(): Promise<Dispute[]>;
   updateDispute(id: string, data: Partial<Dispute>): Promise<Dispute>;
+
+  getVehicles(instructorId: string): Promise<Vehicle[]>;
+  createVehicle(data: InsertVehicle): Promise<Vehicle>;
+  updateVehicle(id: string, data: Partial<Vehicle>): Promise<Vehicle>;
+  deleteVehicle(id: string): Promise<Vehicle | undefined>;
+
+  createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket>;
+  getSupportTickets(userId?: string): Promise<SupportTicket[]>;
+  updateSupportTicket(id: string, data: Partial<SupportTicket>): Promise<SupportTicket>;
 }
+
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -1173,7 +1190,7 @@ export class DatabaseStorage implements IStorage {
       return "paid";
     }
     if (paymentStatus === "paid" || booking.status === "paid") {
-      return "processing";
+      return "paid";
     }
     if (
       booking.status === "cancelled" ||
@@ -1215,6 +1232,7 @@ export class DatabaseStorage implements IStorage {
     if (existing) return;
 
     const wallet = await this.getOrCreateWallet(transaction.toUserId);
+
     await db.insert(walletEntries).values({
       walletId: wallet.id,
       userId: transaction.toUserId,
@@ -1251,8 +1269,18 @@ export class DatabaseStorage implements IStorage {
     const instructor = await this.getInstructor(booking.instructorId);
     const gross = Number(booking.totalPrice);
     const amountGross = Number.isFinite(gross) ? gross.toFixed(2) : "0";
-    const amountNet = amountGross;
+
+    // Calculate Platform Fee
+    const settings = await this.getAdminSettings();
+    const platformFeePercent = Number(settings.platformFeePercent || 0);
+    const feeAmount = gross * (platformFeePercent / 100);
+    const net = gross - feeAmount;
+    const amountNet = Number.isFinite(net) ? net.toFixed(2) : amountGross; // Fallback to gross if calc fails
+
     const status = this.getTransactionStatusFromBooking(booking);
+
+    // Only process wallet entry if status is 'paid' (money is available)
+    const shouldProcessWallet = status === "paid" || status === "completed";
 
     if (existing) {
       const [updated] = await db
@@ -1270,9 +1298,9 @@ export class DatabaseStorage implements IStorage {
         .where(eq(transactions.id, existing.id))
         .returning();
 
-      // if (status === "paid") {
-      //   await this.ensureWalletEntry(updated);
-      // }
+      if (shouldProcessWallet) {
+        await this.ensureWalletEntry(updated);
+      }
 
       return updated;
     }
@@ -1292,9 +1320,9 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
 
-    // if (status === "paid") {
-    //   await this.ensureWalletEntry(created);
-    // }
+    if (shouldProcessWallet) {
+      await this.ensureWalletEntry(created);
+    }
 
     return created;
   }
@@ -1528,6 +1556,55 @@ export class DatabaseStorage implements IStorage {
         )
       );
   }
+
+  async getVehicles(instructorId: string): Promise<Vehicle[]> {
+    return db.select().from(vehicles).where(eq(vehicles.instructorId, instructorId));
+  }
+
+  async createVehicle(data: InsertVehicle): Promise<Vehicle> {
+    const [vehicle] = await db.insert(vehicles).values(data).returning();
+    return vehicle;
+  }
+
+  async updateVehicle(id: string, data: Partial<Vehicle>): Promise<Vehicle> {
+    const [vehicle] = await db
+      .update(vehicles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(vehicles.id, id))
+      .returning();
+    return vehicle;
+  }
+
+  async deleteVehicle(id: string): Promise<Vehicle | undefined> {
+    const [vehicle] = await db.delete(vehicles).where(eq(vehicles.id, id)).returning();
+    return vehicle;
+  }
+
+  async createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket> {
+    const [ticket] = await db.insert(supportTickets).values(data).returning();
+    return ticket;
+  }
+
+  async getSupportTickets(userId?: string): Promise<SupportTicket[]> {
+    if (userId) {
+      return db
+        .select()
+        .from(supportTickets)
+        .where(eq(supportTickets.userId, userId))
+        .orderBy(desc(supportTickets.createdAt));
+    }
+    return db.select().from(supportTickets).orderBy(desc(supportTickets.createdAt));
+  }
+
+  async updateSupportTicket(id: string, data: Partial<SupportTicket>): Promise<SupportTicket> {
+    const [ticket] = await db
+      .update(supportTickets)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(supportTickets.id, id))
+      .returning();
+    return ticket;
+  }
 }
+
 
 export const storage = new DatabaseStorage();

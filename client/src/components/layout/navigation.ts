@@ -17,7 +17,7 @@ const resolveProfileHref = (role?: string) => {
 export const getNavItems = (role?: string): NavItem[] => [
   { href: "/", icon: Home, label: "Inicio" },
   { href: "/chat", icon: MessageCircle, label: "Chat" },
-  { href: "/instrutores", icon: Map, label: "Buscar Instrutores" },
+  { href: "/mapa", icon: Map, label: "Buscar Instrutores" },
   { href: "/dashboard/aluno", icon: Calendar, label: "Minhas Aulas" },
   { href: resolveProfileHref(role), icon: User, label: "Perfil" },
 ];

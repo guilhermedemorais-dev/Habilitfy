@@ -68,6 +68,20 @@ export const integrationEnvironmentEnum = pgEnum('integration_environment', [
   'production',
 ]);
 
+export const vehicleStatusEnum = pgEnum('vehicle_status', [
+  'pending',
+  'approved',
+  'rejected',
+]);
+
+export const ticketStatusEnum = pgEnum('ticket_status', [
+  'open',
+  'in_progress',
+  'resolved',
+  'closed',
+]);
+
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
@@ -242,6 +256,39 @@ export const paymentGateways = pgTable("payment_gateways", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const vehicles = pgTable("vehicles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  instructorId: varchar("instructor_id").references(() => instructors.id).notNull(),
+  brand: varchar("brand").notNull(),
+  model: varchar("model").notNull(),
+  year: integer("year").notNull(),
+  plate: varchar("plate").notNull(),
+  category: varchar("category").notNull(), // Carro, Moto, etc.
+  status: vehicleStatusEnum("status").default('pending').notNull(),
+  photoFront: text("photo_front"),
+  photoSide: text("photo_side"),
+  photoBack: text("photo_back"),
+  photoInterior: text("photo_interior"),
+  documentCrlv: text("document_crlv"),
+  documentLav: text("document_lav"),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const supportTickets = pgTable("support_tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  subject: varchar("subject").notNull(),
+  message: text("message").notNull(),
+  attachmentUrls: jsonb("attachment_urls").$type<string[]>(),
+  type: varchar("type").notNull(), // 'support', 'suggestion', 'bug'
+  status: ticketStatusEnum("status").default("open").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+
 export type IntegrationFieldType =
   | "text"
   | "secret"
@@ -318,7 +365,9 @@ export const instructorsRelations = relations(instructors, ({ one, many }) => ({
   bookings: many(bookings),
   reviews: many(reviews),
   availability: many(availability),
+  vehicles: many(vehicles),
 }));
+
 
 export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   student: one(users, {
@@ -451,6 +500,21 @@ export const availabilityRelations = relations(availability, ({ one }) => ({
   }),
 }));
 
+export const vehiclesRelations = relations(vehicles, ({ one }) => ({
+  instructor: one(instructors, {
+    fields: [vehicles.instructorId],
+    references: [instructors.id],
+  }),
+}));
+
+export const supportTicketsRelations = relations(supportTickets, ({ one }) => ({
+  user: one(users, {
+    fields: [supportTickets.userId],
+    references: [users.id],
+  }),
+}));
+
+
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
@@ -503,3 +567,20 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 });
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+
+export const insertVehicleSchema = createInsertSchema(vehicles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
+export type Vehicle = typeof vehicles.$inferSelect;
+
+export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+export type SupportTicket = typeof supportTickets.$inferSelect;
+
