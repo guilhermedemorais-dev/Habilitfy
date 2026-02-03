@@ -44,7 +44,7 @@ import {
 
 import { db } from "./db";
 import { eq, and, or, gte, lte, desc, sql, ne, isNotNull, inArray } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { alias } from "drizzle-orm/mysql-core";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
