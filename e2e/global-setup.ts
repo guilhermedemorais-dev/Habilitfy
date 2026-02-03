@@ -23,9 +23,23 @@ export default async function globalSetup() {
   const studentId = "e2e-student";
   const instructorUserId = "e2e-instructor";
 
-  await db
-    .insert(users)
-    .values({
+  // MySQL compatible: check then insert or update
+  const [existingStudent] = await db.select().from(users).where(eq(users.id, studentId));
+  if (existingStudent) {
+    await db.update(users).set({
+      email: "e2e-student@habilitfy.local",
+      firstName: "E2E",
+      lastName: "Student",
+      role: "student",
+      neighborhood: "Centro",
+      city: "Rio de Janeiro",
+      state: "RJ",
+      lat: "-22.9035",
+      lng: "-43.2096",
+      updatedAt: new Date(),
+    }).where(eq(users.id, studentId));
+  } else {
+    await db.insert(users).values({
       id: studentId,
       email: "e2e-student@habilitfy.local",
       firstName: "E2E",
@@ -36,26 +50,25 @@ export default async function globalSetup() {
       state: "RJ",
       lat: "-22.9035",
       lng: "-43.2096",
-    })
-    .onConflictDoUpdate({
-      target: users.id,
-      set: {
-        email: "e2e-student@habilitfy.local",
-        firstName: "E2E",
-        lastName: "Student",
-        role: "student",
-        neighborhood: "Centro",
-        city: "Rio de Janeiro",
-        state: "RJ",
-        lat: "-22.9035",
-        lng: "-43.2096",
-        updatedAt: new Date(),
-      },
     });
+  }
 
-  await db
-    .insert(users)
-    .values({
+  const [existingInstructorUser] = await db.select().from(users).where(eq(users.id, instructorUserId));
+  if (existingInstructorUser) {
+    await db.update(users).set({
+      email: "e2e-instructor@habilitfy.local",
+      firstName: "E2E",
+      lastName: "Instrutor",
+      role: "instructor",
+      neighborhood: "Copacabana",
+      city: "Rio de Janeiro",
+      state: "RJ",
+      lat: "-22.9721",
+      lng: "-43.1872",
+      updatedAt: new Date(),
+    }).where(eq(users.id, instructorUserId));
+  } else {
+    await db.insert(users).values({
       id: instructorUserId,
       email: "e2e-instructor@habilitfy.local",
       firstName: "E2E",
@@ -66,22 +79,8 @@ export default async function globalSetup() {
       state: "RJ",
       lat: "-22.9721",
       lng: "-43.1872",
-    })
-    .onConflictDoUpdate({
-      target: users.id,
-      set: {
-        email: "e2e-instructor@habilitfy.local",
-        firstName: "E2E",
-        lastName: "Instrutor",
-        role: "instructor",
-        neighborhood: "Copacabana",
-        city: "Rio de Janeiro",
-        state: "RJ",
-        lat: "-22.9721",
-        lng: "-43.1872",
-        updatedAt: new Date(),
-      },
     });
+  }
 
   const [existingInstructor] = await db
     .select({ id: instructors.id })

@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { wallets, walletEntries, type Wallet, type WalletEntry } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
+import crypto from "crypto";
 
 export class WalletService {
     /**
@@ -15,14 +16,14 @@ export class WalletService {
             return existing;
         }
 
-        const [newWallet] = await db
-            .insert(wallets)
-            .values({
-                userId,
-                balance: "0.00",
-                currency: "BRL",
-            })
-            .returning();
+        const walletId = crypto.randomUUID();
+        await db.insert(wallets).values({
+            id: walletId,
+            userId,
+            balance: "0.00",
+            currency: "BRL",
+        });
+        const [newWallet] = await db.select().from(wallets).where(eq(wallets.id, walletId));
 
         return newWallet;
     }
@@ -34,50 +35,43 @@ export class WalletService {
     async credit(
         userId: string,
         amount: number,
-        type: "credit" | "refund" | "adjustment" | "sale", // Added 'sale' which might need to map to schema enum
+        type: "credit" | "refund" | "adjustment" | "sale",
         description: string,
         metadata?: { bookingId?: string; transactionId?: string }
     ): Promise<WalletEntry> {
-        // Map 'sale' to 'credit' or ensure schema supports it. Schema has: credit, debit, refund, withdrawal, adjustment.
-        // We will use 'credit' for sales/commission earnings for now, or strict schema types.
         const entryType = type === "sale" ? "credit" : type;
 
         return await db.transaction(async (tx) => {
-            // 1. Get or create wallet (within transaction implies locking or just safe ops)
-            // For strict correctness, we might want to lock, but Drizzle simple update is usually fine for atomic increment if using sql helpers.
-            // However, we need the wallet ID first.
-
             let wallet = await tx.query.wallets.findFirst({
                 where: eq(wallets.userId, userId),
             });
 
             if (!wallet) {
-                // Create if not exists
-                const [created] = await tx
-                    .insert(wallets)
-                    .values({
-                        userId,
-                        balance: "0.00",
-                    })
-                    .returning();
+                const walletId = crypto.randomUUID();
+                await tx.insert(wallets).values({
+                    id: walletId,
+                    userId,
+                    balance: "0.00",
+                });
+                const [created] = await tx.select().from(wallets).where(eq(wallets.id, walletId));
                 wallet = created;
             }
 
-            // 2. Insert Entry
-            const [entry] = await tx
-                .insert(walletEntries)
-                .values({
-                    walletId: wallet.id,
-                    userId,
-                    type: entryType as any, // Cast to match enum if strictly typed
-                    amount: amount.toFixed(2),
-                    description,
-                    bookingId: metadata?.bookingId,
-                    transactionId: metadata?.transactionId,
-                })
-                .returning();
+            // Insert Entry
+            const entryId = crypto.randomUUID();
+            await tx.insert(walletEntries).values({
+                id: entryId,
+                walletId: wallet.id,
+                userId,
+                type: entryType as any,
+                amount: amount.toFixed(2),
+                description,
+                bookingId: metadata?.bookingId,
+                transactionId: metadata?.transactionId,
+            });
+            const [entry] = await tx.select().from(walletEntries).where(eq(walletEntries.id, entryId));
 
-            // 3. Update Balance
+            // Update Balance
             await tx
                 .update(wallets)
                 .set({
@@ -115,25 +109,21 @@ export class WalletService {
                 throw new Error("Insufficient funds");
             }
 
-            // 1. Insert Entry
-            const [entry] = await tx
-                .insert(walletEntries)
-                .values({
-                    walletId: wallet.id,
-                    userId,
-                    type: type,
-                    amount: (-amount).toFixed(2), // Storing negative for debit? Or positive with type debit? 
-                    // Usually ledger credits are positive, debits negative OR absolute values with type. 
-                    // Schema seems to allow decimal. Let's stick to absolute value in amount, type determines sign, 
-                    // BUT `balance` update must subtract. 
-                    // Actually, let's keep amount positive in entry for clarity, but logic subtracts.
-                    description,
-                    bookingId: metadata?.bookingId,
-                    transactionId: metadata?.transactionId,
-                })
-                .returning();
+            // Insert Entry
+            const entryId = crypto.randomUUID();
+            await tx.insert(walletEntries).values({
+                id: entryId,
+                walletId: wallet.id,
+                userId,
+                type: type,
+                amount: (-amount).toFixed(2),
+                description,
+                bookingId: metadata?.bookingId,
+                transactionId: metadata?.transactionId,
+            });
+            const [entry] = await tx.select().from(walletEntries).where(eq(walletEntries.id, entryId));
 
-            // 2. Update Balance
+            // Update Balance
             await tx
                 .update(wallets)
                 .set({
