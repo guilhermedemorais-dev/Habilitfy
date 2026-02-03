@@ -5,16 +5,16 @@ import passport from "passport";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
-import connectPg from "connect-pg-simple";
+import MySQLStore from "express-mysql-session";
 import { storage } from "./storage";
 
 const getOidcConfig = memoize(
   async () => {
-    const issuerUrl = process.env.ISSUER_URL ?? "https://replit.com/oidc";
-    const clientId = process.env.OIDC_CLIENT_ID ?? process.env.REPL_ID;
-    const clientSecret = process.env.OIDC_CLIENT_SECRET ?? process.env.REPL_SECRET;
+    const issuerUrl = process.env.ISSUER_URL ?? "https://accounts.google.com";
+    const clientId = process.env.OIDC_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.OIDC_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET;
     if (!clientId) {
-      throw new Error("OIDC_CLIENT_ID (ou REPL_ID) must be set for OIDC");
+      throw new Error("OIDC_CLIENT_ID (ou GOOGLE_CLIENT_ID) must be set for OIDC");
     }
     return await client.discovery(
       new URL(issuerUrl),
@@ -30,13 +30,28 @@ export function getSession() {
   if (!process.env.SESSION_SECRET && process.env.AUTH_MODE === "local") {
     process.env.SESSION_SECRET = "local-dev-secret";
   }
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
+
+  // Parse MySQL URL for session store
+  const dbUrl = process.env.DATABASE_URL || "";
+  const MySQLStoreSession = MySQLStore(session);
+
+  const sessionStore = new MySQLStoreSession({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306'),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'habilitfy',
+    createDatabaseTable: true,
+    schema: {
+      tableName: 'sessions',
+      columnNames: {
+        session_id: 'sid',
+        expires: 'expire',
+        data: 'sess'
+      }
+    }
   });
+
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,

@@ -1,19 +1,19 @@
 import { sql } from 'drizzle-orm';
 import {
-    pgTable,
+    mysqlTable,
     timestamp,
     varchar,
     text,
-    jsonb,
-    pgEnum,
+    json,
+    mysqlEnum,
     boolean,
     decimal,
-} from "drizzle-orm/pg-core";
+} from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // KYC Verification Status
-export const kycVerificationStatusEnum = pgEnum('kyc_verification_status', [
+export const kycVerificationStatusEnum = mysqlEnum('kyc_verification_status', [
     'pending',
     'processing',
     'approved',
@@ -22,7 +22,7 @@ export const kycVerificationStatusEnum = pgEnum('kyc_verification_status', [
 ]);
 
 // KYC Document Types
-export const kycDocumentTypeEnum = pgEnum('kyc_document_type', [
+export const kycDocumentTypeEnum = mysqlEnum('kyc_document_type', [
     'selfie',
     'document_front',
     'document_back',
@@ -32,20 +32,20 @@ export const kycDocumentTypeEnum = pgEnum('kyc_document_type', [
 ]);
 
 // KYC Verifications Table
-export const kycVerifications = pgTable("kyc_verifications", {
-    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    userId: varchar("user_id").notNull(),
+export const kycVerifications = mysqlTable("kyc_verifications", {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    userId: varchar("user_id", { length: 36 }).notNull(),
 
     // Document URLs
-    selfieUrl: varchar("selfie_url"),
-    documentFrontUrl: varchar("document_front_url"),
-    documentBackUrl: varchar("document_back_url"),
+    selfieUrl: varchar("selfie_url", { length: 500 }),
+    documentFrontUrl: varchar("document_front_url", { length: 500 }),
+    documentBackUrl: varchar("document_back_url", { length: 500 }),
 
     // Extracted Data
-    extractedName: varchar("extracted_name"),
-    extractedCpf: varchar("extracted_cpf"),
+    extractedName: varchar("extracted_name", { length: 255 }),
+    extractedCpf: varchar("extracted_cpf", { length: 20 }),
     extractedBirthDate: timestamp("extracted_birth_date"),
-    extractedDocumentNumber: varchar("extracted_document_number"),
+    extractedDocumentNumber: varchar("extracted_document_number", { length: 100 }),
 
     // Face Matching
     faceMatchScore: decimal("face_match_score", { precision: 5, scale: 4 }),
@@ -57,19 +57,19 @@ export const kycVerifications = pgTable("kyc_verifications", {
 
     // Document Validation
     documentValid: boolean("document_valid").default(false),
-    documentValidationDetails: jsonb("document_validation_details"),
+    documentValidationDetails: json("document_validation_details"),
 
     // Overall Status
-    status: kycVerificationStatusEnum("status").default('pending').notNull(),
+    status: kycVerificationStatusEnum.default('pending').notNull(),
     rejectionReason: text("rejection_reason"),
     reviewNotes: text("review_notes"),
-    reviewedByUserId: varchar("reviewed_by_user_id"),
+    reviewedByUserId: varchar("reviewed_by_user_id", { length: 36 }),
     reviewedAt: timestamp("reviewed_at"),
 
     // Metadata
-    ipAddress: varchar("ip_address"),
+    ipAddress: varchar("ip_address", { length: 50 }),
     userAgent: text("user_agent"),
-    deviceFingerprint: varchar("device_fingerprint"),
+    deviceFingerprint: varchar("device_fingerprint", { length: 255 }),
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),

@@ -1,36 +1,36 @@
 import { sql, relations } from 'drizzle-orm';
 import {
   index,
-  jsonb,
-  pgTable,
+  json,
+  mysqlTable,
   timestamp,
   varchar,
   text,
-  integer,
+  int,
   decimal,
   boolean,
-  pgEnum,
-} from "drizzle-orm/pg-core";
+  mysqlEnum,
+} from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const sessions = pgTable(
+export const sessions = mysqlTable(
   "sessions",
   {
-    sid: varchar("sid").primaryKey(),
-    sess: jsonb("sess").notNull(),
+    sid: varchar("sid", { length: 255 }).primaryKey(),
+    sess: json("sess").notNull(),
     expire: timestamp("expire").notNull(),
   },
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-export const userRoleEnum = pgEnum('user_role', ['student', 'instructor', 'admin']);
-export const kycStatusEnum = pgEnum('kyc_status', ['pending', 'approved', 'rejected']);
-export const bookingStatusEnum = pgEnum('booking_status', ['pending', 'confirmed', 'paid', 'completed', 'cancelled']);
-export const instructorStatusEnum = pgEnum('instructor_status', ['pending', 'approved', 'rejected']);
-export const disputeStatusEnum = pgEnum('dispute_status', ['open', 'in_review', 'resolved']);
-export const disputeResolutionEnum = pgEnum('dispute_resolution', ['refund_student', 'release_instructor', 'split']);
-export const transactionTypeEnum = pgEnum('transaction_type', [
+export const userRoleEnum = mysqlEnum('user_role', ['student', 'instructor', 'admin']);
+export const kycStatusEnum = mysqlEnum('kyc_status', ['pending', 'approved', 'rejected']);
+export const bookingStatusEnum = mysqlEnum('booking_status', ['pending', 'confirmed', 'paid', 'completed', 'cancelled']);
+export const instructorStatusEnum = mysqlEnum('instructor_status', ['pending', 'approved', 'rejected']);
+export const disputeStatusEnum = mysqlEnum('dispute_status', ['open', 'in_review', 'resolved']);
+export const disputeResolutionEnum = mysqlEnum('dispute_resolution', ['refund_student', 'release_instructor', 'split']);
+export const transactionTypeEnum = mysqlEnum('transaction_type', [
   'booking',
   'withdrawal',
   'refund',
@@ -38,7 +38,7 @@ export const transactionTypeEnum = pgEnum('transaction_type', [
   'affiliate',
   'coupon',
 ]);
-export const transactionStatusEnum = pgEnum('transaction_status', [
+export const transactionStatusEnum = mysqlEnum('transaction_status', [
   'pending',
   'paid',
   'processing',
@@ -46,35 +46,35 @@ export const transactionStatusEnum = pgEnum('transaction_status', [
   'cancelled',
   'failed',
 ]);
-export const withdrawalStatusEnum = pgEnum('withdrawal_status', [
+export const withdrawalStatusEnum = mysqlEnum('withdrawal_status', [
   'pending',
   'approved',
   'rejected',
   'processed',
 ]);
-export const walletEntryTypeEnum = pgEnum('wallet_entry_type', [
+export const walletEntryTypeEnum = mysqlEnum('wallet_entry_type', [
   'credit',
   'debit',
   'refund',
   'withdrawal',
   'adjustment',
 ]);
-export const integrationStatusEnum = pgEnum('integration_status', [
+export const integrationStatusEnum = mysqlEnum('integration_status', [
   'active',
   'inactive',
 ]);
-export const integrationEnvironmentEnum = pgEnum('integration_environment', [
+export const integrationEnvironmentEnum = mysqlEnum('integration_environment', [
   'development',
   'production',
 ]);
 
-export const vehicleStatusEnum = pgEnum('vehicle_status', [
+export const vehicleStatusEnum = mysqlEnum('vehicle_status', [
   'pending',
   'approved',
   'rejected',
 ]);
 
-export const ticketStatusEnum = pgEnum('ticket_status', [
+export const ticketStatusEnum = mysqlEnum('ticket_status', [
   'open',
   'in_progress',
   'resolved',
@@ -82,22 +82,22 @@ export const ticketStatusEnum = pgEnum('ticket_status', [
 ]);
 
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  googleId: varchar("google_id").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  role: userRoleEnum("role").default('student').notNull(),
-  kycStatus: kycStatusEnum("kyc_status").default("approved").notNull(),
-  phone: varchar("phone"),
-  cpf: varchar("cpf"),
-  addressLine: varchar("address_line"),
-  zipCode: varchar("zip_code"),
-  neighborhood: varchar("neighborhood"),
-  city: varchar("city"),
-  state: varchar("state"),
+export const users = mysqlTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  email: varchar("email", { length: 255 }).unique(),
+  googleId: varchar("google_id", { length: 255 }).unique(),
+  firstName: varchar("first_name", { length: 255 }),
+  lastName: varchar("last_name", { length: 255 }),
+  profileImageUrl: varchar("profile_image_url", { length: 500 }),
+  role: userRoleEnum.default('student').notNull(),
+  kycStatus: kycStatusEnum.default("approved").notNull(),
+  phone: varchar("phone", { length: 50 }),
+  cpf: varchar("cpf", { length: 20 }),
+  addressLine: varchar("address_line", { length: 500 }),
+  zipCode: varchar("zip_code", { length: 20 }),
+  neighborhood: varchar("neighborhood", { length: 255 }),
+  city: varchar("city", { length: 255 }),
+  state: varchar("state", { length: 50 }),
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
   password: text("password"),
@@ -105,89 +105,89 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const instructors = pgTable("instructors", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+export const instructors = mysqlTable("instructors", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
   bio: text("bio"),
   pricePerHour: decimal("price_per_hour", { precision: 10, scale: 2 }).notNull(),
-  slotDurationMinutes: integer("slot_duration_minutes").default(50).notNull(),
-  maxBookingsPerStudent: integer("max_bookings_per_student").default(0).notNull(),
-  vehicleModel: varchar("vehicle_model").notNull(),
-  vehicleYear: varchar("vehicle_year"),
-  vehicleType: varchar("vehicle_type").notNull(),
-  vehiclePlate: varchar("vehicle_plate"),
+  slotDurationMinutes: int("slot_duration_minutes").default(50).notNull(),
+  maxBookingsPerStudent: int("max_bookings_per_student").default(0).notNull(),
+  vehicleModel: varchar("vehicle_model", { length: 255 }).notNull(),
+  vehicleYear: varchar("vehicle_year", { length: 10 }),
+  vehicleType: varchar("vehicle_type", { length: 100 }).notNull(),
+  vehiclePlate: varchar("vehicle_plate", { length: 20 }),
   rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),
-  reviewsCount: integer("reviews_count").default(0),
+  reviewsCount: int("reviews_count").default(0),
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
-  neighborhood: varchar("neighborhood"),
-  city: varchar("city"),
-  state: varchar("state"),
-  credentialNumber: varchar("credential_number"),
-  credentialImageUrl: varchar("credential_image_url"),
-  documentNumber: varchar("document_number"),
-  documentImageUrl: varchar("document_image_url"),
-  selfieImageUrl: varchar("selfie_image_url"),
-  vehicleImageUrl: varchar("vehicle_image_url"),
-  vehicleDocImageUrl: varchar("vehicle_doc_image_url"),
-  vehiclePlateImageUrl: varchar("vehicle_plate_image_url"),
-  vehicleAuthorizationImageUrl: varchar("vehicle_authorization_image_url"),
-  status: instructorStatusEnum("status").default('pending').notNull(),
+  neighborhood: varchar("neighborhood", { length: 255 }),
+  city: varchar("city", { length: 255 }),
+  state: varchar("state", { length: 50 }),
+  credentialNumber: varchar("credential_number", { length: 100 }),
+  credentialImageUrl: varchar("credential_image_url", { length: 500 }),
+  documentNumber: varchar("document_number", { length: 100 }),
+  documentImageUrl: varchar("document_image_url", { length: 500 }),
+  selfieImageUrl: varchar("selfie_image_url", { length: 500 }),
+  vehicleImageUrl: varchar("vehicle_image_url", { length: 500 }),
+  vehicleDocImageUrl: varchar("vehicle_doc_image_url", { length: 500 }),
+  vehiclePlateImageUrl: varchar("vehicle_plate_image_url", { length: 500 }),
+  vehicleAuthorizationImageUrl: varchar("vehicle_authorization_image_url", { length: 500 }),
+  status: instructorStatusEnum.default('pending').notNull(),
   serviceAreas: text("service_areas"),
-  pixKey: varchar("pix_key"),
+  pixKey: varchar("pix_key", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const bookings = pgTable("bookings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  studentId: varchar("student_id").references(() => users.id).notNull(),
-  instructorId: varchar("instructor_id").references(() => instructors.id).notNull(),
+export const bookings = mysqlTable("bookings", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  studentId: varchar("student_id", { length: 36 }).references(() => users.id).notNull(),
+  instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
   date: timestamp("date").notNull(),
-  duration: integer("duration").default(50).notNull(),
+  duration: int("duration").default(50).notNull(),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   rentVehicle: boolean("rent_vehicle").default(false),
   vehicleRentalPrice: decimal("vehicle_rental_price", { precision: 10, scale: 2 }).default("0"),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
-  status: bookingStatusEnum("status").default('pending').notNull(),
+  status: bookingStatusEnum.default('pending').notNull(),
   meetingAddress: text("meeting_address"),
   studentNotes: text("student_notes"),
-  paymentStatus: varchar("payment_status").default('pending'),
-  paymentId: varchar("payment_id"),
-  paymentProvider: varchar("payment_provider"),
-  paymentUrl: varchar("payment_url"),
-  paymentMethods: jsonb("payment_methods"),
+  paymentStatus: varchar("payment_status", { length: 50 }).default('pending'),
+  paymentId: varchar("payment_id", { length: 255 }),
+  paymentProvider: varchar("payment_provider", { length: 100 }),
+  paymentUrl: varchar("payment_url", { length: 500 }),
+  paymentMethods: json("payment_methods"),
   paymentDevMode: boolean("payment_dev_mode"),
   paidAt: timestamp("paid_at"),
-  startCode: varchar("start_code"),
-  endCode: varchar("end_code"),
+  startCode: varchar("start_code", { length: 10 }),
+  endCode: varchar("end_code", { length: 10 }),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
   cancelledAt: timestamp("cancelled_at"),
-  cancelledByRole: userRoleEnum("cancelled_by_role"),
-  cancelledByUserId: varchar("cancelled_by_user_id").references(() => users.id),
+  cancelledByRole: userRoleEnum,
+  cancelledByUserId: varchar("cancelled_by_user_id", { length: 36 }).references(() => users.id),
   cancelReason: text("cancel_reason"),
-  cancelledMinutes: integer("cancelled_minutes"),
+  cancelledMinutes: int("cancelled_minutes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const disputes = pgTable("disputes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  bookingId: varchar("booking_id").references(() => bookings.id).notNull(),
-  openedByUserId: varchar("opened_by_user_id").references(() => users.id).notNull(),
-  openedByRole: userRoleEnum("opened_by_role").notNull(),
+export const disputes = mysqlTable("disputes", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id).notNull(),
+  openedByUserId: varchar("opened_by_user_id", { length: 36 }).references(() => users.id).notNull(),
+  openedByRole: userRoleEnum.notNull(),
   reason: text("reason").notNull(),
-  status: disputeStatusEnum("status").default("open").notNull(),
-  resolution: disputeResolutionEnum("resolution"),
-  resolvedByUserId: varchar("resolved_by_user_id").references(() => users.id),
+  status: disputeStatusEnum.default("open").notNull(),
+  resolution: disputeResolutionEnum,
+  resolvedByUserId: varchar("resolved_by_user_id", { length: 36 }).references(() => users.id),
   resolvedAt: timestamp("resolved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const adminSettings = pgTable("admin_settings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const adminSettings = mysqlTable("admin_settings", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
   platformFeePercent: decimal("platform_fee_percent", { precision: 5, scale: 2 }).default("0"),
   cancellationFeePercent: decimal("cancellation_fee_percent", { precision: 5, scale: 2 }).default("0"),
   cancellationInstructorSharePercent: decimal("cancellation_instructor_share_percent", { precision: 5, scale: 2 }).default("0"),
@@ -195,76 +195,76 @@ export const adminSettings = pgTable("admin_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const transactions = pgTable("transactions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  bookingId: varchar("booking_id").references(() => bookings.id),
-  type: transactionTypeEnum("type").notNull(),
-  status: transactionStatusEnum("status").default('pending').notNull(),
+export const transactions = mysqlTable("transactions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
+  type: transactionTypeEnum.notNull(),
+  status: transactionStatusEnum.default('pending').notNull(),
   amountGross: decimal("amount_gross", { precision: 10, scale: 2 }).notNull(),
   amountNet: decimal("amount_net", { precision: 10, scale: 2 }).notNull(),
-  gateway: varchar("gateway"),
-  paymentId: varchar("payment_id"),
-  fromUserId: varchar("from_user_id").references(() => users.id),
-  toUserId: varchar("to_user_id").references(() => users.id),
+  gateway: varchar("gateway", { length: 100 }),
+  paymentId: varchar("payment_id", { length: 255 }),
+  fromUserId: varchar("from_user_id", { length: 36 }).references(() => users.id),
+  toUserId: varchar("to_user_id", { length: 36 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const wallets = pgTable("wallets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+export const wallets = mysqlTable("wallets", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
   balance: decimal("balance", { precision: 10, scale: 2 }).default("0"),
-  currency: varchar("currency").default("BRL"),
+  currency: varchar("currency", { length: 10 }).default("BRL"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const walletEntries = pgTable("wallet_entries", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  walletId: varchar("wallet_id").references(() => wallets.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  type: walletEntryTypeEnum("type").notNull(),
+export const walletEntries = mysqlTable("wallet_entries", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  walletId: varchar("wallet_id", { length: 36 }).references(() => wallets.id).notNull(),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
+  type: walletEntryTypeEnum.notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   description: text("description"),
-  bookingId: varchar("booking_id").references(() => bookings.id),
-  transactionId: varchar("transaction_id").references(() => transactions.id),
+  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
+  transactionId: varchar("transaction_id", { length: 36 }).references(() => transactions.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const withdrawals = pgTable("withdrawals", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+export const withdrawals = mysqlTable("withdrawals", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  status: withdrawalStatusEnum("status").default('pending').notNull(),
-  destinationType: varchar("destination_type").default("pix"),
-  destinationKey: varchar("destination_key"),
+  status: withdrawalStatusEnum.default('pending').notNull(),
+  destinationType: varchar("destination_type", { length: 50 }).default("pix"),
+  destinationKey: varchar("destination_key", { length: 255 }),
   requestedAt: timestamp("requested_at").defaultNow(),
   processedAt: timestamp("processed_at"),
-  processedByUserId: varchar("processed_by_user_id").references(() => users.id),
+  processedByUserId: varchar("processed_by_user_id", { length: 36 }).references(() => users.id),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const paymentGateways = pgTable("payment_gateways", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  provider: varchar("provider").notNull(),
+export const paymentGateways = mysqlTable("payment_gateways", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  provider: varchar("provider", { length: 100 }).notNull(),
   apiKey: text("api_key"),
-  status: varchar("status").default("active"),
+  status: varchar("status", { length: 50 }).default("active"),
   isDefault: boolean("is_default").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const vehicles = pgTable("vehicles", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  instructorId: varchar("instructor_id").references(() => instructors.id).notNull(),
-  brand: varchar("brand").notNull(),
-  model: varchar("model").notNull(),
-  year: integer("year").notNull(),
-  plate: varchar("plate").notNull(),
-  category: varchar("category").notNull(), // Carro, Moto, etc.
-  status: vehicleStatusEnum("status").default('pending').notNull(),
+export const vehicles = mysqlTable("vehicles", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
+  brand: varchar("brand", { length: 100 }).notNull(),
+  model: varchar("model", { length: 100 }).notNull(),
+  year: int("year").notNull(),
+  plate: varchar("plate", { length: 20 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  status: vehicleStatusEnum.default('pending').notNull(),
   photoFront: text("photo_front"),
   photoSide: text("photo_side"),
   photoBack: text("photo_back"),
@@ -276,14 +276,14 @@ export const vehicles = pgTable("vehicles", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const supportTickets = pgTable("support_tickets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  subject: varchar("subject").notNull(),
+export const supportTickets = mysqlTable("support_tickets", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
   message: text("message").notNull(),
-  attachmentUrls: jsonb("attachment_urls").$type<string[]>(),
-  type: varchar("type").notNull(), // 'support', 'suggestion', 'bug'
-  status: ticketStatusEnum("status").default("open").notNull(),
+  attachmentUrls: json("attachment_urls").$type<string[]>(),
+  type: varchar("type", { length: 50 }).notNull(),
+  status: ticketStatusEnum.default("open").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -305,19 +305,19 @@ export type IntegrationField = {
   placeholder?: string | null;
 };
 
-export const integrations = pgTable(
+export const integrations = mysqlTable(
   "integrations",
   {
-    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    name: varchar("name").notNull(),
-    slug: varchar("slug").notNull(),
-    category: varchar("category").notNull(),
-    status: integrationStatusEnum("status").default("active").notNull(),
-    environment: integrationEnvironmentEnum("environment")
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    name: varchar("name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 100 }).notNull(),
+    category: varchar("category", { length: 100 }).notNull(),
+    status: integrationStatusEnum.default("active").notNull(),
+    environment: integrationEnvironmentEnum
       .default("production")
       .notNull(),
     isDefault: boolean("is_default").default(false),
-    fields: jsonb("fields").$type<IntegrationField[]>(),
+    fields: json("fields").$type<IntegrationField[]>(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -327,22 +327,22 @@ export const integrations = pgTable(
   ],
 );
 
-export const reviews = pgTable("reviews", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  bookingId: varchar("booking_id").references(() => bookings.id).notNull(),
-  studentId: varchar("student_id").references(() => users.id).notNull(),
-  instructorId: varchar("instructor_id").references(() => instructors.id).notNull(),
-  rating: integer("rating").notNull(),
+export const reviews = mysqlTable("reviews", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id).notNull(),
+  studentId: varchar("student_id", { length: 36 }).references(() => users.id).notNull(),
+  instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
+  rating: int("rating").notNull(),
   comment: text("comment"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const availability = pgTable("availability", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  instructorId: varchar("instructor_id").references(() => instructors.id).notNull(),
-  dayOfWeek: integer("day_of_week").notNull(),
-  startTime: varchar("start_time").notNull(),
-  endTime: varchar("end_time").notNull(),
+export const availability = mysqlTable("availability", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
+  dayOfWeek: int("day_of_week").notNull(),
+  startTime: varchar("start_time", { length: 10 }).notNull(),
+  endTime: varchar("end_time", { length: 10 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -413,11 +413,11 @@ export const disputesRelations = relations(disputes, ({ one }) => ({
   }),
 }));
 
-export const messages = pgTable("messages", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  senderId: varchar("sender_id").references(() => users.id).notNull(),
-  receiverId: varchar("receiver_id").references(() => users.id).notNull(),
-  bookingId: varchar("booking_id").references(() => bookings.id),
+export const messages = mysqlTable("messages", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  senderId: varchar("sender_id", { length: 36 }).references(() => users.id).notNull(),
+  receiverId: varchar("receiver_id", { length: 36 }).references(() => users.id).notNull(),
+  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
   content: text("content").notNull(),
   read: boolean("read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -583,4 +583,3 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
 });
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
 export type SupportTicket = typeof supportTickets.$inferSelect;
-
