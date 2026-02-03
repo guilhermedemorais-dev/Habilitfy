@@ -2,7 +2,7 @@ import { logger } from "./utils/logger";
 import passport from "passport";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
-import connectPg from "connect-pg-simple";
+import MySQLStore from "express-mysql-session";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as LocalStrategy } from "passport-local";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
@@ -39,12 +39,22 @@ export function getSession() {
         process.env.SESSION_SECRET = "local-dev-secret";
     }
 
-    const pgStore = connectPg(session);
-    const sessionStore = new pgStore({
-        conString: process.env.DATABASE_URL,
-        createTableIfMissing: false,
-        ttl: sessionTtl,
-        tableName: "sessions",
+    const MySQLStoreSession = MySQLStore(session);
+    const sessionStore = new MySQLStoreSession({
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3306'),
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+        database: process.env.DB_NAME || 'habilitfy',
+        createDatabaseTable: true,
+        schema: {
+            tableName: 'sessions',
+            columnNames: {
+                session_id: 'sid',
+                expires: 'expire',
+                data: 'sess'
+            }
+        }
     });
 
     return session({

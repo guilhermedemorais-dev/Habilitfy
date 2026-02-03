@@ -1,0 +1,335 @@
+-- HabilitFy MySQL Database Schema
+-- Execute this in phpMyAdmin
+
+-- Sessions table (for express-session)
+CREATE TABLE IF NOT EXISTS `sessions` (
+  `sid` VARCHAR(255) NOT NULL PRIMARY KEY,
+  `sess` JSON NOT NULL,
+  `expire` TIMESTAMP NOT NULL,
+  INDEX `IDX_session_expire` (`expire`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Users table
+CREATE TABLE IF NOT EXISTS `users` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `email` VARCHAR(255) UNIQUE,
+  `google_id` VARCHAR(255) UNIQUE,
+  `first_name` VARCHAR(255),
+  `last_name` VARCHAR(255),
+  `profile_image_url` VARCHAR(500),
+  `role` ENUM('student', 'instructor', 'admin') NOT NULL DEFAULT 'student',
+  `kyc_status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'approved',
+  `phone` VARCHAR(50),
+  `cpf` VARCHAR(20),
+  `address_line` VARCHAR(500),
+  `zip_code` VARCHAR(20),
+  `neighborhood` VARCHAR(255),
+  `city` VARCHAR(255),
+  `state` VARCHAR(50),
+  `lat` DECIMAL(10, 7),
+  `lng` DECIMAL(10, 7),
+  `password` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Instructors table
+CREATE TABLE IF NOT EXISTS `instructors` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `bio` TEXT,
+  `price_per_hour` DECIMAL(10, 2) NOT NULL,
+  `slot_duration_minutes` INT NOT NULL DEFAULT 50,
+  `max_bookings_per_student` INT NOT NULL DEFAULT 0,
+  `vehicle_model` VARCHAR(255) NOT NULL,
+  `vehicle_year` VARCHAR(10),
+  `vehicle_type` VARCHAR(100) NOT NULL,
+  `vehicle_plate` VARCHAR(20),
+  `rating` DECIMAL(3, 2) DEFAULT 0,
+  `reviews_count` INT DEFAULT 0,
+  `lat` DECIMAL(10, 7),
+  `lng` DECIMAL(10, 7),
+  `neighborhood` VARCHAR(255),
+  `city` VARCHAR(255),
+  `state` VARCHAR(50),
+  `credential_number` VARCHAR(100),
+  `credential_image_url` VARCHAR(500),
+  `document_number` VARCHAR(100),
+  `document_image_url` VARCHAR(500),
+  `selfie_image_url` VARCHAR(500),
+  `vehicle_image_url` VARCHAR(500),
+  `vehicle_doc_image_url` VARCHAR(500),
+  `vehicle_plate_image_url` VARCHAR(500),
+  `vehicle_authorization_image_url` VARCHAR(500),
+  `status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+  `service_areas` TEXT,
+  `pix_key` VARCHAR(255),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bookings table
+CREATE TABLE IF NOT EXISTS `bookings` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `student_id` VARCHAR(36) NOT NULL,
+  `instructor_id` VARCHAR(36) NOT NULL,
+  `date` TIMESTAMP NOT NULL,
+  `duration` INT NOT NULL DEFAULT 50,
+  `price` DECIMAL(10, 2) NOT NULL,
+  `rent_vehicle` BOOLEAN DEFAULT FALSE,
+  `vehicle_rental_price` DECIMAL(10, 2) DEFAULT 0,
+  `total_price` DECIMAL(10, 2) NOT NULL,
+  `status` ENUM('pending', 'confirmed', 'paid', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
+  `meeting_address` TEXT,
+  `student_notes` TEXT,
+  `payment_status` VARCHAR(50) DEFAULT 'pending',
+  `payment_id` VARCHAR(255),
+  `payment_provider` VARCHAR(100),
+  `payment_url` VARCHAR(500),
+  `payment_methods` JSON,
+  `payment_dev_mode` BOOLEAN,
+  `paid_at` TIMESTAMP NULL,
+  `start_code` VARCHAR(10),
+  `end_code` VARCHAR(10),
+  `started_at` TIMESTAMP NULL,
+  `completed_at` TIMESTAMP NULL,
+  `cancelled_at` TIMESTAMP NULL,
+  `cancelled_by_role` ENUM('student', 'instructor', 'admin'),
+  `cancelled_by_user_id` VARCHAR(36),
+  `cancel_reason` TEXT,
+  `cancelled_minutes` INT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`student_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`),
+  FOREIGN KEY (`cancelled_by_user_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Reviews table
+CREATE TABLE IF NOT EXISTS `reviews` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `booking_id` VARCHAR(36) NOT NULL,
+  `student_id` VARCHAR(36) NOT NULL,
+  `instructor_id` VARCHAR(36) NOT NULL,
+  `rating` INT NOT NULL,
+  `comment` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`),
+  FOREIGN KEY (`student_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Availability table
+CREATE TABLE IF NOT EXISTS `availability` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `instructor_id` VARCHAR(36) NOT NULL,
+  `day_of_week` INT NOT NULL,
+  `start_time` VARCHAR(10) NOT NULL,
+  `end_time` VARCHAR(10) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Messages table
+CREATE TABLE IF NOT EXISTS `messages` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `sender_id` VARCHAR(36) NOT NULL,
+  `receiver_id` VARCHAR(36) NOT NULL,
+  `booking_id` VARCHAR(36),
+  `content` TEXT NOT NULL,
+  `read` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`receiver_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Disputes table
+CREATE TABLE IF NOT EXISTS `disputes` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `booking_id` VARCHAR(36) NOT NULL,
+  `opened_by_user_id` VARCHAR(36) NOT NULL,
+  `opened_by_role` ENUM('student', 'instructor', 'admin') NOT NULL,
+  `reason` TEXT NOT NULL,
+  `status` ENUM('open', 'in_review', 'resolved') NOT NULL DEFAULT 'open',
+  `resolution` ENUM('refund_student', 'release_instructor', 'split'),
+  `resolved_by_user_id` VARCHAR(36),
+  `resolved_at` TIMESTAMP NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`),
+  FOREIGN KEY (`opened_by_user_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`resolved_by_user_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Admin Settings table
+CREATE TABLE IF NOT EXISTS `admin_settings` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `platform_fee_percent` DECIMAL(5, 2) DEFAULT 0,
+  `cancellation_fee_percent` DECIMAL(5, 2) DEFAULT 0,
+  `cancellation_instructor_share_percent` DECIMAL(5, 2) DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Transactions table
+CREATE TABLE IF NOT EXISTS `transactions` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `booking_id` VARCHAR(36),
+  `type` ENUM('booking', 'withdrawal', 'refund', 'commission', 'affiliate', 'coupon') NOT NULL,
+  `status` ENUM('pending', 'paid', 'processing', 'refunded', 'cancelled', 'failed') NOT NULL DEFAULT 'pending',
+  `amount_gross` DECIMAL(10, 2) NOT NULL,
+  `amount_net` DECIMAL(10, 2) NOT NULL,
+  `gateway` VARCHAR(100),
+  `payment_id` VARCHAR(255),
+  `from_user_id` VARCHAR(36),
+  `to_user_id` VARCHAR(36),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`),
+  FOREIGN KEY (`from_user_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`to_user_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Wallets table
+CREATE TABLE IF NOT EXISTS `wallets` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `balance` DECIMAL(10, 2) DEFAULT 0,
+  `currency` VARCHAR(10) DEFAULT 'BRL',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Wallet Entries table
+CREATE TABLE IF NOT EXISTS `wallet_entries` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `wallet_id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `type` ENUM('credit', 'debit', 'refund', 'withdrawal', 'adjustment') NOT NULL,
+  `amount` DECIMAL(10, 2) NOT NULL,
+  `description` TEXT,
+  `booking_id` VARCHAR(36),
+  `transaction_id` VARCHAR(36),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`wallet_id`) REFERENCES `wallets`(`id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`),
+  FOREIGN KEY (`transaction_id`) REFERENCES `transactions`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Withdrawals table
+CREATE TABLE IF NOT EXISTS `withdrawals` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `amount` DECIMAL(10, 2) NOT NULL,
+  `status` ENUM('pending', 'approved', 'rejected', 'processed') NOT NULL DEFAULT 'pending',
+  `destination_type` VARCHAR(50) DEFAULT 'pix',
+  `destination_key` VARCHAR(255),
+  `requested_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `processed_at` TIMESTAMP NULL,
+  `processed_by_user_id` VARCHAR(36),
+  `notes` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`processed_by_user_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Payment Gateways table
+CREATE TABLE IF NOT EXISTS `payment_gateways` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `provider` VARCHAR(100) NOT NULL,
+  `api_key` TEXT,
+  `status` VARCHAR(50) DEFAULT 'active',
+  `is_default` BOOLEAN DEFAULT FALSE,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Vehicles table
+CREATE TABLE IF NOT EXISTS `vehicles` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `instructor_id` VARCHAR(36) NOT NULL,
+  `brand` VARCHAR(100) NOT NULL,
+  `model` VARCHAR(100) NOT NULL,
+  `year` INT NOT NULL,
+  `plate` VARCHAR(20) NOT NULL,
+  `category` VARCHAR(50) NOT NULL,
+  `status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+  `photo_front` TEXT,
+  `photo_side` TEXT,
+  `photo_back` TEXT,
+  `photo_interior` TEXT,
+  `document_crlv` TEXT,
+  `document_lav` TEXT,
+  `rejection_reason` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Support Tickets table
+CREATE TABLE IF NOT EXISTS `support_tickets` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `subject` VARCHAR(255) NOT NULL,
+  `message` TEXT NOT NULL,
+  `attachment_urls` JSON,
+  `type` VARCHAR(50) NOT NULL,
+  `status` ENUM('open', 'in_progress', 'resolved', 'closed') NOT NULL DEFAULT 'open',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Integrations table
+CREATE TABLE IF NOT EXISTS `integrations` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `name` VARCHAR(255) NOT NULL,
+  `slug` VARCHAR(100) NOT NULL,
+  `category` VARCHAR(100) NOT NULL,
+  `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  `environment` ENUM('development', 'production') NOT NULL DEFAULT 'production',
+  `is_default` BOOLEAN DEFAULT FALSE,
+  `fields` JSON,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `integrations_slug_env_idx` (`slug`, `environment`),
+  INDEX `integrations_category_env_idx` (`category`, `environment`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- KYC Verifications table
+CREATE TABLE IF NOT EXISTS `kyc_verifications` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `selfie_url` VARCHAR(500),
+  `document_front_url` VARCHAR(500),
+  `document_back_url` VARCHAR(500),
+  `extracted_name` VARCHAR(255),
+  `extracted_cpf` VARCHAR(20),
+  `extracted_birth_date` TIMESTAMP NULL,
+  `extracted_document_number` VARCHAR(100),
+  `face_match_score` DECIMAL(5, 4),
+  `face_match_passed` BOOLEAN DEFAULT FALSE,
+  `liveness_score` DECIMAL(5, 4),
+  `liveness_passed` BOOLEAN DEFAULT FALSE,
+  `document_valid` BOOLEAN DEFAULT FALSE,
+  `document_validation_details` JSON,
+  `status` ENUM('pending', 'processing', 'approved', 'rejected', 'requires_review') NOT NULL DEFAULT 'pending',
+  `rejection_reason` TEXT,
+  `review_notes` TEXT,
+  `reviewed_by_user_id` VARCHAR(36),
+  `reviewed_at` TIMESTAMP NULL,
+  `ip_address` VARCHAR(50),
+  `user_agent` TEXT,
+  `device_fingerprint` VARCHAR(255),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Insert default admin settings
+INSERT INTO `admin_settings` (`id`, `platform_fee_percent`, `cancellation_fee_percent`, `cancellation_instructor_share_percent`)
+VALUES (UUID(), 10.00, 20.00, 50.00);
