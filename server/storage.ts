@@ -43,6 +43,7 @@ import {
 } from "@shared/schema";
 
 import { db } from "./db";
+import * as crypto from "crypto";
 import { eq, and, or, gte, lte, desc, sql, ne, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 
@@ -263,26 +264,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+    // MySQL: check if exists, then insert or update
+    const existing = await db.select().from(users).where(eq(users.id, userData.id!));
+    if (existing.length > 0) {
+      await db.update(users).set({ ...userData, updatedAt: new Date() }).where(eq(users.id, userData.id!));
+    } else {
+      await db.insert(users).values(userData);
+    }
+    const [user] = await db.select().from(users).where(eq(users.id, userData.id!));
     return user;
   }
 
   async updateUser(id: string, data: Partial<User>): Promise<User> {
-    const [updated] = await db
-      .update(users)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(users.id, id))
-      .returning();
+    await db.update(users).set({ ...data, updatedAt: new Date() }).where(eq(users.id, id));
+    const [updated] = await db.select().from(users).where(eq(users.id, id));
     return updated;
   }
 
@@ -319,19 +314,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createInstructor(instructorData: InsertInstructor): Promise<Instructor> {
-    const [instructor] = await db
-      .insert(instructors)
-      .values(instructorData)
-      .returning();
+    const id = instructorData.id || crypto.randomUUID();
+    await db.insert(instructors).values({ ...instructorData, id });
+    const [instructor] = await db.select().from(instructors).where(eq(instructors.id, id));
     return instructor;
   }
 
   async updateInstructor(id: string, data: Partial<InsertInstructor>): Promise<Instructor> {
-    const [instructor] = await db
-      .update(instructors)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(instructors.id, id))
-      .returning();
+    await db.update(instructors).set({ ...data, updatedAt: new Date() }).where(eq(instructors.id, id));
+    const [instructor] = await db.select().from(instructors).where(eq(instructors.id, id));
     return instructor;
   }
 
@@ -926,11 +917,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateWithdrawal(id: string, data: Partial<Withdrawal>): Promise<Withdrawal> {
-    const [withdrawal] = await db
-      .update(withdrawals)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(withdrawals.id, id))
-      .returning();
+    await db.update(withdrawals).set({ ...data, updatedAt: new Date() }).where(eq(withdrawals.id, id));
+    const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, id));
     return withdrawal;
   }
 
@@ -950,15 +938,15 @@ export class DatabaseStorage implements IStorage {
         .set({ isDefault: false, updatedAt: new Date() });
     }
 
-    const [gateway] = await db
-      .insert(paymentGateways)
-      .values({
-        provider: data.provider,
-        apiKey: data.apiKey ?? null,
-        status: data.status ?? "active",
-        isDefault: data.isDefault ?? false,
-      })
-      .returning();
+    const gatewayId = crypto.randomUUID();
+    await db.insert(paymentGateways).values({
+      id: gatewayId,
+      provider: data.provider,
+      apiKey: data.apiKey ?? null,
+      status: data.status ?? "active",
+      isDefault: data.isDefault ?? false,
+    });
+    const [gateway] = await db.select().from(paymentGateways).where(eq(paymentGateways.id, gatewayId));
     return gateway;
   }
 
@@ -995,11 +983,8 @@ export class DatabaseStorage implements IStorage {
       payload.isDefault = data.isDefault;
     }
 
-    const [gateway] = await db
-      .update(paymentGateways)
-      .set(payload)
-      .where(eq(paymentGateways.id, id))
-      .returning();
+    await db.update(paymentGateways).set(payload).where(eq(paymentGateways.id, id));
+    const [gateway] = await db.select().from(paymentGateways).where(eq(paymentGateways.id, id));
     return gateway;
   }
 
@@ -1088,10 +1073,9 @@ export class DatabaseStorage implements IStorage {
       isDefault: data.isDefault ?? false,
       fields: data.fields ?? [],
     };
-    const [integration] = await db
-      .insert(integrations)
-      .values(integrationValues)
-      .returning();
+    const integrationId = crypto.randomUUID();
+    await db.insert(integrations).values({ ...integrationValues, id: integrationId });
+    const [integration] = await db.select().from(integrations).where(eq(integrations.id, integrationId));
     return integration;
   }
 
@@ -1152,11 +1136,8 @@ export class DatabaseStorage implements IStorage {
       payload.fields = data.fields;
     }
 
-    const [integration] = await db
-      .update(integrations)
-      .set(payload)
-      .where(eq(integrations.id, id))
-      .returning();
+    await db.update(integrations).set(payload).where(eq(integrations.id, id));
+    const [integration] = await db.select().from(integrations).where(eq(integrations.id, id));
     return integration;
   }
 
@@ -1166,19 +1147,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBooking(bookingData: InsertBooking): Promise<Booking> {
-    const [booking] = await db
-      .insert(bookings)
-      .values(bookingData)
-      .returning();
+    const bookingId = bookingData.id || crypto.randomUUID();
+    await db.insert(bookings).values({ ...bookingData, id: bookingId });
+    const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
     return booking;
   }
 
   async updateBooking(id: string, data: Partial<InsertBooking>): Promise<Booking> {
-    const [booking] = await db
-      .update(bookings)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(bookings.id, id))
-      .returning();
+    await db.update(bookings).set({ ...data, updatedAt: new Date() }).where(eq(bookings.id, id));
+    const [booking] = await db.select().from(bookings).where(eq(bookings.id, id));
     return booking;
   }
 
@@ -1210,14 +1187,9 @@ export class DatabaseStorage implements IStorage {
       .where(eq(wallets.userId, userId));
     if (existing) return existing;
 
-    const [created] = await db
-      .insert(wallets)
-      .values({
-        userId,
-        balance: "0",
-        currency: "BRL",
-      })
-      .returning();
+    const walletId = crypto.randomUUID();
+    await db.insert(wallets).values({ id: walletId, userId, balance: "0", currency: "BRL" });
+    const [created] = await db.select().from(wallets).where(eq(wallets.id, walletId));
     return created;
   }
 
@@ -1283,20 +1255,17 @@ export class DatabaseStorage implements IStorage {
     const shouldProcessWallet = status === "paid" || status === "completed";
 
     if (existing) {
-      const [updated] = await db
-        .update(transactions)
-        .set({
-          status,
-          amountGross,
-          amountNet,
-          gateway: booking.paymentProvider ?? null,
-          paymentId: booking.paymentId ?? null,
-          fromUserId: booking.studentId,
-          toUserId: instructor?.userId ?? null,
-          updatedAt: new Date(),
-        })
-        .where(eq(transactions.id, existing.id))
-        .returning();
+      await db.update(transactions).set({
+        status,
+        amountGross,
+        amountNet,
+        gateway: booking.paymentProvider ?? null,
+        paymentId: booking.paymentId ?? null,
+        fromUserId: booking.studentId,
+        toUserId: instructor?.userId ?? null,
+        updatedAt: new Date(),
+      }).where(eq(transactions.id, existing.id));
+      const [updated] = await db.select().from(transactions).where(eq(transactions.id, existing.id));
 
       if (shouldProcessWallet) {
         await this.ensureWalletEntry(updated);
@@ -1305,20 +1274,20 @@ export class DatabaseStorage implements IStorage {
       return updated;
     }
 
-    const [created] = await db
-      .insert(transactions)
-      .values({
-        bookingId: booking.id,
-        type: "booking",
-        status,
-        amountGross,
-        amountNet,
-        gateway: booking.paymentProvider ?? null,
-        paymentId: booking.paymentId ?? null,
-        fromUserId: booking.studentId,
-        toUserId: instructor?.userId ?? null,
-      })
-      .returning();
+    const transactionId = crypto.randomUUID();
+    await db.insert(transactions).values({
+      id: transactionId,
+      bookingId: booking.id,
+      type: "booking",
+      status,
+      amountGross,
+      amountNet,
+      gateway: booking.paymentProvider ?? null,
+      paymentId: booking.paymentId ?? null,
+      fromUserId: booking.studentId,
+      toUserId: instructor?.userId ?? null,
+    });
+    const [created] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
 
     if (shouldProcessWallet) {
       await this.ensureWalletEntry(created);
@@ -1328,10 +1297,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReview(reviewData: InsertReview): Promise<Review> {
-    const [review] = await db
-      .insert(reviews)
-      .values(reviewData)
-      .returning();
+    const reviewId = reviewData.id || crypto.randomUUID();
+    await db.insert(reviews).values({ ...reviewData, id: reviewId });
+    const [review] = await db.select().from(reviews).where(eq(reviews.id, reviewId));
 
     const allReviews = await db.select().from(reviews)
       .where(eq(reviews.instructorId, reviewData.instructorId));
@@ -1355,10 +1323,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAvailability(availData: InsertAvailability): Promise<Availability> {
-    const [avail] = await db
-      .insert(availability)
-      .values(availData)
-      .returning();
+    const availId = availData.id || crypto.randomUUID();
+    await db.insert(availability).values({ ...availData, id: availId });
+    const [avail] = await db.select().from(availability).where(eq(availability.id, availId));
     return avail;
   }
 
@@ -1373,36 +1340,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateAvailability(id: string, data: Partial<InsertAvailability>): Promise<Availability> {
-    const [slot] = await db
-      .update(availability)
-      .set(data)
-      .where(eq(availability.id, id))
-      .returning();
+    await db.update(availability).set(data).where(eq(availability.id, id));
+    const [slot] = await db.select().from(availability).where(eq(availability.id, id));
     return slot;
   }
 
   async deleteAvailability(id: string): Promise<Availability | undefined> {
-    const [slot] = await db
-      .delete(availability)
-      .where(eq(availability.id, id))
-      .returning();
+    const [slot] = await db.select().from(availability).where(eq(availability.id, id));
+    if (slot) {
+      await db.delete(availability).where(eq(availability.id, id));
+    }
     return slot;
   }
 
   async getAdminSettings(): Promise<AdminSettings> {
     const [settings] = await db.select().from(adminSettings).limit(1);
     if (settings) return settings;
-    const [created] = await db.insert(adminSettings).values({}).returning();
+    const settingsId = crypto.randomUUID();
+    await db.insert(adminSettings).values({ id: settingsId });
+    const [created] = await db.select().from(adminSettings).where(eq(adminSettings.id, settingsId));
     return created;
   }
 
   async updateAdminSettings(data: Partial<AdminSettings>): Promise<AdminSettings> {
     const current = await this.getAdminSettings();
-    const [updated] = await db
-      .update(adminSettings)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(adminSettings.id, current.id))
-      .returning();
+    await db.update(adminSettings).set({ ...data, updatedAt: new Date() }).where(eq(adminSettings.id, current.id));
+    const [updated] = await db.select().from(adminSettings).where(eq(adminSettings.id, current.id));
     return updated;
   }
 
@@ -1412,15 +1375,15 @@ export class DatabaseStorage implements IStorage {
     openedByRole: "student" | "instructor" | "admin";
     reason: string;
   }): Promise<Dispute> {
-    const [dispute] = await db
-      .insert(disputes)
-      .values({
-        bookingId: data.bookingId,
-        openedByUserId: data.openedByUserId,
-        openedByRole: data.openedByRole,
-        reason: data.reason,
-      })
-      .returning();
+    const disputeId = crypto.randomUUID();
+    await db.insert(disputes).values({
+      id: disputeId,
+      bookingId: data.bookingId,
+      openedByUserId: data.openedByUserId,
+      openedByRole: data.openedByRole,
+      reason: data.reason,
+    });
+    const [dispute] = await db.select().from(disputes).where(eq(disputes.id, disputeId));
     return dispute;
   }
 
@@ -1442,11 +1405,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateDispute(id: string, data: Partial<Dispute>): Promise<Dispute> {
-    const [updated] = await db
-      .update(disputes)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(disputes.id, id))
-      .returning();
+    await db.update(disputes).set({ ...data, updatedAt: new Date() }).where(eq(disputes.id, id));
+    const [updated] = await db.select().from(disputes).where(eq(disputes.id, id));
     return updated;
   }
 
@@ -1457,21 +1417,23 @@ export class DatabaseStorage implements IStorage {
     destinationType: string;
     destinationKey: string;
   }): Promise<Withdrawal> {
-    const [withdrawal] = await db
-      .insert(withdrawals)
-      .values({
-        userId: data.userId,
-        amount: data.amount,
-        status: data.status,
-        destinationType: data.destinationType,
-        destinationKey: data.destinationKey,
-      })
-      .returning();
+    const withdrawalId = crypto.randomUUID();
+    await db.insert(withdrawals).values({
+      id: withdrawalId,
+      userId: data.userId,
+      amount: data.amount,
+      status: data.status,
+      destinationType: data.destinationType,
+      destinationKey: data.destinationKey,
+    });
+    const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, withdrawalId));
     return withdrawal;
   }
 
   async createMessage(data: InsertMessage): Promise<Message> {
-    const [msg] = await db.insert(messages).values(data).returning();
+    const msgId = data.id || crypto.randomUUID();
+    await db.insert(messages).values({ ...data, id: msgId });
+    const [msg] = await db.select().from(messages).where(eq(messages.id, msgId));
     return msg;
   }
 
@@ -1562,26 +1524,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVehicle(data: InsertVehicle): Promise<Vehicle> {
-    const [vehicle] = await db.insert(vehicles).values(data).returning();
+    const vehicleId = data.id || crypto.randomUUID();
+    await db.insert(vehicles).values({ ...data, id: vehicleId });
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, vehicleId));
     return vehicle;
   }
 
   async updateVehicle(id: string, data: Partial<Vehicle>): Promise<Vehicle> {
-    const [vehicle] = await db
-      .update(vehicles)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(vehicles.id, id))
-      .returning();
+    await db.update(vehicles).set({ ...data, updatedAt: new Date() }).where(eq(vehicles.id, id));
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
     return vehicle;
   }
 
   async deleteVehicle(id: string): Promise<Vehicle | undefined> {
-    const [vehicle] = await db.delete(vehicles).where(eq(vehicles.id, id)).returning();
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
+    if (vehicle) {
+      await db.delete(vehicles).where(eq(vehicles.id, id));
+    }
     return vehicle;
   }
 
   async createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket> {
-    const [ticket] = await db.insert(supportTickets).values(data).returning();
+    const ticketId = data.id || crypto.randomUUID();
+    await db.insert(supportTickets).values({ ...data, id: ticketId });
+    const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, ticketId));
     return ticket;
   }
 
@@ -1597,11 +1563,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSupportTicket(id: string, data: Partial<SupportTicket>): Promise<SupportTicket> {
-    const [ticket] = await db
-      .update(supportTickets)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(supportTickets.id, id))
-      .returning();
+    await db.update(supportTickets).set({ ...data, updatedAt: new Date() }).where(eq(supportTickets.id, id));
+    const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, id));
     return ticket;
   }
 }
