@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1400" viewBox="0 0 900 1400">
+  <rect width="900" height="350" y="0" fill="#5277ff" />
+  <rect width="900" height="350" y="350" fill="#2746e0" />
+  <rect width="900" height="350" y="700" fill="#ffffff" />
+  <rect width="900" height="350" y="1050" fill="#000000" />
+
+  <text x="450" y="175" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="42" font-weight="700">#5277ff</text>
+  <text x="450" y="525" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="42" font-weight="700">#2746e0</text>
+  <text x="450" y="875" text-anchor="middle" fill="#2746e0" font-family="Arial, sans-serif" font-size="42" font-weight="700">#ffffff</text>
+  <text x="450" y="1225" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="42" font-weight="700">#000000</text>
+</svg>
