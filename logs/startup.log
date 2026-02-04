@@ -1,0 +1,15 @@
+[2026-02-04T03:47:43.521Z] === STARTING SERVER ===
+[2026-02-04T03:47:43.529Z] CWD: /home/guimp/Documentos/HabilitFy - antgravity
+[2026-02-04T03:47:43.530Z] __dirname: /home/guimp/Documentos/HabilitFy - antgravity
+[2026-02-04T03:47:43.530Z] Node version: v22.22.0
+[2026-02-04T03:47:43.530Z] dist/index.cjs found: /home/guimp/Documentos/HabilitFy - antgravity/dist/index.cjs
+[2026-02-04T03:47:43.530Z] dist/public found: /home/guimp/Documentos/HabilitFy - antgravity/dist/public
+[2026-02-04T03:47:43.531Z] Loading dotenv...
+[2026-02-04T03:47:43.541Z] .env.production loaded from /home/guimp/Documentos/HabilitFy - antgravity/.env.production
+[2026-02-04T03:47:43.542Z] NODE_ENV: production
+[2026-02-04T03:47:43.542Z] DATABASE_URL: SET
+[2026-02-04T03:47:43.542Z] DB_HOST: SET
+[2026-02-04T03:47:43.542Z] PORT: not set (will use default)
+[2026-02-04T03:47:43.543Z] NODE_ENV set to production
+[2026-02-04T03:47:43.543Z] Loading dist/index.cjs...
+[2026-02-04T03:47:43.871Z] dist/index.cjs loaded successfully
