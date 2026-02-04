@@ -1,9 +1,32 @@
+import fs from "fs";
+import path from "path";
+
 export class Logger {
     private isProduction = process.env.NODE_ENV === "production";
+    private logFile: string;
+
+    constructor() {
+        const logsDir = path.join(process.cwd(), "logs");
+        if (!fs.existsSync(logsDir)) {
+            fs.mkdirSync(logsDir, { recursive: true });
+        }
+        this.logFile = path.join(logsDir, "application.log");
+    }
 
     private formatMessage(level: string, message: string, meta?: any) {
         const timestamp = new Date().toISOString();
         const sanitizedMeta = this.sanitize(meta);
+
+        // File log format (always plain text)
+        const metaString = sanitizedMeta ? ` ${JSON.stringify(sanitizedMeta)}` : "";
+        const fileLogEntry = `[${timestamp}] ${level.toUpperCase()}: ${message}${metaString}\n`;
+
+        // Write to file (fire and forget to avoid blocking, or sync for safety)
+        try {
+            fs.appendFileSync(this.logFile, fileLogEntry);
+        } catch (e) {
+            console.error("Failed to write to log file", e);
+        }
 
         if (this.isProduction) {
             return JSON.stringify({
@@ -14,7 +37,6 @@ export class Logger {
             });
         }
 
-        const metaString = sanitizedMeta ? ` ${JSON.stringify(sanitizedMeta)}` : "";
         return `[${timestamp}] ${level.toUpperCase()}: ${message}${metaString}`;
     }
 
