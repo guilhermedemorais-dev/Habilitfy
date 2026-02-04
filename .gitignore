@@ -13,3 +13,4 @@ test-results/
 factory/factory/config/mcp.toml
 factory/factory/bots/runtime/out/
 factory/factory/bots/runtime/.env
+logs/
