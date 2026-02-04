@@ -234,12 +234,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      const instructorProfile = await M.getInstructorByUserId(userId);
+      const instructorProfile = await storage.getInstructorByUserId(userId);
 
       res.json({ ...user, instructorProfile });
     } catch (error) {
@@ -253,10 +253,10 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.get('/api/admin/instructors', isAuthenticated, async (req: any, res: Response) => {
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
     try {
-      const instructors = await M.getAllInstructors();
+      const instructors = await storage.getAllInstructors();
       const enriched = await Promise.all(
         instructors.map(async (instructor) => {
-          const user = await M.getUser(instructor.userId);
+          const user = await storage.getUser(instructor.userId);
           return {
             ...instructor,
             user: user ? user : null,
@@ -278,7 +278,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
     try {
       const role = req.query.role as string | undefined;
-      const users = await M.getUsers(role);
+      const users = await storage.getUsers(role);
       res.json(users);
     } catch (error) {
       console.error("Error fetching admin users:", error);
@@ -290,18 +290,18 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
     try {
       const userId = req.params.id;
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
 
-      await M.updateUser(userId, { kycStatus: 'approved' });
+      await storage.updateUser(userId, { kycStatus: 'approved' });
 
       // Also update kyc_verifications table if needed
       // await db.update(kycVerificationsTable).set({ status: 'approved' }).where(eq(kycVerificationsTable.userId, userId));
 
       if (user.role === 'instructor') {
-        const instructor = await M.getInstructorByUserId(userId);
+        const instructor = await storage.getInstructorByUserId(userId);
         if (instructor) {
-          await M.updateInstructor(instructor.id, { status: 'approved' });
+          await storage.updateInstructor(instructor.id, { status: 'approved' });
         }
       }
       res.json({ success: true });
@@ -315,14 +315,14 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
     try {
       const userId = req.params.id;
-      await M.updateUser(userId, { kycStatus: 'rejected' });
+      await storage.updateUser(userId, { kycStatus: 'rejected' });
       // await db.update(kycVerificationsTable).set({ status: 'rejected' }).where(eq(kycVerificationsTable.userId, userId));
 
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
       if (user?.role === 'instructor') {
-        const instructor = await M.getInstructorByUserId(userId);
+        const instructor = await storage.getInstructorByUserId(userId);
         if (instructor) {
-          await M.updateInstructor(instructor.id, { status: 'rejected' });
+          await storage.updateInstructor(instructor.id, { status: 'rejected' });
         }
       }
 
@@ -355,7 +355,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       // Check if email already exists
-      const existingUser = await M.getUserByEmail?.(email);
+      const existingUser = await storage.getUserByEmail?.(email);
       if (existingUser) {
         return res.status(400).json({ message: 'Este e-mail já está cadastrado' });
       }
@@ -366,7 +366,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const hashedPassword = password ? await hashPassword(password) : undefined;
 
       // 1. Create User
-      const newUser = await M.upsertUser({
+      const newUser = await storage.upsertUser({
         id: userId,
         email: email.toLowerCase().trim(),
         firstName: firstName.trim(),
@@ -435,7 +435,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
           credentialNumber, documentNumber
         } = req.body;
 
-        await M.createInstructor({
+        await storage.createInstructor({
           userId: userId,
           bio: bio || "",
           pricePerHour: pricePerHour ? String(pricePerHour) : "0",
@@ -522,7 +522,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         isLicensed: typeof req.body?.isLicensed === "boolean" ? req.body.isLicensed : undefined,
       };
 
-      const updated = await M.updateUser(userId, payload);
+      const updated = await storage.updateUser(userId, payload);
       res.json(updated);
     } catch (error) {
       console.error("Error updating user:", error);
@@ -533,10 +533,10 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.get('/api/instructors', async (req: Request, res: Response) => {
     try {
       const status = req.query.status as string | undefined;
-      const instructors = await M.getAllInstructors(status || 'approved');
+      const instructors = await storage.getAllInstructors(status || 'approved');
       const enriched = await Promise.all(
         instructors.map(async (instructor) => {
-          const user = await M.getUser(instructor.userId);
+          const user = await storage.getUser(instructor.userId);
           const name =
             `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
             user?.email ||
@@ -569,11 +569,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/instructors/:id', async (req: Request, res: Response) => {
     try {
-      const instructor = await M.getInstructor(req.params.id);
+      const instructor = await storage.getInstructor(req.params.id);
       if (!instructor) {
         return res.status(404).json({ message: "Instructor not found" });
       }
-      const user = await M.getUser(instructor.userId);
+      const user = await storage.getUser(instructor.userId);
       const name =
         `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
         user?.email ||
@@ -605,7 +605,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     try {
       const userId = req.user.claims.sub;
       const data = insertInstructorSchema.parse({ ...req.body, userId });
-      const instructor = await M.createInstructor(data);
+      const instructor = await storage.createInstructor(data);
       res.status(201).json(instructor);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -619,14 +619,14 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.patch('/api/instructors/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const instructor = await M.getInstructor(req.params.id);
+      const instructor = await storage.getInstructor(req.params.id);
 
       if (!instructor) {
         return res.status(404).json({ message: "Instructor not found" });
       }
 
       // Verify ownership: user must be the instructor owner or admin
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
       if (instructor.userId !== userId && user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden: You don't have permission to modify this instructor" });
       }
@@ -647,7 +647,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         payload.maxBookingsPerStudent = Math.round(limit);
       }
 
-      const updated = await M.updateInstructor(req.params.id, payload);
+      const updated = await storage.updateInstructor(req.params.id, payload);
       res.json(updated);
     } catch (error) {
       console.error("Error updating instructor:", error);
@@ -659,9 +659,9 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.get('/api/vehicles', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
-      const instructor = await M.getInstructorByUserId(userId);
+      const instructor = await storage.getInstructorByUserId(userId);
       if (!instructor) return res.status(404).json({ message: "Instructor profile not found" });
-      const vehicles = await M.getVehicles(instructor.id);
+      const vehicles = await storage.getVehicles(instructor.id);
       res.json(vehicles);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch vehicles" });
@@ -671,11 +671,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.post('/api/vehicles', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
-      const instructor = await M.getInstructorByUserId(userId);
+      const instructor = await storage.getInstructorByUserId(userId);
       if (!instructor) return res.status(404).json({ message: "Instructor profile not found" });
 
       const data = insertVehicleSchema.parse({ ...req.body, instructorId: instructor.id });
-      const vehicle = await M.createVehicle(data);
+      const vehicle = await storage.createVehicle(data);
       res.status(201).json(vehicle);
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json(error.errors);
@@ -685,7 +685,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.patch('/api/vehicles/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const updated = await M.updateVehicle(req.params.id, req.body);
+      const updated = await storage.updateVehicle(req.params.id, req.body);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Failed to update vehicle" });
@@ -694,7 +694,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.delete('/api/vehicles/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
-      await M.deleteVehicle(req.params.id);
+      await storage.deleteVehicle(req.params.id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete vehicle" });
@@ -706,7 +706,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
       const data = insertSupportTicketSchema.parse({ ...req.body, userId });
-      const ticket = await M.createSupportTicket(data);
+      const ticket = await storage.createSupportTicket(data);
       res.status(201).json(ticket);
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json(error.errors);
@@ -717,7 +717,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.get('/api/support', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
-      const tickets = await M.getSupportTickets(userId);
+      const tickets = await storage.getSupportTickets(userId);
       res.json(tickets);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch support requests" });
@@ -726,7 +726,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/config/fees', async (req: Request, res: Response) => {
     try {
-      const settings = await M.getAdminSettings();
+      const settings = await storage.getAdminSettings();
       res.json({
         platformFeePercent: Number(settings.platformFeePercent || 0)
       });
@@ -738,7 +738,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/instructors/:id/reviews', async (req: Request, res: Response) => {
     try {
-      const reviews = await M.getReviewsByInstructor(req.params.id);
+      const reviews = await storage.getReviewsByInstructor(req.params.id);
       res.json(reviews);
     } catch (error) {
       console.error("Error fetching reviews:", error);
@@ -749,14 +749,14 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.get('/api/bookings/student', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const bookings = await M.getBookingsByStudent(userId);
+      const bookings = await storage.getBookingsByStudent(userId);
 
       // Enrich bookings with instructor details
       const enrichedBookings = await Promise.all(
         bookings.map(async (booking) => {
-          const instructor = await M.getInstructor(booking.instructorId);
+          const instructor = await storage.getInstructor(booking.instructorId);
           const instructorUser = instructor
-            ? await M.getUser(instructor.userId)
+            ? await storage.getUser(instructor.userId)
             : null;
 
           return {
@@ -781,12 +781,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/bookings/instructor/:instructorId', isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const bookings = await M.getBookingsByInstructor(req.params.instructorId);
+      const bookings = await storage.getBookingsByInstructor(req.params.instructorId);
 
       // Enrich bookings with student details
       const enrichedBookings = await Promise.all(
         bookings.map(async (booking) => {
-          const student = await M.getUser(booking.studentId);
+          const student = await storage.getUser(booking.studentId);
 
           return {
             ...booking,
@@ -813,11 +813,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const parsedDate =
         typeof incoming.date === "string" ? new Date(incoming.date) : incoming.date;
       const data = insertBookingSchema.parse({ ...incoming, date: parsedDate });
-      const instructor = await M.getInstructor(data.instructorId);
+      const instructor = await storage.getInstructor(data.instructorId);
       if (!instructor) {
         return res.status(404).json({ message: "Instructor not found" });
       }
-      const student = await M.getUser(userId);
+      const student = await storage.getUser(userId);
       if (student?.kycStatus && student.kycStatus !== "approved") {
         return res.status(403).json({
           message: "Cadastro ainda nao aprovado. Complete o KYC para agendar.",
@@ -836,7 +836,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const bookingData = { ...data, duration: slotDuration };
 
       if ((instructor.maxBookingsPerStudent || 0) > 0) {
-        const activeCount = await M.countActiveBookingsByStudent(
+        const activeCount = await storage.countActiveBookingsByStudent(
           data.instructorId,
           userId,
         );
@@ -848,7 +848,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       // 1. Check for booking conflicts (same instructor, overlapping time)
-      const existingBookings = await M.getBookingsByInstructor(bookingData.instructorId);
+      const existingBookings = await storage.getBookingsByInstructor(bookingData.instructorId);
       const newStart = new Date(bookingData.date);
       const newEnd = new Date(newStart.getTime() + (bookingData.duration || 60) * 60000);
 
@@ -869,7 +869,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       // 2. Check if instructor has availability for this time slot
-      const availability = await M.getAvailabilityByInstructor(bookingData.instructorId);
+      const availability = await storage.getAvailabilityByInstructor(bookingData.instructorId);
       if (availability.length > 0) {
         const bookingDate = new Date(bookingData.date);
         const dayOfWeek = bookingDate.getDay();
@@ -888,7 +888,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         }
       }
 
-      const booking = await M.createBooking(bookingData);
+      const booking = await storage.createBooking(bookingData);
       res.status(201).json(booking);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -902,15 +902,15 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.patch('/api/bookings/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const existingBooking = await M.getBooking(req.params.id);
+      const existingBooking = await storage.getBooking(req.params.id);
 
       if (!existingBooking) {
         return res.status(404).json({ message: "Booking not found" });
       }
 
       // Verify ownership: user must be the student, instructor, or admin
-      const user = await M.getUser(userId);
-      const instructor = await M.getInstructor(existingBooking.instructorId);
+      const user = await storage.getUser(userId);
+      const instructor = await storage.getInstructor(existingBooking.instructorId);
 
       const isStudent = existingBooking.studentId === userId;
       const isInstructor = instructor?.userId === userId;
@@ -920,13 +920,13 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(403).json({ message: "Forbidden: You don't have permission to modify this booking" });
       }
 
-      const booking = await M.updateBooking(req.params.id, req.body);
+      const booking = await storage.updateBooking(req.params.id, req.body);
       if (
         booking.status === "paid" ||
         booking.status === "completed" ||
         String(booking.paymentStatus ?? "").toLowerCase() === "paid"
       ) {
-        M.upsertBookingTransaction(booking).catch((error) => {
+        storage.upsertBookingTransaction(booking).catch((error) => {
           logger.error("Error syncing booking transaction:", error);
         });
       }
@@ -940,13 +940,13 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.post('/api/bookings/:id/start', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const booking = await M.getBooking(req.params.id);
+      const booking = await storage.getBooking(req.params.id);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      const instructor = await M.getInstructor(booking.instructorId);
-      const user = await M.getUser(userId);
+      const instructor = await storage.getInstructor(booking.instructorId);
+      const user = await storage.getUser(userId);
       const isInstructor = instructor?.userId === userId;
       const isAdmin = user?.role === "admin";
       if (!isInstructor && !isAdmin) {
@@ -973,7 +973,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Codigo de inicio invalido" });
       }
 
-      const updated = await M.updateBooking(booking.id, {
+      const updated = await storage.updateBooking(booking.id, {
         startedAt: new Date(),
         status: booking.status === "paid" ? "confirmed" : booking.status,
       });
@@ -987,13 +987,13 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.post('/api/bookings/:id/complete', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const booking = await M.getBooking(req.params.id);
+      const booking = await storage.getBooking(req.params.id);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      const instructor = await M.getInstructor(booking.instructorId);
-      const user = await M.getUser(userId);
+      const instructor = await storage.getInstructor(booking.instructorId);
+      const user = await storage.getUser(userId);
       const isInstructor = instructor?.userId === userId;
       const isAdmin = user?.role === "admin";
       if (!isInstructor && !isAdmin) {
@@ -1016,12 +1016,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Codigo de conclusao invalido" });
       }
 
-      const updated = await M.updateBooking(booking.id, {
+      const updated = await storage.updateBooking(booking.id, {
         status: "completed",
         completedAt: new Date(),
       });
 
-      M.upsertBookingTransaction(updated).catch((err) => {
+      storage.upsertBookingTransaction(updated).catch((err) => {
         console.error("Error syncing booking transaction:", err);
       });
 
@@ -1035,7 +1035,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.post('/api/bookings/:id/cancel', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const booking = await M.getBooking(req.params.id);
+      const booking = await storage.getBooking(req.params.id);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -1044,8 +1044,8 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Aula ja concluida" });
       }
 
-      const user = await M.getUser(userId);
-      const instructor = await M.getInstructor(booking.instructorId);
+      const user = await storage.getUser(userId);
+      const instructor = await storage.getInstructor(booking.instructorId);
       const isStudent = booking.studentId === userId;
       const isInstructor = instructor?.userId === userId;
       const isAdmin = user?.role === "admin";
@@ -1067,7 +1067,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         cancelledMinutes = Math.min(Math.max(diffMinutes, 0), maxDuration);
       }
 
-      const updated = await M.updateBooking(booking.id, {
+      const updated = await storage.updateBooking(booking.id, {
         status: "cancelled",
         cancelledAt: now,
         cancelledByRole: user?.role ?? "student",
@@ -1076,9 +1076,9 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         cancelledMinutes,
       });
 
-      const existingDispute = await M.getDisputeByBooking(booking.id);
+      const existingDispute = await storage.getDisputeByBooking(booking.id);
       if (!existingDispute && (booking.startedAt || isInstructor)) {
-        await M.createDispute({
+        await storage.createDispute({
           bookingId: booking.id,
           openedByUserId: userId,
           openedByRole: (user?.role ?? "student") as any,
@@ -1086,7 +1086,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         });
       }
 
-      M.upsertBookingTransaction(updated).catch((err) => {
+      storage.upsertBookingTransaction(updated).catch((err) => {
         console.error("Error syncing booking transaction:", err);
       });
 
@@ -1100,13 +1100,13 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.post('/api/bookings/:id/disputes', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const booking = await M.getBooking(req.params.id);
+      const booking = await storage.getBooking(req.params.id);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      const user = await M.getUser(userId);
-      const instructor = await M.getInstructor(booking.instructorId);
+      const user = await storage.getUser(userId);
+      const instructor = await storage.getInstructor(booking.instructorId);
       const isStudent = booking.studentId === userId;
       const isInstructor = instructor?.userId === userId;
       const isAdmin = user?.role === "admin";
@@ -1119,12 +1119,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Motivo obrigatorio" });
       }
 
-      const existingDispute = await M.getDisputeByBooking(booking.id);
+      const existingDispute = await storage.getDisputeByBooking(booking.id);
       if (existingDispute && existingDispute.status !== "resolved") {
         return res.status(409).json({ message: "Disputa ja aberta" });
       }
 
-      const dispute = await M.createDispute({
+      const dispute = await storage.createDispute({
         bookingId: booking.id,
         openedByUserId: userId,
         openedByRole: (user?.role ?? "student") as any,
@@ -1146,7 +1146,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const data = insertReviewSchema.parse({ ...req.body, studentId: userId });
 
       // 1. Verify if booking exists and belongs to student
-      const booking = await M.getBooking(data.bookingId);
+      const booking = await storage.getBooking(data.bookingId);
       if (!booking) {
         return res.status(404).json({ message: "Reserva não encontrada" });
       }
@@ -1161,14 +1161,14 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       // 3. Check for duplicate review
-      const existingReviews = await M.getReviewsByInstructor(data.instructorId);
+      const existingReviews = await storage.getReviewsByInstructor(data.instructorId);
       const hasReviewed = existingReviews.some(r => r.bookingId === data.bookingId);
 
       if (hasReviewed) {
         return res.status(409).json({ message: "Você já avaliou esta aula" });
       }
 
-      const review = await M.createReview(data);
+      const review = await storage.createReview(data);
 
       // Update instructor rating (async, fire and forget)
       // TODO: Implement updateInstructorRating in storage if needed for cache/search optimization
@@ -1185,11 +1185,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/instructors/:id/reviews', async (req: Request, res: Response) => {
     try {
-      const reviews = await M.getReviewsByInstructor(req.params.id);
+      const reviews = await storage.getReviewsByInstructor(req.params.id);
 
       // Enrich with student names if possible (need to fetch users)
       // For MVP, returning raw reviews. 
-      // Ideally, M.getReviewsByInstructor should join with users table.
+      // Ideally, storage.getReviewsByInstructor should join with users table.
 
       res.json(reviews);
     } catch (error) {
@@ -1200,7 +1200,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/instructors/:id/availability', async (req: Request, res: Response) => {
     try {
-      const slots = await M.getAvailabilityByInstructor(req.params.id);
+      const slots = await storage.getAvailabilityByInstructor(req.params.id);
       res.json(slots);
     } catch (error) {
       console.error("Error fetching availability:", error);
@@ -1211,14 +1211,14 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.post('/api/instructors/:id/availability', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const instructor = await M.getInstructor(req.params.id);
+      const instructor = await storage.getInstructor(req.params.id);
 
       if (!instructor) {
         return res.status(404).json({ message: "Instructor not found" });
       }
 
       // Verify ownership: user must be the instructor or admin
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
       if (instructor.userId !== userId && user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1231,7 +1231,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Horario inicial deve ser menor que o final" });
       }
 
-      const slot = await M.createAvailability(data);
+      const slot = await storage.createAvailability(data);
       res.status(201).json(slot);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1245,17 +1245,17 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.patch('/api/instructors/:id/availability/:slotId', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const instructor = await M.getInstructor(req.params.id);
+      const instructor = await storage.getInstructor(req.params.id);
       if (!instructor) {
         return res.status(404).json({ message: "Instructor not found" });
       }
 
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
       if (instructor.userId !== userId && user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const slot = await M.getAvailabilityById(req.params.slotId);
+      const slot = await storage.getAvailabilityById(req.params.slotId);
       if (!slot || slot.instructorId !== instructor.id) {
         return res.status(404).json({ message: "Availability not found" });
       }
@@ -1267,7 +1267,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Horario inicial deve ser menor que o final" });
       }
 
-      const updated = await M.updateAvailability(req.params.slotId, data);
+      const updated = await storage.updateAvailability(req.params.slotId, data);
       res.json(updated);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1281,22 +1281,22 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.delete('/api/instructors/:id/availability/:slotId', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const instructor = await M.getInstructor(req.params.id);
+      const instructor = await storage.getInstructor(req.params.id);
       if (!instructor) {
         return res.status(404).json({ message: "Instructor not found" });
       }
 
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
       if (instructor.userId !== userId && user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const slot = await M.getAvailabilityById(req.params.slotId);
+      const slot = await storage.getAvailabilityById(req.params.slotId);
       if (!slot || slot.instructorId !== instructor.id) {
         return res.status(404).json({ message: "Availability not found" });
       }
 
-      await M.deleteAvailability(req.params.slotId);
+      await storage.deleteAvailability(req.params.slotId);
       res.json({ ok: true });
     } catch (error) {
       console.error("Error deleting availability:", error);
@@ -1306,7 +1306,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.post('/api/withdrawals', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const instructor = await M.getInstructorByUserId(req.user.claims.sub);
+      const instructor = await storage.getInstructorByUserId(req.user.claims.sub);
       if (!instructor) {
         return res.status(403).json({ message: "Apenas instrutores podem solicitar saque." });
       }
@@ -1326,7 +1326,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       // Create withdrawal request
-      const withdrawal = await M.createWithdrawal({
+      const withdrawal = await storage.createWithdrawal({
         userId: req.user.claims.sub,
         amount: amountNum.toString(),
         status: "pending",
@@ -1343,11 +1343,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/instructors/pending', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
-      const instructors = await M.getAllInstructors('pending');
+      const instructors = await storage.getAllInstructors('pending');
       res.json(instructors);
     } catch (error) {
       console.error("Error fetching pending instructors:", error);
@@ -1357,12 +1357,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/instructors', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
       const status = req.query.status as string | undefined;
-      const instructors = await M.getInstructorsWithUser(status);
+      const instructors = await storage.getInstructorsWithUser(status);
       res.json(instructors);
     } catch (error) {
       console.error("Error fetching instructors:", error);
@@ -1372,11 +1372,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/settings', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
-      const settings = await M.getAdminSettings();
+      const settings = await storage.getAdminSettings();
       res.json(settings);
     } catch (error) {
       console.error("Error fetching admin settings:", error);
@@ -1386,7 +1386,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.patch('/api/admin/settings', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1419,7 +1419,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Taxa da plataforma invalida" });
       }
 
-      const updated = await M.updateAdminSettings({
+      const updated = await storage.updateAdminSettings({
         cancellationFeePercent: cancellationFeePercent.toFixed(2),
         cancellationInstructorSharePercent: cancellationInstructorSharePercent.toFixed(2),
         platformFeePercent: platformFeePercent.toFixed(2),
@@ -1433,11 +1433,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/disputes', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
-      const disputes = await M.getDisputes();
+      const disputes = await storage.getDisputes();
       res.json(disputes);
     } catch (error) {
       console.error("Error fetching disputes:", error);
@@ -1447,7 +1447,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.patch('/api/admin/disputes/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1468,7 +1468,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         payload.resolvedAt = new Date();
       }
 
-      const updated = await M.updateDispute(req.params.id, payload);
+      const updated = await storage.updateDispute(req.params.id, payload);
       res.json(updated);
     } catch (error) {
       console.error("Error updating dispute:", error);
@@ -1478,7 +1478,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/bookings', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1488,7 +1488,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         ? Math.min(Math.max(limitParam, 1), 100)
         : 20;
 
-      const bookings = await M.getAdminBookings(limit);
+      const bookings = await storage.getAdminBookings(limit);
       res.json(bookings);
     } catch (error) {
       console.error("Error fetching admin bookings:", error);
@@ -1498,12 +1498,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/dashboard', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const stats = await M.getAdminDashboardStats();
+      const stats = await storage.getAdminDashboardStats();
       res.json(stats);
     } catch (error) {
       console.error("Error fetching admin dashboard stats:", error);
@@ -1513,7 +1513,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/geo-summary', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1521,7 +1521,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const state = req.query.state as string | undefined;
       const city = req.query.city as string | undefined;
 
-      const summary = await M.getAdminGeoSummary({
+      const summary = await storage.getAdminGeoSummary({
         state: state && state !== "all" ? state : undefined,
         city: city && city !== "all" ? city : undefined,
       });
@@ -1534,12 +1534,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/users', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
       const role = req.query.role as string | undefined;
-      const users = await M.getUsers(role);
+      const users = await storage.getUsers(role);
       res.json(users);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -1549,7 +1549,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.patch('/api/admin/instructors/:id/status', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1559,7 +1559,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: 'Invalid status' });
       }
 
-      const instructor = await M.updateInstructor(req.params.id, { status: status as any });
+      const instructor = await storage.updateInstructor(req.params.id, { status: status as any });
       res.json(instructor);
     } catch (error) {
       console.error("Error updating instructor status:", error);
@@ -1569,12 +1569,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/finance/summary', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const summary = await M.getAdminFinanceSummary();
+      const summary = await storage.getAdminFinanceSummary();
       res.json(summary);
     } catch (error) {
       console.error("Error fetching admin finance summary:", error);
@@ -1584,7 +1584,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/finance/timeseries', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1600,7 +1600,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Invalid period" });
       }
 
-      const series = await M.getAdminTransactionSeries({
+      const series = await storage.getAdminTransactionSeries({
         status: status === "all" ? undefined : status,
         period,
         days,
@@ -1614,7 +1614,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/transactions', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1631,7 +1631,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Invalid transaction type" });
       }
 
-      const transactions = await M.getAdminTransactions({
+      const transactions = await storage.getAdminTransactions({
         status,
         type,
         gateway,
@@ -1646,13 +1646,13 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/wallets', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
 
       const role = req.query.role as string | undefined;
-      const wallets = await M.getWalletsWithUser(role);
+      const wallets = await storage.getWalletsWithUser(role);
       res.json(wallets);
     } catch (error) {
       console.error("Error fetching admin wallets:", error);
@@ -1662,7 +1662,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/wallet-entries', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1671,7 +1671,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const userId = req.query.userId as string | undefined;
       const limit = parseLimit(req.query.limit, 20, 200);
 
-      const entries = await M.getWalletEntries({
+      const entries = await storage.getWalletEntries({
         walletId,
         userId,
         limit,
@@ -1685,7 +1685,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/withdrawals', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1697,7 +1697,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Invalid withdrawal status" });
       }
 
-      const withdrawals = await M.getWithdrawals({
+      const withdrawals = await storage.getWithdrawals({
         status,
         limit,
       });
@@ -1710,7 +1710,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.patch('/api/admin/withdrawals/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1732,7 +1732,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         updateData.processedByUserId = user.id;
       }
 
-      const withdrawal = await M.updateWithdrawal(req.params.id, updateData);
+      const withdrawal = await storage.updateWithdrawal(req.params.id, updateData);
       res.json(withdrawal);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -1745,12 +1745,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/payment-gateways', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const gateways = await M.getPaymentGateways();
+      const gateways = await storage.getPaymentGateways();
       res.json(
         gateways.map((gateway) => ({
           id: gateway.id,
@@ -1770,7 +1770,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.post('/api/admin/payment-gateways', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1778,7 +1778,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const payload = gatewayCreateSchema.parse(req.body);
       const apiKey = payload.apiKey?.trim() || null;
 
-      const gateway = await M.createPaymentGateway({
+      const gateway = await storage.createPaymentGateway({
         provider: payload.provider,
         apiKey,
         status: payload.status,
@@ -1805,7 +1805,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.patch('/api/admin/payment-gateways/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1814,7 +1814,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const apiKey =
         typeof payload.apiKey === "string" ? payload.apiKey.trim() : payload.apiKey;
 
-      const gateway = await M.updatePaymentGateway(req.params.id, {
+      const gateway = await storage.updatePaymentGateway(req.params.id, {
         provider: payload.provider,
         apiKey: typeof apiKey === "string" ? apiKey : apiKey ?? undefined,
         status: payload.status,
@@ -1841,7 +1841,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/admin/integrations', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1857,7 +1857,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Invalid integration environment" });
       }
 
-      const integrations = await M.getIntegrations({
+      const integrations = await storage.getIntegrations({
         status,
         category,
         environment,
@@ -1877,7 +1877,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.post('/api/admin/integrations', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -1888,7 +1888,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "Slug inválido" });
       }
 
-      const existing = await M.getIntegrationBySlug(
+      const existing = await storage.getIntegrationBySlug(
         slug,
         payload.environment,
       );
@@ -1896,7 +1896,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(409).json({ message: "Integração já cadastrada" });
       }
 
-      const integration = await M.createIntegration({
+      const integration = await storage.createIntegration({
         name: payload.name.trim(),
         slug,
         category: payload.category.trim(),
@@ -1921,13 +1921,13 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.patch('/api/admin/integrations/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const user = await M.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Forbidden" });
       }
 
       const payload = integrationUpdateSchema.parse(req.body);
-      const current = await M.getIntegration(req.params.id);
+      const current = await storage.getIntegration(req.params.id);
       if (!current) {
         return res.status(404).json({ message: "Integração não encontrada" });
       }
@@ -1942,7 +1942,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
         const envToCheck = payload.environment || current.environment;
         if (candidate !== current.slug || envToCheck !== current.environment) {
-          const existing = await M.getIntegrationBySlug(
+          const existing = await storage.getIntegrationBySlug(
             candidate,
             envToCheck,
           );
@@ -1960,7 +1960,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
             current.fields as any,
           );
 
-      const integration = await M.updateIntegration(req.params.id, {
+      const integration = await storage.updateIntegration(req.params.id, {
         name: payload.name?.trim(),
         slug,
         category: payload.category?.trim(),
@@ -1995,7 +1995,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   const resolveAbacateIntegrationConfig = async () => {
     const environment =
       process.env.NODE_ENV === "production" ? "production" : "development";
-    const integration = await M.getIntegrationBySlug(
+    const integration = await storage.getIntegrationBySlug(
       "abacatepay",
       environment,
     );
@@ -2019,7 +2019,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   // Chat routes
   app.get('/api/chat/contacts', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const contacts = await M.getContacts(req.user.claims.sub);
+      const contacts = await storage.getContacts(req.user.claims.sub);
       res.json(contacts);
     } catch (error) {
       console.error("Error fetching contacts:", error);
@@ -2029,7 +2029,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/chat/:userId', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const messages = await M.getMessages(req.params.userId, req.user.claims.sub);
+      const messages = await storage.getMessages(req.params.userId, req.user.claims.sub);
       res.json(messages);
     } catch (error) {
       console.error("Error fetching messages:", error);
@@ -2043,12 +2043,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const data = insertMessageSchema.parse({ ...req.body, senderId: userId });
 
       // Verify if receiver exists
-      const receiver = await M.getUser(data.receiverId);
+      const receiver = await storage.getUser(data.receiverId);
       if (!receiver) {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
 
-      const message = await M.createMessage(data);
+      const message = await storage.createMessage(data);
       res.status(201).json(message);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -2061,7 +2061,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.post('/api/chat/:userId/read', isAuthenticated, async (req: any, res: Response) => {
     try {
-      await M.markMessagesAsRead(req.params.userId, req.user.claims.sub);
+      await storage.markMessagesAsRead(req.params.userId, req.user.claims.sub);
       res.sendStatus(200);
     } catch (error) {
       console.error("Error marking messages as read:", error);
@@ -2074,7 +2074,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     try {
       const { chatWithAI } = await import("./ai");
       const userId = req.user?.claims?.sub ?? req.user?.id;
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
 
       const messagesPayload = z.array(z.object({
         role: z.enum(["user", "assistant"]),
@@ -2144,7 +2144,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(401).json({ message: 'Não autenticado' });
       }
 
-      const user = await M.getUser(userId);
+      const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: 'Usuário não encontrado' });
       }
@@ -2218,7 +2218,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const newKycStatus = result.overallStatus === 'approved' ? 'approved' :
         result.overallStatus === 'rejected' ? 'rejected' : 'pending';
 
-      await M.upsertUser({
+      await storage.upsertUser({
         id: userId,
         kycStatus: newKycStatus as any,
       });
@@ -2244,7 +2244,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       // Get users with pending KYC
-      const pendingUsers = await M.getUsers?.() || [];
+      const pendingUsers = await storage.getUsers?.() || [];
       const pending = pendingUsers.filter((u: any) => u.kycStatus === 'pending');
 
       res.json({
@@ -2279,7 +2279,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
       const newStatus = action === 'approve' ? 'approved' : 'rejected';
 
-      await M.upsertUser({
+      await storage.upsertUser({
         id: userId,
         kycStatus: newStatus as any,
       });
@@ -2307,7 +2307,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "bookingId é obrigatório" });
       }
 
-      const booking = await M.getBooking(bookingId);
+      const booking = await storage.getBooking(bookingId);
       if (!booking) {
         return res.status(404).json({ message: "Booking não encontrado" });
       }
@@ -2349,7 +2349,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         ? (booking.endCode ?? generateSecurityCode())
         : booking.endCode;
 
-      const updated = await M.updateBooking(booking.id, {
+      const updated = await storage.updateBooking(booking.id, {
         paymentId: created.paymentId,
         paymentUrl: created.paymentUrl,
         paymentStatus: created.paymentStatus,
@@ -2362,7 +2362,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         endCode,
       });
 
-      M.upsertBookingTransaction(updated).catch((error) => {
+      storage.upsertBookingTransaction(updated).catch((error) => {
         logger.error("Error syncing booking transaction:", error);
       });
 
@@ -2413,7 +2413,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const bookingStatus = mapAbacateStatusToBooking(effectiveStatus);
 
       // Procurar booking por paymentId
-      const booking = await M.getBookingByPaymentId?.(paymentId);
+      const booking = await storage.getBookingByPaymentId?.(paymentId);
       if (!booking) {
         // fallback: nada a atualizar
         return res.status(202).json({ ok: true, message: "Booking não encontrado para paymentId" });
@@ -2427,7 +2427,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         ? (booking.endCode ?? generateSecurityCode())
         : booking.endCode;
 
-      const updatedBooking = await M.updateBooking(booking.id, {
+      const updatedBooking = await storage.updateBooking(booking.id, {
         paymentStatus: effectiveStatus,
         status: bookingStatus,
         paidAt: bookingStatus === "paid" ? new Date() : booking.paidAt,
@@ -2443,7 +2443,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         });
       }
 
-      M.upsertBookingTransaction(updatedBooking).catch((error) => {
+      storage.upsertBookingTransaction(updatedBooking).catch((error) => {
         logger.error("Error syncing booking transaction:", error);
       });
 
