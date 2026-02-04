@@ -1,3 +1,4 @@
 // server.js - Entry point para Hostinger Deployments
-// Este arquivo simplesmente importa o bundle compilado
+// Define NODE_ENV e carrega o bundle compilado
+process.env.NODE_ENV = 'production';
 require('./dist/index.cjs');
