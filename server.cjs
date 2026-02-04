@@ -1,5 +1,5 @@
 // server.cjs - Entry point para Hostinger Deployments
-// Com logging de erros para diagnóstico
+// Com logging detalhado para diagnóstico
 
 const fs = require('fs');
 const path = require('path');
@@ -10,25 +10,28 @@ if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
 }
 
+const logFile = path.join(logsDir, 'startup.log');
+const crashFile = path.join(logsDir, 'crash.log');
+
 // Function to write startup logs
 function logStartup(message) {
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] ${message}\n`;
-    fs.appendFileSync(path.join(logsDir, 'startup.log'), logMessage);
+    fs.appendFileSync(logFile, logMessage);
     console.log(logMessage.trim());
 }
 
 // Catch any uncaught errors during startup
 process.on('uncaughtException', (err) => {
     const errorMessage = `UNCAUGHT EXCEPTION: ${err.message}\n${err.stack}`;
-    fs.writeFileSync(path.join(logsDir, 'crash.log'), `[${new Date().toISOString()}] ${errorMessage}`);
+    fs.appendFileSync(crashFile, `[${new Date().toISOString()}] ${errorMessage}\n`);
     console.error(errorMessage);
     process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
     const errorMessage = `UNHANDLED REJECTION: ${reason}`;
-    fs.writeFileSync(path.join(logsDir, 'crash.log'), `[${new Date().toISOString()}] ${errorMessage}`);
+    fs.appendFileSync(crashFile, `[${new Date().toISOString()}] ${errorMessage}\n`);
     console.error(errorMessage);
 });
 
@@ -37,6 +40,11 @@ try {
     logStartup(`CWD: ${process.cwd()}`);
     logStartup(`__dirname: ${__dirname}`);
     logStartup(`Node version: ${process.version}`);
+    logStartup(`Platform: ${process.platform}`);
+    logStartup(`User: ${process.env.USER || 'unknown'}`);
+
+    // Log PORT from environment (Hostinger sets this)
+    logStartup(`PORT from env: ${process.env.PORT || 'not set'}`);
 
     // Check if dist/index.cjs exists
     const indexPath = path.join(__dirname, 'dist', 'index.cjs');
@@ -52,26 +60,42 @@ try {
     }
     logStartup(`dist/public found: ${publicPath}`);
 
-    // Load dotenv
-    logStartup('Loading dotenv...');
-    try {
-        const dotenv = require('dotenv');
-        const envPath = path.join(__dirname, '.env.production');
-        if (fs.existsSync(envPath)) {
-            dotenv.config({ path: envPath });
-            logStartup(`.env.production loaded from ${envPath}`);
-        } else {
-            logStartup(`.env.production not found at ${envPath}, using system env vars`);
+    // Load dotenv ONLY if environment vars are not already set
+    logStartup('Checking environment variables...');
+
+    if (!process.env.DATABASE_URL) {
+        logStartup('DATABASE_URL not set, loading dotenv...');
+        try {
+            const dotenv = require('dotenv');
+            const envPath = path.join(__dirname, '.env.production');
+            if (fs.existsSync(envPath)) {
+                dotenv.config({ path: envPath });
+                logStartup(`.env.production loaded from ${envPath}`);
+            } else {
+                logStartup(`.env.production not found at ${envPath}`);
+            }
+        } catch (e) {
+            logStartup(`dotenv error: ${e.message}`);
         }
-    } catch (e) {
-        logStartup(`dotenv not available: ${e.message}`);
+    } else {
+        logStartup('DATABASE_URL already set from system environment');
     }
 
     // Log environment status (without exposing secrets)
     logStartup(`NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-    logStartup(`DATABASE_URL: ${process.env.DATABASE_URL ? 'SET' : 'NOT SET'}`);
-    logStartup(`DB_HOST: ${process.env.DB_HOST ? 'SET' : 'NOT SET'}`);
-    logStartup(`PORT: ${process.env.PORT || 'not set (will use default)'}`);
+    logStartup(`DATABASE_URL: ${process.env.DATABASE_URL ? 'SET (' + process.env.DATABASE_URL.substring(0, 30) + '...)' : 'NOT SET'}`);
+    logStartup(`DB_HOST: ${process.env.DB_HOST || 'not set'}`);
+    logStartup(`PORT: ${process.env.PORT || 'not set (will use 3000)'}`);
+    logStartup(`SESSION_SECRET: ${process.env.SESSION_SECRET ? 'SET' : 'NOT SET'}`);
+
+    // Validate required env vars
+    if (!process.env.DATABASE_URL) {
+        throw new Error('DATABASE_URL is required but not set!');
+    }
+    if (!process.env.SESSION_SECRET) {
+        logStartup('WARNING: SESSION_SECRET not set, using fallback');
+        process.env.SESSION_SECRET = 'fallback-secret-change-me';
+    }
 
     // Set NODE_ENV
     process.env.NODE_ENV = 'production';
@@ -84,7 +108,7 @@ try {
 
 } catch (err) {
     const errorMessage = `STARTUP ERROR: ${err.message}\n${err.stack}`;
-    fs.writeFileSync(path.join(logsDir, 'crash.log'), `[${new Date().toISOString()}] ${errorMessage}`);
+    fs.appendFileSync(crashFile, `[${new Date().toISOString()}] ${errorMessage}\n`);
     logStartup(`FATAL: ${errorMessage}`);
     process.exit(1);
 }
