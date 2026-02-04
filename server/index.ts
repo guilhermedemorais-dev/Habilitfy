@@ -108,7 +108,7 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const port = Number(process.env.PORT) || 3000; // fallback só para ambiente local
   const host = process.env.HOST || "0.0.0.0";
   const reusePort = process.env.REUSE_PORT === "true";
   httpServer.listen(
