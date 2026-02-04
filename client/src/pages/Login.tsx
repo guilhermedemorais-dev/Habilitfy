@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogIn, ArrowLeft, BadgeCheck, GraduationCap, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const logoBlue = "/logo-new-blue.svg";
 
@@ -35,6 +36,26 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("error");
+
+    if (error === "account_not_found") {
+      toast({
+        title: "Conta não encontrada",
+        description: "Você precisa se cadastrar antes de fazer login com o Google.",
+        variant: "destructive",
+      });
+    } else if (error === "auth_failed") {
+      toast({
+        title: "Falha na autenticação",
+        description: "Não foi possível fazer login com o Google. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   const handleLogin = async () => {
     try {

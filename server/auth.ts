@@ -125,19 +125,8 @@ export async function setupAuth(app: Express) {
                                 });
                                 user = await storage.getUser(user.id);
                             }
-                        } else {
-                            // Create new user
-                            const newUserId = `google_${googleId}`;
-                            await storage.upsertUser({
-                                id: newUserId,
-                                googleId: googleId,
-                                email: email,
-                                firstName: profile.name?.givenName,
-                                lastName: profile.name?.familyName,
-                                profileImageUrl: profile.photos?.[0]?.value,
-                                role: "student", // Default role for new users
-                            });
-                            user = await storage.getUser(newUserId);
+                            // User not found - do not create automatically
+                            return done(null, false, { message: "Account not found" });
                         }
 
                         return done(null, user);
@@ -210,7 +199,8 @@ export async function setupAuth(app: Express) {
                 return res.redirect("/login?error=auth_failed");
             }
             if (!user) {
-                return res.redirect("/login?error=auth_failed");
+                // If specific info message exists (like "Account not found"), we could use it
+                return res.redirect("/login?error=account_not_found");
             }
 
             req.logIn(user, (loginErr) => {
