@@ -4,7 +4,7 @@ import path from "path";
 
 export function serveStatic(app: Express) {
   // Resolve the built client from the project root to avoid relying on import.meta in CJS builds
-  const distPath = path.resolve(process.cwd(), "public");
+  const distPath = path.resolve(process.cwd(), "dist/public");
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`,
