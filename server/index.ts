@@ -54,6 +54,7 @@ import { logger } from "./utils/logger";
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
+  console.log(`[DEPLOY CHECK ${new Date().toISOString()}] Incoming request: ${req.method} ${path}`);
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
