@@ -191,8 +191,9 @@ LOCAL_USER_ROLE=admin
 
 | Variável | Descrição |
 |----------|-----------|
-| `GOOGLE_CLIENT_ID` | ID do cliente Google OAuth |
-| `GOOGLE_CLIENT_SECRET` | Secret do cliente Google OAuth |
+| `GOOGLE_CLIENT_ID` | ID do cliente Google OAuth 2.0 |
+| `GOOGLE_CLIENT_SECRET` | Secret do cliente Google OAuth 2.0 |
+| `GOOGLE_CALLBACK_URL` | URL de callback (ex: https://site.com/api/auth/google/callback) |
 | `ABACATEPAY_API_KEY` | Chave de API do AbacatePay |
 | `OPENAI_API_KEY` | Chave de API da OpenAI |
 
