@@ -95,8 +95,17 @@ export function useAuth() {
       await apiRequest("POST", "/api/logout");
     },
     onSuccess: () => {
+      // Limpa o cache do React Query
       queryClient.setQueryData(["/api/auth/user"], null);
-      navigate("/login");
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+
+      // Limpa qualquer redirect salvo
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem("habilitfy.postLoginRedirect");
+      }
+
+      // Força reload completo para limpar estado
+      window.location.href = "/login";
     },
     onError: (error: Error) => {
       toast({

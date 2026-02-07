@@ -1,0 +1,10 @@
+read:
+  - factory-workflow/context/**
+  - factory-workflow/docs/**
+  - factory-workflow/governance/**
+write:
+  - factory-workflow/docs/projects/**/work/**/research.md
+  - factory-workflow/context/core/gaps.md
+deny:
+  - apps/**
+  - factory-workflow/bots/runtime/**

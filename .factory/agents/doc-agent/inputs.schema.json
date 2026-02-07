@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DocAgentInputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "plan_doc": {"type": "string"},
+    "code_changes": {"type": "array", "items": {"type": "string"}},
+    "decisions": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["plan_doc"]
+}

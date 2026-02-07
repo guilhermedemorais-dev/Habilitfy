@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DocAgentOutputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "docs_updates": {"type": "array", "items": {"type": "string"}},
+    "architecture_notes": {"type": "array", "items": {"type": "string"}},
+    "release_notes": {"type": "string"}
+  },
+  "required": ["docs_updates"]
+}

@@ -308,13 +308,12 @@ export class DatabaseStorage implements IStorage {
       const rows = await baseQuery.where(eq(instructors.status, status as any));
       return rows.map((row) => ({ ...row.instructor, user: row.user }));
     }
-
     const rows = await baseQuery;
     return rows.map((row) => ({ ...row.instructor, user: row.user }));
   }
 
   async createInstructor(instructorData: InsertInstructor): Promise<Instructor> {
-    const id = instructorData.id || crypto.randomUUID();
+    const id = crypto.randomUUID();
     await db.insert(instructors).values({ ...instructorData, id });
     const [instructor] = await db.select().from(instructors).where(eq(instructors.id, id));
     return instructor;
@@ -1147,7 +1146,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBooking(bookingData: InsertBooking): Promise<Booking> {
-    const bookingId = bookingData.id || crypto.randomUUID();
+    const bookingId = crypto.randomUUID();
     await db.insert(bookings).values({ ...bookingData, id: bookingId });
     const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
     return booking;
@@ -1252,7 +1251,7 @@ export class DatabaseStorage implements IStorage {
     const status = this.getTransactionStatusFromBooking(booking);
 
     // Only process wallet entry if status is 'paid' (money is available)
-    const shouldProcessWallet = status === "paid" || status === "completed";
+    const shouldProcessWallet = status === "paid";
 
     if (existing) {
       await db.update(transactions).set({
@@ -1297,7 +1296,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReview(reviewData: InsertReview): Promise<Review> {
-    const reviewId = reviewData.id || crypto.randomUUID();
+    const reviewId = crypto.randomUUID();
     await db.insert(reviews).values({ ...reviewData, id: reviewId });
     const [review] = await db.select().from(reviews).where(eq(reviews.id, reviewId));
 
@@ -1323,7 +1322,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAvailability(availData: InsertAvailability): Promise<Availability> {
-    const availId = availData.id || crypto.randomUUID();
+    const availId = crypto.randomUUID();
     await db.insert(availability).values({ ...availData, id: availId });
     const [avail] = await db.select().from(availability).where(eq(availability.id, availId));
     return avail;
@@ -1431,7 +1430,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMessage(data: InsertMessage): Promise<Message> {
-    const msgId = data.id || crypto.randomUUID();
+    const msgId = crypto.randomUUID();
     await db.insert(messages).values({ ...data, id: msgId });
     const [msg] = await db.select().from(messages).where(eq(messages.id, msgId));
     return msg;
@@ -1524,7 +1523,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVehicle(data: InsertVehicle): Promise<Vehicle> {
-    const vehicleId = data.id || crypto.randomUUID();
+    const vehicleId = crypto.randomUUID();
     await db.insert(vehicles).values({ ...data, id: vehicleId });
     const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, vehicleId));
     return vehicle;
@@ -1545,7 +1544,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket> {
-    const ticketId = data.id || crypto.randomUUID();
+    const ticketId = crypto.randomUUID();
     await db.insert(supportTickets).values({ ...data, id: ticketId });
     const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, ticketId));
     return ticket;

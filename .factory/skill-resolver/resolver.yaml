@@ -1,0 +1,33 @@
+version: 1.0
+resolution_rules:
+  - name: missing_research
+    condition: research_missing
+    route_to: [research-agent]
+    blocks: [planner-agent, executor-agent]
+  - name: missing_plan
+    condition: plan_missing
+    route_to: [planner-agent]
+    blocks: [executor-agent]
+  - name: missing_tests
+    condition: test_plan_missing
+    route_to: [planner-agent]
+    blocks: [qa-agent]
+  - name: missing_docs
+    condition: docs_outdated
+    route_to: [doc-agent]
+  - name: policy_exception
+    condition: policy_violation
+    route_to: [decision-agent]
+    blocks: [executor-agent, distribution-agent]
+  - name: security_review
+    condition: risk_high
+    route_to: [security-agent]
+  - name: qa_gate
+    condition: implementation_complete
+    route_to: [qa-agent]
+  - name: distribution_ready
+    condition: qa_passed
+    route_to: [distribution-agent]
+queue_output:
+  path: factory-workflow/skill-resolver/queue.yaml
+  format: yaml

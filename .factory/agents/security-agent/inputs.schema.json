@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SecurityAgentInputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "code_changes": {"type": "array", "items": {"type": "string"}},
+    "dependencies": {"type": "array", "items": {"type": "string"}},
+    "threat_model": {"type": "string"}
+  },
+  "required": ["code_changes"]
+}

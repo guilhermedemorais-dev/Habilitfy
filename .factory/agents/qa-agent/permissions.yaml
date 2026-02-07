@@ -1,0 +1,11 @@
+read:
+  - factory-workflow/context/**
+  - factory-workflow/docs/**
+  - factory-workflow/tests/**
+  - apps/**
+write:
+  - factory-workflow/tests/reports/**
+  - factory-workflow/docs/projects/**/work/**/progress.md
+deny:
+  - factory-workflow/bots/runtime/**
+  - factory-workflow/cicd/**

@@ -1,0 +1,20 @@
+engine: distribution-engine
+version: 1.0
+purpose: prepare distribution artifacts after QA approval
+inputs:
+  release_notes: string
+  changelog: string
+  target_channels: list
+outputs:
+  distribution_assets: list
+  messaging_plan: string
+  publish_log: string
+activation_rules:
+  - after QA passes
+  - when release candidate is approved
+write_permissions:
+  - factory-workflow/docs/projects/**/work/**/distribution.md
+  - factory-workflow/docs/projects/**/work/**/progress.md
+restrictions:
+  - no code writes
+  - requires release approval

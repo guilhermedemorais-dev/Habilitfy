@@ -1,0 +1,22 @@
+id: executor-agent
+role: executor
+engine: execution-engine
+stage: implement
+triggers:
+  - plan_approved
+  - task_queue_ready
+inputs:
+  - plan_doc
+  - task_queue
+  - constraints
+  - codebase_context
+outputs:
+  - code_changes
+  - build_updates
+  - implementation_notes
+dependencies:
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - write_only_with_plan
+  - no_deploy

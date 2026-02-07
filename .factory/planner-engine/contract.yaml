@@ -1,0 +1,26 @@
+engine: planner-engine
+version: 1.0
+purpose: convert intent and evidence into a scoped plan
+inputs:
+  intent: string
+  evidence: list
+  constraints: object
+  risk_profile: object
+outputs:
+  plan_doc: string
+  task_queue: list
+  acceptance_criteria: list
+  test_plan: list
+activation_rules:
+  - when plan is missing
+  - when scope changes after approval
+  - when risk profile is high
+write_permissions:
+  - factory-workflow/docs/projects/**/work/**/research.md
+  - factory-workflow/docs/projects/**/work/**/plan.md
+  - factory-workflow/docs/projects/**/work/**/progress.md
+  - factory-workflow/docs/projects/**/work/**/decisions.md
+restrictions:
+  - no code writes
+  - no deploy actions
+  - requires human plan approval

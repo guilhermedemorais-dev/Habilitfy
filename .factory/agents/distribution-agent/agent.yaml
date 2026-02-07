@@ -1,0 +1,21 @@
+id: distribution-agent
+role: distribution
+engine: distribution-engine
+stage: distribution
+triggers:
+  - qa_passed
+  - release_candidate
+inputs:
+  - release_notes
+  - changelog
+  - target_channels
+outputs:
+  - distribution_assets
+  - messaging_plan
+  - publish_log
+dependencies:
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - no_code_writes
+  - requires_release_approval

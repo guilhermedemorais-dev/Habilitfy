@@ -1,0 +1,21 @@
+id: qa-agent
+role: quality
+engine: quality-engine
+stage: qa
+triggers:
+  - implementation_complete
+  - release_candidate
+inputs:
+  - test_plan
+  - code_changes
+  - environment
+outputs:
+  - test_reports
+  - audit_reports
+  - qa_summary
+dependencies:
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - no_code_writes
+  - must_store_reports

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SkillResolverQueue",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {"type": "string"},
+    "last_updated": {"type": "string"},
+    "queue": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "agent_id": {"type": "string"},
+          "task": {"type": "string"},
+          "inputs": {"type": "object"},
+          "depends_on": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["agent_id", "task"]
+      }
+    }
+  },
+  "required": ["version", "queue"]
+}

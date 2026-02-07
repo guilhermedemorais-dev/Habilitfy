@@ -1,0 +1,21 @@
+engine: security-engine
+version: 1.0
+purpose: assess security risk and document mitigations
+inputs:
+  code_changes: list
+  dependencies: list
+  threat_model: string
+outputs:
+  risk_findings: list
+  mitigations: list
+  security_summary: string
+activation_rules:
+  - when risk profile is high
+  - when dependencies change
+  - before release candidate approval
+write_permissions:
+  - factory-workflow/governance/risks/**
+  - factory-workflow/docs/projects/**/work/**/decisions.md
+restrictions:
+  - no code writes
+  - must register risks in governance

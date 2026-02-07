@@ -1,7 +1,7 @@
 
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Camera, RefreshCw, Smartphone } from "lucide-react";
+import { Camera, RefreshCw, Smartphone, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -17,22 +17,54 @@ export function WebcamCapture({ onCapture, label = "Tirar Foto" }: WebcamCapture
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [showQrCode, setShowQrCode] = useState(false);
+    const [remoteSessionToken, setRemoteSessionToken] = useState<string | null>(null);
+    const [isPolling, setIsPolling] = useState(false);
+    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const startCamera = async () => {
+        // Verificar suporte a mediaDevices (requer HTTPS)
+        if (!navigator.mediaDevices?.getUserMedia) {
+            toast.error("Câmera não disponível. Certifique-se de usar HTTPS.");
+            return;
+        }
+
+        let mediaStream: MediaStream;
+
         try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({
+            // Tenta câmera frontal primeiro
+            mediaStream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user" },
                 audio: false,
             });
-            setStream(mediaStream);
-            setIsCameraActive(true);
+        } catch (frontErr) {
+            console.warn("Front camera failed, trying any camera:", frontErr);
+            try {
+                // Fallback para qualquer câmera disponível
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false,
+                });
+            } catch (anyErr) {
+                console.error("No camera available:", anyErr);
+                toast.error("Câmera não disponível. Use seu celular para tirar a foto.");
+                // Auto-show QR Code and create remote session
+                await createRemoteSession();
+                return;
+            }
+        }
+
+        setStream(mediaStream);
+        setIsCameraActive(true);
+
+        // Aguardar próximo tick para garantir que o ref está pronto
+        setTimeout(() => {
             if (videoRef.current) {
                 videoRef.current.srcObject = mediaStream;
+                videoRef.current.play().catch((err) => {
+                    console.error("Error playing video:", err);
+                });
             }
-        } catch (err) {
-            console.error("Error accessing camera:", err);
-            toast.error("Erro ao acessar a câmera. Verifique as permissões.");
-        }
+        }, 0);
     };
 
     const stopCamera = () => {
@@ -71,13 +103,55 @@ export function WebcamCapture({ onCapture, label = "Tirar Foto" }: WebcamCapture
     };
 
     // Cleanup on unmount
-    React.useEffect(() => {
+    useEffect(() => {
         return () => {
             if (stream) {
                 stream.getTracks().forEach((track) => track.stop());
             }
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
         };
     }, [stream]);
+
+    // Create remote capture session
+    const createRemoteSession = async () => {
+        try {
+            const res = await fetch('/api/capture-session', { method: 'POST' });
+            if (!res.ok) throw new Error('Failed to create session');
+            const { sessionToken } = await res.json();
+            setRemoteSessionToken(sessionToken);
+            setShowQrCode(true);
+            startPolling(sessionToken);
+        } catch (err) {
+            console.error("Error creating remote session:", err);
+            toast.error("Erro ao criar sessão remota.");
+        }
+    };
+
+    // Poll for remote image
+    const startPolling = (token: string) => {
+        setIsPolling(true);
+        pollingIntervalRef.current = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/capture-session/${token}`);
+                if (!res.ok) return;
+                const { status, imageData } = await res.json();
+                if (status === 'completed' && imageData) {
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                    }
+                    setCapturedImage(imageData);
+                    onCapture(imageData);
+                    setIsPolling(false);
+                    setShowQrCode(false);
+                    toast.success("Foto recebida do celular!");
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }, 2000);
+    };
 
     return (
         <div className="space-y-6 w-full max-w-md mx-auto">
@@ -127,19 +201,34 @@ export function WebcamCapture({ onCapture, label = "Tirar Foto" }: WebcamCapture
                 {/* QR Code Overlay */}
                 {showQrCode && !capturedImage && (
                     <div className="absolute inset-0 z-20 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
-                        <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 mb-4">
-                            <QRCodeSVG
-                                value={typeof window !== 'undefined' ? window.location.href : ''}
-                                size={180}
-                                level="H"
-                                includeMargin
-                                className="w-full h-full"
-                            />
-                        </div>
-                        <h4 className="font-bold text-gray-900 mb-2">Escaneie com seu celular</h4>
-                        <p className="text-sm text-gray-500 max-w-[200px]">
-                            Aponte a câmera do seu celular para continuar o cadastro por lá.
-                        </p>
+                        {remoteSessionToken ? (
+                            <>
+                                <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-100 mb-4">
+                                    <QRCodeSVG
+                                        value={`${window.location.origin}/capture/${remoteSessionToken}`}
+                                        size={180}
+                                        level="H"
+                                        includeMargin
+                                        className="w-full h-full"
+                                    />
+                                </div>
+                                <h4 className="font-bold text-gray-900 mb-2">Escaneie com seu celular</h4>
+                                <p className="text-sm text-gray-500 max-w-[200px] mb-4">
+                                    Tire a foto no celular e ela aparecerá aqui automaticamente.
+                                </p>
+                                {isPolling && (
+                                    <div className="flex items-center gap-2 text-sm text-primary">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Aguardando foto...
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center">
+                                <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                                <p className="text-sm text-gray-500">Criando sessão...</p>
+                            </div>
+                        )}
                         <Button
                             variant="outline"
                             size="sm"

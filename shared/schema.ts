@@ -81,6 +81,23 @@ export const ticketStatusEnum = mysqlEnum('ticket_status', [
   'closed',
 ]);
 
+export const captureSessionStatusEnum = mysqlEnum('capture_session_status', [
+  'pending',
+  'completed',
+  'expired',
+]);
+
+export const captureSessions = mysqlTable("capture_sessions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  sessionToken: varchar("session_token", { length: 64 }).notNull().unique(),
+  imageData: text("image_data"),
+  status: captureSessionStatusEnum.default('pending').notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type CaptureSession = typeof captureSessions.$inferSelect;
 
 export const users = mysqlTable("users", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
@@ -101,6 +118,8 @@ export const users = mysqlTable("users", {
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
   password: text("password"),
+  isVerified: boolean("is_verified").default(false).notNull(),
+  verificationToken: varchar("verification_token", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

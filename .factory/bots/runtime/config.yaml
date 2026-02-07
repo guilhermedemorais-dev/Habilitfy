@@ -1,0 +1,24 @@
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.2
+  max_completion_tokens: 1200
+
+runtime:
+  context_max_files: 20
+  context_max_chars: 50000
+  output_root: factory-workflow/bots/runtime/out
+  log_level: INFO
+
+  # Autonomy
+  auto_enqueue_jobs: false
+  queue_dir: factory-workflow/bots/runtime/queue
+
+daemon:
+  poll_seconds: 1.0
+
+mcp:
+  # MVP: kickconfig writes factory-workflow/config/mcp.toml (gitignored).
+  # Tool integration can be added incrementally.
+  enabled: false
+  config_path: factory-workflow/config/mcp.toml

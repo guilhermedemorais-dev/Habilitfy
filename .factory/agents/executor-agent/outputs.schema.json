@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExecutorAgentOutputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "code_changes": {"type": "array", "items": {"type": "string"}},
+    "build_updates": {"type": "array", "items": {"type": "string"}},
+    "implementation_notes": {"type": "string"}
+  },
+  "required": ["code_changes", "implementation_notes"]
+}

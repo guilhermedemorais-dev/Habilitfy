@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResearchAgentInputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "intent": {"type": "string"},
+    "scope": {"type": "string"},
+    "constraints": {"type": "object"},
+    "context_refs": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["intent", "scope"]
+}

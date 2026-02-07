@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExecutorAgentInputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "plan_doc": {"type": "string"},
+    "task_queue": {"type": "array", "items": {"type": "string"}},
+    "constraints": {"type": "object"},
+    "codebase_context": {"type": "object"}
+  },
+  "required": ["plan_doc", "task_queue"]
+}

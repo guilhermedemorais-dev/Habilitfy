@@ -125,11 +125,11 @@ export async function setupAuth(app: Express) {
                                 });
                                 user = await storage.getUser(user.id);
                             }
-                            // User not found - do not create automatically
-                            return done(null, false, { message: "Account not found" });
+                            return done(null, user);
                         }
 
-                        return done(null, user);
+                        // User not found - return false but pass profile for registration flow
+                        return done(null, false, { profile } as any);
                     } catch (err) {
                         return done(err as Error);
                     }
@@ -199,8 +199,20 @@ export async function setupAuth(app: Express) {
                 return res.redirect("/login?error=auth_failed");
             }
             if (!user) {
-                // If specific info message exists (like "Account not found"), we could use it
-                return res.redirect("/login?error=account_not_found");
+                // User not found - check if profile was passed to store in session
+                const profile = (info as any)?.profile;
+                if (!profile) {
+                    return res.redirect("/login?error=account_not_found");
+                }
+
+                (req.session as any).pendingGoogleUser = {
+                    googleId: profile.id,
+                    email: profile.emails?.[0]?.value,
+                    firstName: profile.name?.givenName,
+                    lastName: profile.name?.familyName,
+                    profileImageUrl: profile.photos?.[0]?.value,
+                };
+                return res.redirect("/signup-student?google_connected=true");
             }
 
             req.logIn(user, (loginErr) => {
@@ -230,6 +242,17 @@ export async function setupAuth(app: Express) {
                 }
             });
         })(req, res, next);
+    });
+
+    // -------------------------------------------------------------------------
+    // Helper: Get Pending Google User (for registration flow)
+    // -------------------------------------------------------------------------
+    app.get("/api/auth/pending-google-user", (req, res) => {
+        const pendingUser = (req.session as any).pendingGoogleUser;
+        if (pendingUser) {
+            return res.json(pendingUser);
+        }
+        return res.status(404).json({ message: "No pending Google user found" });
     });
 
     // -------------------------------------------------------------------------

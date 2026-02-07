@@ -1,0 +1,20 @@
+engine: quality-engine
+version: 1.0
+purpose: execute QA gates and record evidence
+inputs:
+  test_plan: list
+  code_changes: list
+  environment: object
+outputs:
+  test_reports: list
+  audit_reports: list
+  qa_summary: string
+activation_rules:
+  - after implementation complete
+  - before release candidate approval
+write_permissions:
+  - factory-workflow/tests/reports/**
+  - factory-workflow/docs/projects/**/work/**/progress.md
+restrictions:
+  - no code writes
+  - must store reports in reports directory

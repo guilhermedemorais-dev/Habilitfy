@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrchestratorAgentInputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "intent": {"type": "string"},
+    "context_snapshot": {"type": "object"},
+    "policy_state": {"type": "object"},
+    "available_agents": {"type": "array", "items": {"type": "string"}},
+    "constraints": {"type": "object"}
+  },
+  "required": ["intent", "context_snapshot", "policy_state", "available_agents"]
+}

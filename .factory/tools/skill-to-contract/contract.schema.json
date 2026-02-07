@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SkillContract",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "skill_id": {"type": "string"},
+    "title": {"type": "string"},
+    "summary": {"type": "string"},
+    "capabilities": {"type": "array", "items": {"type": "string"}},
+    "patterns": {"type": "array", "items": {"type": "string"}},
+    "anti_patterns": {"type": "array", "items": {"type": "string"}},
+    "inputs": {"type": "array", "items": {"type": "string"}},
+    "outputs": {"type": "array", "items": {"type": "string"}},
+    "requirements": {"type": "array", "items": {"type": "string"}},
+    "related_skills": {"type": "array", "items": {"type": "string"}},
+    "research_checklist": {"type": "array", "items": {"type": "string"}},
+    "plan_template": {"type": "array", "items": {"type": "string"}},
+    "validation_rules": {"type": "array", "items": {"type": "string"}},
+    "classifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "risk": {"type": "string"},
+        "impact": {"type": "string"},
+        "cognitive_cost": {"type": "string"},
+        "parallelism": {"type": "string"}
+      },
+      "required": ["risk", "impact", "cognitive_cost", "parallelism"]
+    },
+    "raw_sections": {"type": "object"}
+  },
+  "required": [
+    "skill_id",
+    "title",
+    "summary",
+    "capabilities",
+    "patterns",
+    "anti_patterns",
+    "research_checklist",
+    "plan_template",
+    "validation_rules",
+    "classifications"
+  ]
+}

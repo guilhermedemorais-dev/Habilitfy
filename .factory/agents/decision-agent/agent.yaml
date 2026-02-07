@@ -1,0 +1,22 @@
+id: decision-agent
+role: decision
+engine: decision-engine
+stage: decision
+triggers:
+  - tradeoff_detected
+  - policy_exception
+  - scope_change
+inputs:
+  - options
+  - risks
+  - constraints
+outputs:
+  - decision_record
+  - rationale
+  - followups
+dependencies:
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - no_code_writes
+  - requires_human_signoff

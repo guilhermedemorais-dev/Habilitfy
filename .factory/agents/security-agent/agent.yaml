@@ -1,0 +1,22 @@
+id: security-agent
+role: security
+engine: security-engine
+stage: security
+triggers:
+  - risk_high
+  - dependency_change
+  - release_candidate
+inputs:
+  - code_changes
+  - dependencies
+  - threat_model
+outputs:
+  - risk_findings
+  - mitigations
+  - security_summary
+dependencies:
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - no_code_writes
+  - must_register_risks

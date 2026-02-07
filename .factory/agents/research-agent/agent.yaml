@@ -1,0 +1,23 @@
+id: research-agent
+role: researcher
+engine: planner-engine
+stage: research
+triggers:
+  - missing_research
+  - new_intent
+  - scope_change
+inputs:
+  - intent
+  - scope
+  - constraints
+  - context_refs
+outputs:
+  - research_summary
+  - evidence_links
+  - gaps
+dependencies:
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - no_code_writes
+  - must_log_gaps

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResearchAgentOutputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "research_summary": {"type": "string"},
+    "evidence_links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {"type": "string"},
+          "source": {"type": "string"},
+          "notes": {"type": "string"}
+        },
+        "required": ["title", "source"]
+      }
+    },
+    "gaps": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["research_summary", "gaps"]
+}

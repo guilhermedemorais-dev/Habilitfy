@@ -1,0 +1,10 @@
+read:
+  - factory-workflow/context/**
+  - factory-workflow/docs/**
+  - factory-workflow/governance/**
+write:
+  - factory-workflow/docs/**
+  - factory-workflow/governance/adr/**
+deny:
+  - apps/**
+  - factory-workflow/bots/runtime/**

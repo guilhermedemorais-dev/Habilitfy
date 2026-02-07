@@ -1,0 +1,21 @@
+id: doc-agent
+role: documentation
+engine: doc-engine
+stage: docs
+triggers:
+  - plan_approved
+  - implementation_complete
+inputs:
+  - plan_doc
+  - code_changes
+  - decisions
+outputs:
+  - docs_updates
+  - architecture_notes
+  - release_notes
+dependencies:
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - no_code_writes
+  - must_link_decisions

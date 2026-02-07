@@ -1,0 +1,20 @@
+engine: execution-engine
+version: 1.0
+purpose: implement approved plans within controlled paths
+inputs:
+  plan_doc: string
+  task_queue: list
+  constraints: object
+outputs:
+  code_changes: list
+  build_updates: list
+  implementation_notes: string
+activation_rules:
+  - when plan is approved
+  - when tasks are ready
+write_permissions:
+  - apps/**
+  - factory-workflow/docs/projects/**/work/**/progress.md
+restrictions:
+  - cannot deploy or merge
+  - must follow plan boundaries

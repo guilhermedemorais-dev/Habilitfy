@@ -33,7 +33,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 function App() {
   const [location] = useLocation();
   const isAdminRoute = location.startsWith("/admin");
-  const isAuthRoute = location.startsWith("/login") || location.startsWith("/cadastro");
+  const isAuthRoute = location.startsWith("/login") || location.startsWith("/cadastro") || location.startsWith("/signup") || location.startsWith("/verify-email");
   const isStyleguideRoute = location.startsWith("/styleguide");
 
 

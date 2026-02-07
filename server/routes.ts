@@ -1,3 +1,4 @@
+
 import { logger } from "./utils/logger";
 import { walletService } from "./services/wallet";
 import type { Server } from "http";
@@ -14,6 +15,8 @@ import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } fr
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { insertVehicleSchema, insertSupportTicketSchema } from "@shared/schema";
+import * as crypto from "crypto";
+import { sendVerificationEmail } from "./email";
 
 
 // Trigger server restart for stability check
@@ -131,7 +134,7 @@ const maskApiKey = (value?: string | null) => {
   if (!value) return null;
   const trimmed = value.trim();
   if (trimmed.length <= 4) return "****";
-  return `****${trimmed.slice(-4)}`;
+  return `**** ${trimmed.slice(-4)} `;
 };
 
 const slugify = (value: string) =>
@@ -225,6 +228,87 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         message: 'Service unavailable',
         timestamp: new Date().toISOString()
       });
+    }
+  });
+
+  // --- Capture Session Routes (Remote Photo Capture via QR Code) ---
+  app.post('/api/capture-session', async (req: Request, res: Response) => {
+    try {
+      const sessionToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      const { captureSessions } = await import("@shared/schema");
+      await db.insert(captureSessions).values({
+        sessionToken,
+        expiresAt,
+        status: 'pending',
+      });
+
+      res.status(201).json({ sessionToken, expiresAt });
+    } catch (error) {
+      console.error("Error creating capture session:", error);
+      res.status(500).json({ message: "Failed to create capture session" });
+    }
+  });
+
+  app.get('/api/capture-session/:token', async (req: Request, res: Response) => {
+    try {
+      const { captureSessions } = await import("@shared/schema");
+      const [session] = await db.select()
+        .from(captureSessions)
+        .where(eq(captureSessions.sessionToken, req.params.token));
+
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      if (new Date(session.expiresAt) < new Date()) {
+        return res.status(410).json({ error: "Session expired" });
+      }
+
+      res.json({
+        status: session.status,
+        imageData: session.imageData,
+      });
+    } catch (error) {
+      console.error("Error fetching capture session:", error);
+      res.status(500).json({ message: "Failed to fetch capture session" });
+    }
+  });
+
+  app.post('/api/capture-session/:token/upload', async (req: Request, res: Response) => {
+    try {
+      const { imageData } = req.body;
+
+      if (!imageData || typeof imageData !== 'string') {
+        return res.status(400).json({ error: "imageData is required" });
+      }
+
+      const { captureSessions } = await import("@shared/schema");
+      const [session] = await db.select()
+        .from(captureSessions)
+        .where(eq(captureSessions.sessionToken, req.params.token));
+
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      if (new Date(session.expiresAt) < new Date()) {
+        return res.status(410).json({ error: "Session expired" });
+      }
+
+      await db.update(captureSessions)
+        .set({
+          imageData,
+          status: 'completed',
+          updatedAt: new Date(),
+        })
+        .where(eq(captureSessions.sessionToken, req.params.token));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error uploading to capture session:", error);
+      res.status(500).json({ message: "Failed to upload image" });
     }
   });
 
@@ -342,16 +426,29 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const {
         firstName, lastName, email, cpf, phone, addressLine, zipCode, neighborhood, city, state, role,
         birthDate, selfieImageUrl, documentFrontImageUrl, documentBackImageUrl, theoreticalProofImageUrl, licenseImageUrl, isLicensed,
-        password, confirmPassword
+        password, confirmPassword, googleId
       } = req.body;
 
-      // Validate required fields
+      // Validate Google ID if present
+      if (googleId) {
+        const pendingUser = (req.session as any).pendingGoogleUser;
+        if (!pendingUser || pendingUser.googleId !== googleId) {
+          return res.status(400).json({ message: 'Erro de validação do Google Login. Tente novamente.' });
+        }
+      }
+
+      // Validate required fields (Password optional if Google Login)
       if (!firstName || !lastName || !email) {
         return res.status(400).json({ message: 'Nome, sobrenome e e-mail são obrigatórios' });
       }
 
-      if (password && password !== confirmPassword) {
-        return res.status(400).json({ message: 'As senhas não coincidem' });
+      if (!googleId) {
+        if (!password || !confirmPassword) {
+          return res.status(400).json({ message: 'Senha é obrigatória para cadastro via e-mail' });
+        }
+        if (password !== confirmPassword) {
+          return res.status(400).json({ message: 'As senhas não coincidem' });
+        }
       }
 
       // Check if email already exists
@@ -361,14 +458,17 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       // Generate a unique ID
-      const userId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const userId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `;
 
       const hashedPassword = password ? await hashPassword(password) : undefined;
+      const verificationToken = googleId ? null : crypto.randomBytes(32).toString('hex');
+      const isVerified = !!googleId; // Google users are verified by default
 
       // 1. Create User
       const newUser = await storage.upsertUser({
         id: userId,
         email: email.toLowerCase().trim(),
+        googleId: googleId || null,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         cpf: cpf?.replace(/\D/g, '') || null,
@@ -381,7 +481,20 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         role: role === 'instructor' ? 'instructor' : 'student',
         kycStatus: 'pending',
         password: hashedPassword,
+        isVerified: isVerified,
+        verificationToken: verificationToken,
       });
+
+      // Clear pending session if successful
+      if (googleId) {
+        delete (req.session as any).pendingGoogleUser;
+      } else if (email && verificationToken) {
+        // Send verification email for manual signups
+        // Don't await to avoid blocking the response if SMTP is slow
+        sendVerificationEmail(email, verificationToken).catch(err => {
+          console.error("Failed to send verification email:", err);
+        });
+      }
 
       // 2. Process KYC Documents and Instructor Images
       let savedSelfieUrl = null;
@@ -494,6 +607,35 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     }
   });
 
+  app.post("/api/auth/verify-email", async (req: Request, res: Response) => {
+    try {
+      const { token } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ message: "Token de verificação não fornecido" });
+      }
+
+      // Using direct DB query for now to avoid altering storage interface again in this step
+      // Ideally update storage interface.
+      // const usersTable = (await import("@shared/schema")).users; // users is already imported
+      const [user] = await db.select().from(users).where(eq(users.verificationToken, token));
+
+      if (!user) {
+        return res.status(400).json({ message: "Token inválido ou expirado" });
+      }
+
+      await storage.updateUser(user.id, {
+        isVerified: true,
+        verificationToken: null, // Clear token after use
+      });
+
+      res.status(200).json({ message: "E-mail verificado com sucesso!" });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).json({ message: "Erro ao verificar e-mail" });
+    }
+  });
+
   app.patch('/api/users/me', isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user?.claims?.sub ?? req.user?.id;
@@ -538,10 +680,10 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         instructors.map(async (instructor) => {
           const user = await storage.getUser(instructor.userId);
           const name =
-            `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+            `${user?.firstName || ""} ${user?.lastName || ""} `.trim() ||
             user?.email ||
             "Instrutor";
-          const vehicle = `${instructor.vehicleModel} ${instructor.vehicleYear || ""}`.trim();
+          const vehicle = `${instructor.vehicleModel} ${instructor.vehicleYear || ""} `.trim();
           return {
             ...instructor,
             user: user
@@ -575,10 +717,10 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
       const user = await storage.getUser(instructor.userId);
       const name =
-        `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+        `${user?.firstName || ""} ${user?.lastName || ""} `.trim() ||
         user?.email ||
         "Instrutor";
-      const vehicle = `${instructor.vehicleModel} ${instructor.vehicleYear || ""}`.trim();
+      const vehicle = `${instructor.vehicleModel} ${instructor.vehicleYear || ""} `.trim();
 
       res.json({
         ...instructor,
@@ -764,9 +906,9 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
             instructor: instructor && instructorUser ? {
               id: instructor.id,
               userId: instructorUser.id,
-              name: `${instructorUser.firstName || ''} ${instructorUser.lastName || ''}`.trim() || instructorUser.email || 'Instrutor',
+              name: `${instructorUser.firstName || ''} ${instructorUser.lastName || ''} `.trim() || instructorUser.email || 'Instrutor',
               photo: instructorUser.profileImageUrl || '',
-              vehicle: `${instructor.vehicleModel} ${instructor.vehicleYear || ''}`.trim(),
+              vehicle: `${instructor.vehicleModel} ${instructor.vehicleYear || ''} `.trim(),
             } : undefined,
           };
         })
@@ -792,7 +934,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
             ...booking,
             student: student ? {
               id: student.id,
-              name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email || 'Aluno',
+              name: `${student.firstName || ''} ${student.lastName || ''} `.trim() || student.email || 'Aluno',
               phone: student.phone || undefined,
             } : undefined,
           };
@@ -2223,7 +2365,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         kycStatus: newKycStatus as any,
       });
 
-      logger.info(`[KYC] User ${userId} verification: ${result.overallStatus}`, { userId, status: result.overallStatus });
+      logger.info(`[KYC] User ${userId} verification: ${result.overallStatus} `, { userId, status: result.overallStatus });
 
       res.json(result);
     } catch (error: any) {
@@ -2251,7 +2393,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         verifications: pending.map((u: any) => ({
           userId: u.id,
           email: u.email,
-          name: `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+          name: `${u.firstName || ''} ${u.lastName || ''} `.trim(),
           status: u.kycStatus,
           createdAt: u.createdAt,
         }))
@@ -2502,13 +2644,13 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         user.id,
         amount,
         "withdrawal",
-        `Saque solicitado para chave PIX: ${pixKey}`
+        `Saque solicitado para chave PIX: ${pixKey} `
       );
 
       // TODO: Here we would trigger an actual payout via AbacatePay or notify admin
       // For now, it's just a debit/ledger record.
 
-      logger.info(`Withdrawal requested by user ${user.id}: ${amount} BRL to ${pixKey}`);
+      logger.info(`Withdrawal requested by user ${user.id}: ${amount} BRL to ${pixKey} `);
 
       res.json({ success: true, message: "Saque solicitado com sucesso" });
     } catch (error: any) {

@@ -1,0 +1,22 @@
+engine: agent-orchestrator
+version: 1.0
+purpose: coordinate agents and maintain execution order
+inputs:
+  intent: string
+  context_snapshot: object
+  policy_state: object
+  agent_registry: list
+outputs:
+  agent_queue: list
+  delegation_map: object
+  priority_order: list
+activation_rules:
+  - when new intent is received
+  - when queue is empty
+  - when policy violation occurs
+write_permissions:
+  - factory-workflow/skill-resolver/queue.yaml
+  - factory-workflow/docs/projects/**/work/**/progress.md
+restrictions:
+  - no code writes
+  - cannot bypass policy gates

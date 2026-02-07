@@ -1,0 +1,20 @@
+engine: decision-engine
+version: 1.0
+purpose: capture decisions and enforce human signoff
+inputs:
+  options: list
+  risks: list
+  constraints: object
+outputs:
+  decision_record: string
+  rationale: string
+  followups: list
+activation_rules:
+  - when tradeoffs are detected
+  - when policy exceptions are requested
+write_permissions:
+  - factory-workflow/governance/adr/**
+  - factory-workflow/docs/projects/**/work/**/decisions.md
+restrictions:
+  - no code writes
+  - requires human signoff

@@ -1,0 +1,20 @@
+engine: doc-engine
+version: 1.0
+purpose: update docs and architecture records
+inputs:
+  plan_doc: string
+  code_changes: list
+  decisions: list
+outputs:
+  docs_updates: list
+  architecture_notes: list
+  release_notes: string
+activation_rules:
+  - after plan approval
+  - after implementation complete
+write_permissions:
+  - factory-workflow/docs/**
+  - factory-workflow/governance/adr/**
+restrictions:
+  - no code writes
+  - must link to decision records

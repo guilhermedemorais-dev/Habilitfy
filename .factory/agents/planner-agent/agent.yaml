@@ -1,0 +1,24 @@
+id: planner-agent
+role: planner
+engine: planner-engine
+stage: plan
+triggers:
+  - missing_plan
+  - scope_change
+  - high_risk_change
+inputs:
+  - intent
+  - research_summary
+  - constraints
+  - risks
+outputs:
+  - plan_doc
+  - task_queue
+  - acceptance_criteria
+  - test_plan
+dependencies:
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - no_code_writes
+  - requires_plan_approval

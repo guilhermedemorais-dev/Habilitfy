@@ -1,14 +1,49 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
-import { CheckCircle2, ChevronRight, ChevronLeft, Upload, Camera } from "lucide-react";
+import { CheckCircle2, ChevronRight, ChevronLeft, Upload, Camera, ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { WebcamCapture } from "@/components/WebcamCapture";
 import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
+import { ProgressDots } from "@/components/ui/ProgressDots";
+
+// Máscaras de input
+const maskCPF = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+};
+
+const maskPhone = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 10) {
+    return digits.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2");
+  }
+  return digits.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2");
+};
+
+const maskCEP = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return digits.replace(/(\d{5})(\d)/, "$1-$2");
+};
+
+// Google Icon
+const GoogleIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-5 h-5">
+    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+  </svg>
+);
+
+const STATES = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
 
 export default function SignupInstructor() {
   const [step, setStep] = useState(1);
@@ -19,10 +54,6 @@ export default function SignupInstructor() {
   const { toast } = useToast();
 
   const [form, setForm] = useState({
-    // Auth
-    email: "",
-    password: "",
-    confirmPassword: "",
     // Personal
     firstName: "",
     lastName: "",
@@ -50,11 +81,14 @@ export default function SignupInstructor() {
     vehicleDocImageUrl: "",
     vehiclePlateImageUrl: "",
     vehicleAuthorizationImageUrl: "",
-    // Terms
+    // Auth
+    email: "",
+    password: "",
+    confirmPassword: "",
     acceptTerms: false,
   });
 
-  const steps = [1, 2, 3, 4, 5];
+  const totalSteps = 4;
 
   const updateForm = (field: keyof typeof form, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -74,10 +108,7 @@ export default function SignupInstructor() {
       reader.readAsDataURL(file);
     });
 
-  const handleFile = async (
-    field: keyof typeof form,
-    fileList: FileList | null,
-  ) => {
+  const handleFile = async (field: keyof typeof form, fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     try {
       const dataUrl = await readFileAsDataUrl(fileList[0]);
@@ -93,19 +124,10 @@ export default function SignupInstructor() {
       const value = form[field];
       if (typeof value === "string" && value.trim()) return;
       if (typeof value === "boolean" && value) return;
-      nextErrors[field] = `${label} obrigatório.`;
+      nextErrors[field] = `${label} é obrigatório.`;
     };
 
-    if (step === 1) { // Login & Security
-      requireField("email", "E-mail");
-      requireField("password", "Senha");
-      requireField("confirmPassword", "Confirmação de senha");
-      if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
-        nextErrors["confirmPassword"] = "As senhas não conferem.";
-      }
-    }
-
-    if (step === 2) { // Personal Data
+    if (step === 1) {
       requireField("firstName", "Nome");
       requireField("lastName", "Sobrenome");
       requireField("cpf", "CPF");
@@ -117,7 +139,7 @@ export default function SignupInstructor() {
       requireField("state", "Estado");
     }
 
-    if (step === 3) { // Identity & Professional
+    if (step === 2) {
       requireField("selfieImageUrl", "Selfie");
       requireField("documentNumber", "Número do Documento");
       requireField("documentFrontImageUrl", "Frente do Documento");
@@ -126,7 +148,7 @@ export default function SignupInstructor() {
       requireField("credentialImageUrl", "Foto da Credencial");
     }
 
-    if (step === 4) { // Vehicle Data
+    if (step === 3) {
       requireField("vehicleModel", "Modelo do Veículo");
       requireField("vehicleYear", "Ano do Veículo");
       requireField("vehicleType", "Tipo de Veículo");
@@ -137,7 +159,13 @@ export default function SignupInstructor() {
       requireField("vehicleAuthorizationImageUrl", "Doc. de Autorização");
     }
 
-    if (step === 5) { // Review & Terms
+    if (step === 4) {
+      requireField("email", "E-mail");
+      requireField("password", "Senha");
+      requireField("confirmPassword", "Confirmação de senha");
+      if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
+        nextErrors["confirmPassword"] = "As senhas não conferem.";
+      }
       if (!form.acceptTerms) {
         nextErrors["acceptTerms"] = "Você deve aceitar os termos.";
       }
@@ -156,7 +184,7 @@ export default function SignupInstructor() {
       return;
     }
 
-    if (step < 5) {
+    if (step < 4) {
       setFieldErrors({});
       setStep(step + 1);
       return;
@@ -167,14 +195,13 @@ export default function SignupInstructor() {
       await apiRequest("POST", "/api/users/register", {
         ...form,
         role: "instructor",
-        documentImageUrl: form.documentFrontImageUrl, // Legacy support just in case
+        documentImageUrl: form.documentFrontImageUrl,
       });
 
       toast({
         title: "Cadastro realizado!",
         description: "Bem-vindo ao HabilitFy.",
       });
-      // Redirect to dashboard (user is auto-logged in)
       setLocation("/dashboard/instrutor");
     } catch (err: any) {
       setError(err?.message || "Não foi possível enviar o cadastro.");
@@ -183,423 +210,435 @@ export default function SignupInstructor() {
     }
   };
 
+  const stepTitles: Record<number, string> = {
+    1: "Dados Pessoais",
+    2: "Documentos e Credencial",
+    3: "Dados do Veículo",
+    4: "Criar Conta",
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-6 bg-[url('https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')] bg-cover bg-center relative">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Header Fixo */}
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-100 px-6 py-4">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <Link href="/" className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" />
+            <span>Voltar para Home</span>
+          </Link>
+          <ProgressDots currentStep={step} totalSteps={totalSteps} />
+        </div>
+      </header>
 
-      <div className="w-full max-w-md relative z-10">
-        <div className="bg-white rounded-xl shadow-2xl overflow-hidden p-8 animate-in fade-in zoom-in-95 duration-500">
-          {/* Header */}
-          <div className="mb-6">
-            <Link href="/" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors">
-              <ChevronLeft className="w-4 h-4 mr-1" /> Voltar para Home
-            </Link>
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Cadastro de Parceiro</h1>
-                <p className="text-gray-500 text-sm mt-1">Passo {step} de 5</p>
-              </div>
-              {/* Progress Indicator */}
-              <div className="flex gap-1">
-                {steps.map((s) => (
-                  <div
-                    key={s}
-                    className={`h-2 w-2 rounded-full transition-all duration-300 ${s <= step ? 'bg-green-600 w-4' : 'bg-gray-200'}`}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+      {/* Título do Step */}
+      <div className="px-6 pt-6 pb-4 max-w-lg mx-auto w-full">
+        <h1 className="text-2xl font-bold text-gray-900">Cadastro de Instrutor</h1>
+        <p className="text-gray-500 text-sm mt-1">Passo {step} de {totalSteps}</p>
+        <div className="mt-4">
+          <h2 className="text-lg font-semibold text-gray-800 border-b-2 border-emerald-500 pb-2 inline-block">
+            {stepTitles[step]}
+          </h2>
+        </div>
+      </div>
 
-          <CardContent className="p-0 space-y-6">
+      {/* Conteúdo do Step */}
+      <main className="flex-1 px-6 pb-32 max-w-lg mx-auto w-full">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-4"
+          >
             {step === 1 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
-                <h2 className="font-semibold text-lg border-b pb-2">Login e Segurança</h2>
-
-                <div className="space-y-1">
-                  <Label>E-mail</Label>
-                  <Input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => updateForm("email", e.target.value)}
-                    placeholder="seu@email.com"
-                    className={getError("email") ? "border-red-500" : undefined}
-                  />
-                  {getError("email") && <p className="text-xs text-red-600">{getError("email")}</p>}
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Senha</Label>
-                  <Input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => updateForm("password", e.target.value)}
-                    className={getError("password") ? "border-red-500" : undefined}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Confirmar Senha</Label>
-                  <Input
-                    type="password"
-                    value={form.confirmPassword}
-                    onChange={(e) => updateForm("confirmPassword", e.target.value)}
-                    className={getError("confirmPassword") ? "border-red-500" : undefined}
-                  />
-                  {getError("confirmPassword") && <p className="text-xs text-red-600">{getError("confirmPassword")}</p>}
-                </div>
-
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-200"></span>
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-gray-500">Ou entre com</span>
-                  </div>
-                </div>
-
-                <a href="/api/auth/google" className="w-full">
-                  <Button variant="outline" className="w-full gap-2" type="button">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="20px" height="20px">
-                      <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
-                      <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
-                      <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
-                      <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
-                    </svg>
-                    Continuar com Google
-                  </Button>
-                </a>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
-                <h2 className="font-semibold text-lg border-b pb-2">Dados Pessoais</h2>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>Nome</Label>
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Nome</Label>
                     <Input
                       value={form.firstName}
                       onChange={(e) => updateForm("firstName", e.target.value)}
                       placeholder="Nome"
-                      className={getError("firstName") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("firstName") ? "border-red-500" : ""}`}
                     />
+                    {getError("firstName") && <p className="text-xs text-red-600">{getError("firstName")}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Sobrenome</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Sobrenome</Label>
                     <Input
                       value={form.lastName}
                       onChange={(e) => updateForm("lastName", e.target.value)}
                       placeholder="Sobrenome"
-                      className={getError("lastName") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("lastName") ? "border-red-500" : ""}`}
                     />
+                    {getError("lastName") && <p className="text-xs text-red-600">{getError("lastName")}</p>}
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <Label>CPF</Label>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">CPF</Label>
                   <Input
                     value={form.cpf}
-                    onChange={(e) => updateForm("cpf", e.target.value)}
+                    onChange={(e) => updateForm("cpf", maskCPF(e.target.value))}
                     placeholder="000.000.000-00"
-                    className={getError("cpf") ? "border-red-500" : undefined}
+                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("cpf") ? "border-red-500" : ""}`}
                   />
                   {getError("cpf") && <p className="text-xs text-red-600">{getError("cpf")}</p>}
                 </div>
 
-                <div className="space-y-1">
-                  <Label>WhatsApp</Label>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">WhatsApp</Label>
                   <Input
                     value={form.phone}
-                    onChange={(e) => updateForm("phone", e.target.value)}
-                    placeholder="(21) 99999-9999"
-                    className={getError("phone") ? "border-red-500" : undefined}
+                    onChange={(e) => updateForm("phone", maskPhone(e.target.value))}
+                    placeholder="(00) 00000-0000"
+                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("phone") ? "border-red-500" : ""}`}
                   />
+                  {getError("phone") && <p className="text-xs text-red-600">{getError("phone")}</p>}
                 </div>
 
-                <div className="space-y-1">
-                  <Label>Endereço</Label>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Endereço (Rua, Número)</Label>
                   <Input
                     value={form.addressLine}
                     onChange={(e) => updateForm("addressLine", e.target.value)}
                     placeholder="Rua, número"
-                    className={getError("addressLine") ? "border-red-500" : undefined}
+                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("addressLine") ? "border-red-500" : ""}`}
                   />
+                  {getError("addressLine") && <p className="text-xs text-red-600">{getError("addressLine")}</p>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>CEP</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">CEP</Label>
                     <Input
                       value={form.zipCode}
-                      onChange={(e) => updateForm("zipCode", e.target.value)}
+                      onChange={(e) => updateForm("zipCode", maskCEP(e.target.value))}
                       placeholder="00000-000"
-                      className={getError("zipCode") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("zipCode") ? "border-red-500" : ""}`}
                     />
+                    {getError("zipCode") && <p className="text-xs text-red-600">{getError("zipCode")}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Bairro</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Bairro</Label>
                     <Input
                       value={form.neighborhood}
                       onChange={(e) => updateForm("neighborhood", e.target.value)}
                       placeholder="Bairro"
-                      className={getError("neighborhood") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("neighborhood") ? "border-red-500" : ""}`}
                     />
+                    {getError("neighborhood") && <p className="text-xs text-red-600">{getError("neighborhood")}</p>}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>Cidade</Label>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Cidade</Label>
                     <Input
                       value={form.city}
                       onChange={(e) => updateForm("city", e.target.value)}
                       placeholder="Cidade"
-                      className={getError("city") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("city") ? "border-red-500" : ""}`}
                     />
+                    {getError("city") && <p className="text-xs text-red-600">{getError("city")}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Estado</Label>
-                    <Input
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">UF</Label>
+                    <select
                       value={form.state}
                       onChange={(e) => updateForm("state", e.target.value)}
-                      placeholder="UF"
-                      className={getError("state") ? "border-red-500" : undefined}
-                    />
+                      className={`flex h-14 w-full rounded-2xl border bg-gray-50 px-4 text-base ${getError("state") ? "border-red-500" : "border-gray-200"}`}
+                    >
+                      <option value="">Selecione</option>
+                      {STATES.map((uf) => (
+                        <option key={uf} value={uf}>{uf}</option>
+                      ))}
+                    </select>
+                    {getError("state") && <p className="text-xs text-red-600">{getError("state")}</p>}
                   </div>
                 </div>
-              </div>
+              </>
             )}
 
-            {step === 3 && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-8">
-                <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg text-blue-800 text-sm flex gap-3">
-                  <Camera className="w-5 h-5 flex-shrink-0" />
+            {step === 2 && (
+              <>
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl text-blue-800 text-sm flex gap-3 mb-4">
+                  <Camera className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold">Verificação e Credenciamento</p>
                     <p>Envie sua selfie, documentos pessoais e sua credencial do Detran.</p>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold">1. Sua Selfie</Label>
-                  <div className="p-1 border rounded-xl bg-gray-50">
+                <div className="space-y-2 mb-4">
+                  <Label className="text-sm font-medium text-gray-700">Sua Selfie</Label>
+                  <div className="border rounded-2xl overflow-hidden bg-gray-50">
                     <WebcamCapture onCapture={(img) => updateForm('selfieImageUrl', img)} label="Tirar Selfie" />
                   </div>
-                  {form.selfieImageUrl && <p className="text-xs text-green-600 text-center font-medium">Selfie capturada!</p>}
+                  {form.selfieImageUrl && <p className="text-sm text-green-600 text-center font-medium">Selfie capturada ✓</p>}
                   {getError("selfieImageUrl") && <p className="text-xs text-red-600 text-center">{getError("selfieImageUrl")}</p>}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label>Número do Documento (CNH/RG)</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Nº Documento (CNH/RG)</Label>
                     <Input
                       value={form.documentNumber}
                       onChange={(e) => updateForm("documentNumber", e.target.value)}
-                      className={getError("documentNumber") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("documentNumber") ? "border-red-500" : ""}`}
                     />
+                    {getError("documentNumber") && <p className="text-xs text-red-600">{getError("documentNumber")}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Número da Credencial Detran</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Nº Credencial Detran</Label>
                     <Input
                       value={form.credentialNumber}
                       onChange={(e) => updateForm("credentialNumber", e.target.value)}
-                      className={getError("credentialNumber") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("credentialNumber") ? "border-red-500" : ""}`}
                     />
+                    {getError("credentialNumber") && <p className="text-xs text-red-600">{getError("credentialNumber")}</p>}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Frente do Documento</Label>
-                    <div className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${form.documentFrontImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="opacity-0 w-full h-full absolute cursor-pointer"
-                        onChange={(e) => handleFile("documentFrontImageUrl", e.target.files)}
-                      />
-                      <div className="pointer-events-none text-center">
-                        <Upload className={`w-6 h-6 mx-auto mb-1 ${form.documentFrontImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                        <span className="text-xs text-gray-500">Enviar <span className="font-bold">FRENTE</span></span>
-                      </div>
-                    </div>
-                    {getError("documentFrontImageUrl") && <p className="text-xs text-red-600 text-center">{getError("documentFrontImageUrl")}</p>}
+                    <Label className="text-sm font-medium text-gray-700">Frente Documento</Label>
+                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.documentFrontImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                      <Upload className={`w-6 h-6 mb-1 ${form.documentFrontImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
+                      <span className="text-xs text-gray-500">{form.documentFrontImageUrl ? "Enviado ✓" : "FRENTE"}</span>
+                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("documentFrontImageUrl", e.target.files)} />
+                    </label>
+                    {getError("documentFrontImageUrl") && <p className="text-xs text-red-600">{getError("documentFrontImageUrl")}</p>}
                   </div>
-
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Verso do Documento</Label>
-                    <div className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${form.documentBackImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="opacity-0 w-full h-full absolute cursor-pointer"
-                        onChange={(e) => handleFile("documentBackImageUrl", e.target.files)}
-                      />
-                      <div className="pointer-events-none text-center">
-                        <Upload className={`w-6 h-6 mx-auto mb-1 ${form.documentBackImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                        <span className="text-xs text-gray-500">Enviar <span className="font-bold">VERSO</span></span>
-                      </div>
-                    </div>
-                    {getError("documentBackImageUrl") && <p className="text-xs text-red-600 text-center">{getError("documentBackImageUrl")}</p>}
+                    <Label className="text-sm font-medium text-gray-700">Verso Documento</Label>
+                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.documentBackImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                      <Upload className={`w-6 h-6 mb-1 ${form.documentBackImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
+                      <span className="text-xs text-gray-500">{form.documentBackImageUrl ? "Enviado ✓" : "VERSO"}</span>
+                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("documentBackImageUrl", e.target.files)} />
+                    </label>
+                    {getError("documentBackImageUrl") && <p className="text-xs text-red-600">{getError("documentBackImageUrl")}</p>}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Foto da Credencial Detran</Label>
-                  <div className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${form.credentialImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      className="opacity-0 w-full h-full absolute cursor-pointer"
-                      onChange={(e) => handleFile("credentialImageUrl", e.target.files)}
-                    />
-                    <div className="pointer-events-none text-center">
-                      <Upload className={`w-6 h-6 mx-auto mb-1 ${form.credentialImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                      <span className="text-xs text-gray-500">Enviar Credencial</span>
-                    </div>
-                  </div>
-                  {getError("credentialImageUrl") && <p className="text-xs text-red-600 text-center">{getError("credentialImageUrl")}</p>}
+                  <Label className="text-sm font-medium text-gray-700">Foto da Credencial Detran</Label>
+                  <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.credentialImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                    <Upload className={`w-6 h-6 mb-1 ${form.credentialImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
+                    <span className="text-xs text-gray-500">{form.credentialImageUrl ? "Credencial enviada ✓" : "Enviar Credencial"}</span>
+                    <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("credentialImageUrl", e.target.files)} />
+                  </label>
+                  {getError("credentialImageUrl") && <p className="text-xs text-red-600">{getError("credentialImageUrl")}</p>}
                 </div>
-              </div>
+              </>
             )}
 
-            {step === 4 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
-                <h2 className="font-semibold text-lg border-b pb-2">Dados do Veículo</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>Modelo</Label>
+            {step === 3 && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Modelo</Label>
                     <Input
                       value={form.vehicleModel}
                       onChange={(e) => updateForm("vehicleModel", e.target.value)}
                       placeholder="Ex: Hyundai HB20"
-                      className={getError("vehicleModel") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("vehicleModel") ? "border-red-500" : ""}`}
                     />
+                    {getError("vehicleModel") && <p className="text-xs text-red-600">{getError("vehicleModel")}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Ano</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Ano</Label>
                     <Input
                       value={form.vehicleYear}
                       onChange={(e) => updateForm("vehicleYear", e.target.value)}
                       placeholder="2023"
-                      className={getError("vehicleYear") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("vehicleYear") ? "border-red-500" : ""}`}
                     />
+                    {getError("vehicleYear") && <p className="text-xs text-red-600">{getError("vehicleYear")}</p>}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>Tipo</Label>
-                    <Input
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Tipo</Label>
+                    <select
                       value={form.vehicleType}
                       onChange={(e) => updateForm("vehicleType", e.target.value)}
-                      placeholder="Carro, moto..."
-                      className={getError("vehicleType") ? "border-red-500" : undefined}
-                    />
+                      className={`flex h-14 w-full rounded-2xl border bg-gray-50 px-4 text-base ${getError("vehicleType") ? "border-red-500" : "border-gray-200"}`}
+                    >
+                      <option value="">Selecione</option>
+                      <option value="carro">Carro</option>
+                      <option value="moto">Moto</option>
+                      <option value="caminhao">Caminhão</option>
+                    </select>
+                    {getError("vehicleType") && <p className="text-xs text-red-600">{getError("vehicleType")}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Placa</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Placa</Label>
                     <Input
                       value={form.vehiclePlate}
-                      onChange={(e) => updateForm("vehiclePlate", e.target.value)}
+                      onChange={(e) => updateForm("vehiclePlate", e.target.value.toUpperCase())}
                       placeholder="ABC1D23"
-                      className={getError("vehiclePlate") ? "border-red-500" : undefined}
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("vehiclePlate") ? "border-red-500" : ""}`}
                     />
+                    {getError("vehiclePlate") && <p className="text-xs text-red-600">{getError("vehiclePlate")}</p>}
                   </div>
                 </div>
 
-                <div className="space-y-1 mt-2">
-                  <Label>Fotos do Veículo e Documentos</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className={`p-3 border rounded-lg text-center ${form.vehicleImageUrl ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
-                      <p className="text-xs font-medium mb-2">Foto do Veículo</p>
-                      <Input type="file" accept="image/*" className="text-xs" onChange={(e) => handleFile("vehicleImageUrl", e.target.files)} />
-                    </div>
-                    <div className={`p-3 border rounded-lg text-center ${form.vehiclePlateImageUrl ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
-                      <p className="text-xs font-medium mb-2">Foto da Placa</p>
-                      <Input type="file" accept="image/*" className="text-xs" onChange={(e) => handleFile("vehiclePlateImageUrl", e.target.files)} />
-                    </div>
-                    <div className={`p-3 border rounded-lg text-center ${form.vehicleDocImageUrl ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
-                      <p className="text-xs font-medium mb-2">Doc. do Veículo</p>
-                      <Input type="file" accept="image/*" className="text-xs" onChange={(e) => handleFile("vehicleDocImageUrl", e.target.files)} />
-                    </div>
-                    <div className={`p-3 border rounded-lg text-center ${form.vehicleAuthorizationImageUrl ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
-                      <p className="text-xs font-medium mb-2">Doc. Autorização</p>
-                      <Input type="file" accept="image/*" className="text-xs" onChange={(e) => handleFile("vehicleAuthorizationImageUrl", e.target.files)} />
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Foto do Veículo</Label>
+                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.vehicleImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                      <Upload className={`w-6 h-6 mb-1 ${form.vehicleImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
+                      <span className="text-xs text-gray-500">{form.vehicleImageUrl ? "Enviado ✓" : "Foto Veículo"}</span>
+                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("vehicleImageUrl", e.target.files)} />
+                    </label>
+                    {getError("vehicleImageUrl") && <p className="text-xs text-red-600">{getError("vehicleImageUrl")}</p>}
                   </div>
-                  {getError("vehicleAuthorizationImageUrl") && <p className="text-xs text-red-600 mt-1">{getError("vehicleAuthorizationImageUrl")}</p>}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Foto da Placa</Label>
+                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.vehiclePlateImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                      <Upload className={`w-6 h-6 mb-1 ${form.vehiclePlateImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
+                      <span className="text-xs text-gray-500">{form.vehiclePlateImageUrl ? "Enviado ✓" : "Foto Placa"}</span>
+                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("vehiclePlateImageUrl", e.target.files)} />
+                    </label>
+                    {getError("vehiclePlateImageUrl") && <p className="text-xs text-red-600">{getError("vehiclePlateImageUrl")}</p>}
+                  </div>
                 </div>
-              </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Doc. Veículo</Label>
+                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.vehicleDocImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                      <Upload className={`w-6 h-6 mb-1 ${form.vehicleDocImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
+                      <span className="text-xs text-gray-500">{form.vehicleDocImageUrl ? "Enviado ✓" : "CRLV"}</span>
+                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("vehicleDocImageUrl", e.target.files)} />
+                    </label>
+                    {getError("vehicleDocImageUrl") && <p className="text-xs text-red-600">{getError("vehicleDocImageUrl")}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Autorização</Label>
+                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.vehicleAuthorizationImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                      <Upload className={`w-6 h-6 mb-1 ${form.vehicleAuthorizationImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
+                      <span className="text-xs text-gray-500">{form.vehicleAuthorizationImageUrl ? "Enviado ✓" : "Autorização"}</span>
+                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("vehicleAuthorizationImageUrl", e.target.files)} />
+                    </label>
+                    {getError("vehicleAuthorizationImageUrl") && <p className="text-xs text-red-600">{getError("vehicleAuthorizationImageUrl")}</p>}
+                  </div>
+                </div>
+              </>
             )}
 
-            {step === 5 && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-8 text-center py-4">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2 text-green-600">
-                  <CheckCircle2 className="w-8 h-8" />
+            {step === 4 && (
+              <>
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-600" />
                 </div>
-                <div>
-                  <h2 className="font-bold text-xl text-gray-900">Quase lá!</h2>
-                  <p className="text-gray-500 text-sm">
-                    Confira seus dados e aceite os termos para finalizar.
-                  </p>
-                </div>
+                <h3 className="text-xl font-bold text-center text-gray-900 mb-4">Quase lá!</h3>
 
-                <div className="bg-gray-50 p-4 rounded-lg text-left text-sm space-y-2 border border-gray-100">
-                  <div className="flex justify-between border-b pb-2 mb-2">
-                    <span className="font-semibold text-gray-700">Resumo do Parceiro</span>
-                    <Button variant="link" className="h-auto p-0 text-xs" onClick={() => setStep(2)}>Editar</Button>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">E-mail</Label>
+                    <Input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => updateForm("email", e.target.value)}
+                      placeholder="seu@email.com"
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("email") ? "border-red-500" : ""}`}
+                    />
+                    {getError("email") && <p className="text-xs text-red-600">{getError("email")}</p>}
                   </div>
-                  <p><span className="text-gray-500">Nome:</span> <span className="font-medium">{form.firstName} {form.lastName}</span></p>
-                  <p><span className="text-gray-500">Veículo:</span> <span className="font-medium">{form.vehicleModel} ({form.vehiclePlate})</span></p>
-                  <p><span className="text-gray-500">Credencial:</span> <span className="font-medium">{form.credentialNumber}</span></p>
-                </div>
 
-                <div className="flex items-start space-x-3 text-left p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <Checkbox
-                    id="terms"
-                    checked={form.acceptTerms}
-                    onCheckedChange={(checked) => updateForm("acceptTerms", checked as boolean)}
-                    className="mt-1"
-                  />
-                  <Label htmlFor="terms" className="text-sm font-normal text-gray-600 leading-snug cursor-pointer">
-                    Declaro que as informações são verdadeiras e aceito os <Link href="/termos" className="text-green-600 hover:underline font-medium">Termos de Uso</Link> e <Link href="/privacidade" className="text-green-600 hover:underline font-medium">Política de Privacidade</Link> da HabilitFy.
-                  </Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Senha</Label>
+                    <Input
+                      type="password"
+                      value={form.password}
+                      onChange={(e) => updateForm("password", e.target.value)}
+                      placeholder="••••••••"
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("password") ? "border-red-500" : ""}`}
+                    />
+                    {getError("password") && <p className="text-xs text-red-600">{getError("password")}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Confirmar Senha</Label>
+                    <Input
+                      type="password"
+                      value={form.confirmPassword}
+                      onChange={(e) => updateForm("confirmPassword", e.target.value)}
+                      placeholder="••••••••"
+                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("confirmPassword") ? "border-red-500" : ""}`}
+                    />
+                    {getError("confirmPassword") && <p className="text-xs text-red-600">{getError("confirmPassword")}</p>}
+                  </div>
+
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-gray-200"></span>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-2 text-gray-500">Ou entre com</span>
+                    </div>
+                  </div>
+
+                  <a href="/api/auth/google" className="block">
+                    <Button variant="outline" className="w-full h-14 rounded-2xl gap-2" type="button">
+                      <GoogleIcon />
+                      Continuar com Google
+                    </Button>
+                  </a>
+
+                  <div className="flex items-start space-x-3 p-3 border rounded-2xl hover:bg-gray-50 transition-colors">
+                    <Checkbox
+                      id="terms"
+                      checked={form.acceptTerms}
+                      onCheckedChange={(checked) => updateForm("acceptTerms", checked as boolean)}
+                      className="mt-1"
+                    />
+                    <Label htmlFor="terms" className="text-sm font-normal text-gray-600 leading-snug cursor-pointer">
+                      Declaro que as informações são verdadeiras e aceito os <Link href="/termos" className="text-emerald-600 hover:underline font-medium">Termos de Uso</Link> e <Link href="/privacidade" className="text-emerald-600 hover:underline font-medium">Política de Privacidade</Link>.
+                    </Label>
+                  </div>
+                  {getError("acceptTerms") && <p className="text-xs text-red-600">{getError("acceptTerms")}</p>}
                 </div>
-                {getError("acceptTerms") && <p className="text-xs text-red-600">{getError("acceptTerms")}</p>}
-              </div>
+              </>
             )}
 
-            {error && <p className="text-sm text-red-600 text-center bg-red-50 p-2 rounded">{error}</p>}
+            {error && <p className="text-sm text-red-600 text-center bg-red-50 p-3 rounded-2xl">{error}</p>}
+          </motion.div>
+        </AnimatePresence>
+      </main>
 
-            <div className="flex gap-3 pt-6 border-t mt-2">
-              {step > 1 && (
-                <Button
-                  variant="outline"
-                  onClick={() => setStep(step - 1)}
-                  className="flex-1"
-                >
-                  <ChevronLeft className="w-4 h-4 mr-1" /> Voltar
-                </Button>
-              )}
-              <Button
-                onClick={handleNext}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold shadow-md hover:shadow-lg transition-all"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Cadastrando..." : step === 5 ? "Criar Conta" : "Próximo"}
-                {!isSubmitting && step < 5 && <ChevronRight className="w-4 h-4 ml-1" />}
-              </Button>
-            </div>
-          </CardContent>
-
-          <div className="mt-6 text-center border-t pt-4">
-            <p className="text-xs text-gray-500 mb-2">Já tem uma conta?</p>
-            <Link href="/login" className="text-sm font-medium text-green-600 hover:text-green-700 hover:underline">
-              Fazer Login
-            </Link>
-          </div>
+      {/* Footer Fixo */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-4 z-50">
+        <div className="flex gap-3 max-w-lg mx-auto">
+          {step > 1 && (
+            <Button
+              variant="outline"
+              onClick={() => setStep(step - 1)}
+              className="flex-1 h-14 rounded-2xl text-base"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" /> Voltar
+            </Button>
+          )}
+          <Button
+            onClick={handleNext}
+            className="flex-1 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Cadastrando..." : step === 4 ? "Criar Conta" : "Próximo"}
+            {!isSubmitting && step < 4 && <ChevronRight className="w-4 h-4 ml-1" />}
+          </Button>
         </div>
-      </div>
+        <div className="text-center mt-3">
+          <p className="text-xs text-gray-500">
+            Já tem uma conta? <Link href="/login" className="text-emerald-600 font-medium hover:underline">Fazer Login</Link>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,0 +1,12 @@
+read:
+  - factory-workflow/context/**
+  - factory-workflow/skill-resolver/**
+  - factory-workflow/policies/**
+  - factory-workflow/agents/**
+  - factory-workflow/docs/**
+write:
+  - factory-workflow/skill-resolver/queue.yaml
+  - factory-workflow/docs/projects/**/work/**/progress.md
+deny:
+  - apps/**
+  - factory-workflow/bots/runtime/**

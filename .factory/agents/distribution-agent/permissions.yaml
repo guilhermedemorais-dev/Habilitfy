@@ -1,0 +1,9 @@
+read:
+  - factory-workflow/docs/**
+  - factory-workflow/governance/**
+write:
+  - factory-workflow/docs/projects/**/work/**/distribution.md
+  - factory-workflow/docs/projects/**/work/**/progress.md
+deny:
+  - apps/**
+  - factory-workflow/bots/runtime/**

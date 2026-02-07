@@ -1,0 +1,25 @@
+id: orchestrator-agent
+role: coordinator
+engine: agent-orchestrator
+stage: meta
+triggers:
+  - new_intent
+  - queue_empty
+  - policy_violation
+inputs:
+  - intent
+  - context_snapshot
+  - policy_state
+  - available_agents
+  - constraints
+outputs:
+  - agent_queue
+  - delegation_map
+  - priority_order
+dependencies:
+  - factory-workflow/skill-resolver
+  - factory-workflow/policies
+  - factory-workflow/memory
+limits:
+  - no_code_writes
+  - no_direct_deploy

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DistributionAgentOutputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "distribution_assets": {"type": "array", "items": {"type": "string"}},
+    "messaging_plan": {"type": "string"},
+    "publish_log": {"type": "string"}
+  },
+  "required": ["distribution_assets", "messaging_plan"]
+}

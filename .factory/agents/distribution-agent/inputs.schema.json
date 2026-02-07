@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DistributionAgentInputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "release_notes": {"type": "string"},
+    "changelog": {"type": "string"},
+    "target_channels": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["release_notes", "target_channels"]
+}

@@ -1,0 +1,22 @@
+version: 1.0
+rules:
+  - id: require_plan_approval
+    description: No write actions without an approved plan
+    applies_to: [execution-engine, doc-engine, distribution-engine]
+    condition: plan_approved
+    on_fail: route_to_decision
+  - id: require_qa_evidence
+    description: No deploy or distribution without QA evidence
+    applies_to: [distribution-engine]
+    condition: qa_passed
+    on_fail: block
+  - id: require_decision_rationale
+    description: No decision without rationale
+    applies_to: [decision-engine]
+    condition: rationale_present
+    on_fail: block
+  - id: require_human_confirmation_destructive
+    description: No destructive action without human confirmation
+    applies_to: [execution-engine]
+    condition: human_confirmed
+    on_fail: block

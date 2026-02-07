@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DecisionAgentOutputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decision_record": {"type": "string"},
+    "rationale": {"type": "string"},
+    "followups": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["decision_record", "rationale"]
+}

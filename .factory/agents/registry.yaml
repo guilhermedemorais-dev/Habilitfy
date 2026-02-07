@@ -1,0 +1,46 @@
+agents:
+  - id: orchestrator-agent
+    engine: agent-orchestrator
+    stage: meta
+    triggers: [new_intent, queue_empty, policy_violation]
+    outputs: [agent_queue, delegation_map]
+  - id: research-agent
+    engine: planner-engine
+    stage: research
+    triggers: [missing_research, new_intent, scope_change]
+    outputs: [research_summary, evidence_links, gaps]
+  - id: planner-agent
+    engine: planner-engine
+    stage: plan
+    triggers: [missing_plan, scope_change, high_risk_change]
+    outputs: [plan_doc, task_queue, acceptance_criteria]
+  - id: executor-agent
+    engine: execution-engine
+    stage: implement
+    triggers: [plan_approved, task_queue_ready]
+    outputs: [code_changes, build_updates]
+  - id: qa-agent
+    engine: quality-engine
+    stage: qa
+    triggers: [implementation_complete, release_candidate]
+    outputs: [test_reports, audit_reports]
+  - id: security-agent
+    engine: security-engine
+    stage: security
+    triggers: [risk_high, dependency_change, release_candidate]
+    outputs: [risk_findings, mitigations]
+  - id: doc-agent
+    engine: doc-engine
+    stage: docs
+    triggers: [plan_approved, implementation_complete]
+    outputs: [docs_updates, architecture_notes]
+  - id: decision-agent
+    engine: decision-engine
+    stage: decision
+    triggers: [tradeoff_detected, policy_exception]
+    outputs: [decision_record, rationale]
+  - id: distribution-agent
+    engine: distribution-engine
+    stage: distribution
+    triggers: [qa_passed, release_candidate]
+    outputs: [release_notes, distribution_assets]

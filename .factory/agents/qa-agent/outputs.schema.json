@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "QaAgentOutputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "test_reports": {"type": "array", "items": {"type": "string"}},
+    "audit_reports": {"type": "array", "items": {"type": "string"}},
+    "qa_summary": {"type": "string"}
+  },
+  "required": ["qa_summary"]
+}
