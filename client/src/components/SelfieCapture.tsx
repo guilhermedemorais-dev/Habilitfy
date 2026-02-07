@@ -13,13 +13,26 @@ type CaptureState = 'instructions' | 'camera' | 'captured' | 'error';
 export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [stream, setStream] = useState<MediaStream | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [state, setState] = useState<CaptureState>('instructions');
     const [error, setError] = useState<string | null>(null);
+    const [isVideoReady, setIsVideoReady] = useState(false);
+
+    // Attach stream to video element using callback ref
+    const attachStreamToVideo = useCallback((video: HTMLVideoElement | null) => {
+        if (video && streamRef.current && video.srcObject !== streamRef.current) {
+            console.log('[SelfieCapture] Attaching stream to video');
+            video.srcObject = streamRef.current;
+            video.play().catch(err => {
+                console.error('[SelfieCapture] Video play error:', err);
+            });
+        }
+    }, []);
 
     const startCamera = useCallback(async () => {
         setError(null);
+        setIsVideoReady(false);
 
         if (!navigator.mediaDevices?.getUserMedia) {
             setError("Câmera não disponível. Use HTTPS ou um navegador compatível.");
@@ -28,68 +41,84 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
         }
 
         try {
+            console.log('[SelfieCapture] Requesting camera access...');
             const mediaStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: "user",
-                    width: { ideal: 720 },
-                    height: { ideal: 960 }
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
                 },
                 audio: false,
             });
 
-            setStream(mediaStream);
+            console.log('[SelfieCapture] Camera access granted, tracks:', mediaStream.getTracks().length);
+            streamRef.current = mediaStream;
             setState('camera');
 
+            // Try to attach immediately if video ref already exists
+            if (videoRef.current) {
+                attachStreamToVideo(videoRef.current);
+            }
+
         } catch (err: any) {
-            console.error("Camera error:", err);
+            console.error("[SelfieCapture] Camera error:", err);
             if (err.name === 'NotAllowedError') {
-                setError("Permissão de câmera negada. Por favor, permita o acesso à câmera.");
+                setError("Permissão de câmera negada. Por favor, permita o acesso à câmera nas configurações do navegador.");
             } else if (err.name === 'NotFoundError') {
                 setError("Nenhuma câmera encontrada no dispositivo.");
+            } else if (err.name === 'NotReadableError') {
+                setError("A câmera está sendo usada por outro aplicativo.");
             } else {
-                setError("Não foi possível acessar a câmera.");
+                setError(`Não foi possível acessar a câmera: ${err.message || err.name}`);
             }
             setState('error');
         }
-    }, []);
-
-    // Attach stream to video when both are ready
-    useEffect(() => {
-        if (state === 'camera' && stream && videoRef.current) {
-            const video = videoRef.current;
-            video.srcObject = stream;
-
-            // Ensure video plays after metadata is loaded
-            const handleLoadedMetadata = () => {
-                video.play().catch(console.error);
-            };
-
-            video.addEventListener('loadedmetadata', handleLoadedMetadata);
-
-            // Also try to play immediately in case metadata already loaded
-            if (video.readyState >= 1) {
-                video.play().catch(console.error);
-            }
-
-            return () => {
-                video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-            };
-        }
-    }, [state, stream]);
+    }, [attachStreamToVideo]);
 
     const stopCamera = useCallback(() => {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            setStream(null);
+        if (streamRef.current) {
+            console.log('[SelfieCapture] Stopping camera');
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
         }
-    }, [stream]);
+        setIsVideoReady(false);
+    }, []);
+
+    // Handle video element ready
+    const handleVideoRef = useCallback((video: HTMLVideoElement | null) => {
+        (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = video;
+        if (video && streamRef.current) {
+            console.log('[SelfieCapture] Video ref callback - attaching stream');
+            video.srcObject = streamRef.current;
+        }
+    }, []);
+
+    // Handle video can play
+    const handleCanPlay = useCallback(() => {
+        console.log('[SelfieCapture] Video can play');
+        setIsVideoReady(true);
+        if (videoRef.current) {
+            videoRef.current.play().catch(console.error);
+        }
+    }, []);
+
+    // Handle video playing
+    const handlePlaying = useCallback(() => {
+        console.log('[SelfieCapture] Video is playing');
+        setIsVideoReady(true);
+    }, []);
 
     const capture = useCallback(() => {
-        if (!videoRef.current || !canvasRef.current) return;
+        if (!videoRef.current || !canvasRef.current) {
+            console.error('[SelfieCapture] Missing refs for capture');
+            return;
+        }
 
         const video = videoRef.current;
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
+
+        console.log('[SelfieCapture] Capturing - video size:', video.videoWidth, 'x', video.videoHeight);
 
         if (context && video.videoWidth && video.videoHeight) {
             canvas.width = video.videoWidth;
@@ -105,6 +134,8 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
             onCapture(imageSrc);
             setState('captured');
             stopCamera();
+        } else {
+            console.error('[SelfieCapture] Video not ready for capture');
         }
     }, [onCapture, stopCamera]);
 
@@ -116,11 +147,11 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
             }
         };
-    }, [stream]);
+    }, []);
 
     return (
         <div className="w-full max-w-md mx-auto">
@@ -182,68 +213,92 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                         className="relative"
                     >
                         {/* Camera Container */}
-                        <div className="relative aspect-[3/4] w-full rounded-3xl overflow-hidden bg-gray-900">
-                            {/* Video */}
+                        <div className="relative aspect-[3/4] w-full rounded-3xl overflow-hidden bg-black">
+                            {/* Video - using callback ref for reliable attachment */}
                             <video
-                                ref={videoRef}
+                                ref={handleVideoRef}
                                 autoPlay
                                 playsInline
                                 muted
-                                className="w-full h-full object-cover transform scale-x-[-1]"
+                                onCanPlay={handleCanPlay}
+                                onPlaying={handlePlaying}
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    transform: 'scaleX(-1)'
+                                }}
                             />
 
-                            {/* Dark overlay with oval cutout */}
-                            <div className="absolute inset-0 pointer-events-none">
-                                <svg className="w-full h-full" viewBox="0 0 300 400" preserveAspectRatio="none">
-                                    <defs>
-                                        <mask id="faceMask">
-                                            <rect width="100%" height="100%" fill="white" />
-                                            <ellipse cx="150" cy="180" rx="90" ry="120" fill="black" />
-                                        </mask>
-                                    </defs>
-                                    <rect
-                                        width="100%"
-                                        height="100%"
-                                        fill="rgba(0,0,0,0.6)"
-                                        mask="url(#faceMask)"
-                                    />
-                                    {/* Oval border */}
-                                    <ellipse
-                                        cx="150"
-                                        cy="180"
-                                        rx="90"
-                                        ry="120"
-                                        fill="none"
-                                        stroke="white"
-                                        strokeWidth="3"
-                                        strokeDasharray="8 4"
-                                        className="animate-pulse"
-                                    />
-                                </svg>
-                            </div>
+                            {/* Loading indicator */}
+                            {!isVideoReady && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black">
+                                    <div className="text-center">
+                                        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                                        <p className="text-white text-sm">Iniciando câmera...</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Dark overlay with oval cutout - only show when video is ready */}
+                            {isVideoReady && (
+                                <div className="absolute inset-0 pointer-events-none">
+                                    <svg className="w-full h-full" viewBox="0 0 300 400" preserveAspectRatio="none">
+                                        <defs>
+                                            <mask id="faceMask">
+                                                <rect width="100%" height="100%" fill="white" />
+                                                <ellipse cx="150" cy="180" rx="90" ry="120" fill="black" />
+                                            </mask>
+                                        </defs>
+                                        <rect
+                                            width="100%"
+                                            height="100%"
+                                            fill="rgba(0,0,0,0.5)"
+                                            mask="url(#faceMask)"
+                                        />
+                                        {/* Oval border */}
+                                        <ellipse
+                                            cx="150"
+                                            cy="180"
+                                            rx="90"
+                                            ry="120"
+                                            fill="none"
+                                            stroke="white"
+                                            strokeWidth="3"
+                                            strokeDasharray="8 4"
+                                        />
+                                    </svg>
+                                </div>
+                            )}
 
                             {/* Top instruction */}
-                            <div className="absolute top-6 left-0 right-0 flex justify-center">
-                                <div className="bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full">
-                                    <p className="text-white text-sm font-medium">
-                                        Posicione seu rosto no oval
-                                    </p>
+                            {isVideoReady && (
+                                <div className="absolute top-6 left-0 right-0 flex justify-center">
+                                    <div className="bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full">
+                                        <p className="text-white text-sm font-medium">
+                                            Posicione seu rosto no oval
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Capture Button */}
                         <div className="flex justify-center mt-6">
                             <button
                                 onClick={capture}
-                                className="w-20 h-20 rounded-full bg-white border-4 border-blue-500 flex items-center justify-center shadow-lg hover:scale-105 transition-transform active:scale-95"
+                                disabled={!isVideoReady}
+                                className={`w-20 h-20 rounded-full bg-white border-4 flex items-center justify-center shadow-lg transition-all ${isVideoReady
+                                        ? 'border-blue-500 hover:scale-105 active:scale-95'
+                                        : 'border-gray-300 opacity-50 cursor-not-allowed'
+                                    }`}
                             >
-                                <div className="w-14 h-14 rounded-full bg-blue-500" />
+                                <div className={`w-14 h-14 rounded-full ${isVideoReady ? 'bg-blue-500' : 'bg-gray-400'}`} />
                             </button>
                         </div>
 
                         <p className="text-center text-gray-500 text-sm mt-4">
-                            Toque para capturar
+                            {isVideoReady ? 'Toque para capturar' : 'Aguarde a câmera iniciar...'}
                         </p>
                     </motion.div>
                 )}
