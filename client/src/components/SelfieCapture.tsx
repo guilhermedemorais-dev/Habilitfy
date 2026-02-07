@@ -40,14 +40,6 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
             setStream(mediaStream);
             setState('camera');
 
-            // Attach stream to video element
-            setTimeout(() => {
-                if (videoRef.current) {
-                    videoRef.current.srcObject = mediaStream;
-                    videoRef.current.play().catch(console.error);
-                }
-            }, 100);
-
         } catch (err: any) {
             console.error("Camera error:", err);
             if (err.name === 'NotAllowedError') {
@@ -60,6 +52,30 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
             setState('error');
         }
     }, []);
+
+    // Attach stream to video when both are ready
+    useEffect(() => {
+        if (state === 'camera' && stream && videoRef.current) {
+            const video = videoRef.current;
+            video.srcObject = stream;
+
+            // Ensure video plays after metadata is loaded
+            const handleLoadedMetadata = () => {
+                video.play().catch(console.error);
+            };
+
+            video.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+            // Also try to play immediately in case metadata already loaded
+            if (video.readyState >= 1) {
+                video.play().catch(console.error);
+            }
+
+            return () => {
+                video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            };
+        }
+    }, [state, stream]);
 
     const stopCamera = useCallback(() => {
         if (stream) {
