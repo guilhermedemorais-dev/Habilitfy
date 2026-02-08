@@ -194,6 +194,10 @@ export async function setupAuth(app: Express) {
 
     app.get("/api/auth/google/callback", (req, res, next) => {
         passport.authenticate("google", (err: any, user: any, info: any) => {
+            console.log("[auth] Google callback - err:", err);
+            console.log("[auth] Google callback - user:", user ? { id: user.id, email: user.email } : null);
+            console.log("[auth] Google callback - info:", info);
+
             if (err) {
                 console.error("[auth] Google callback error:", err);
                 return res.redirect("/login?error=auth_failed");
@@ -201,7 +205,10 @@ export async function setupAuth(app: Express) {
             if (!user) {
                 // User not found - check if profile was passed to store in session
                 const profile = (info as any)?.profile;
+                console.log("[auth] Google callback - profile from info:", profile ? { id: profile.id, email: profile.emails?.[0]?.value } : null);
+
                 if (!profile) {
+                    console.log("[auth] No profile found, redirecting to login with error");
                     return res.redirect("/login?error=account_not_found");
                 }
 
@@ -212,6 +219,7 @@ export async function setupAuth(app: Express) {
                     lastName: profile.name?.familyName,
                     profileImageUrl: profile.photos?.[0]?.value,
                 };
+                console.log("[auth] Saved pendingGoogleUser to session, redirecting to signup");
                 return res.redirect("/signup-student?google_connected=true");
             }
 
