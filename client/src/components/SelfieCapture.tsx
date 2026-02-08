@@ -22,6 +22,7 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
     const [isVideoReady, setIsVideoReady] = useState(false);
     const [faceDetected, setFaceDetected] = useState(false);
     const [modelsLoaded, setModelsLoaded] = useState(false);
+    const [screenFlash, setScreenFlash] = useState(false);
 
     // Load face-api.js models
     const loadModels = useCallback(async () => {
@@ -151,24 +152,33 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
     const capture = useCallback(() => {
         if (!videoRef.current || !canvasRef.current) return;
 
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
+        // Ativar flash de tela para iluminar o rosto
+        setScreenFlash(true);
 
-        if (context && video.videoWidth && video.videoHeight) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+        // Aguardar o flash iluminar e então capturar
+        setTimeout(() => {
+            const video = videoRef.current;
+            const canvas = canvasRef.current;
+            if (!video || !canvas) return;
 
-            context.translate(video.videoWidth, 0);
-            context.scale(-1, 1);
-            context.drawImage(video, 0, 0);
+            const context = canvas.getContext('2d');
 
-            const imageSrc = canvas.toDataURL('image/jpeg', 0.85);
-            setCapturedImage(imageSrc);
-            onCapture(imageSrc);
-            setState('captured');
-            stopCamera();
-        }
+            if (context && video.videoWidth && video.videoHeight) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                context.translate(video.videoWidth, 0);
+                context.scale(-1, 1);
+                context.drawImage(video, 0, 0);
+
+                const imageSrc = canvas.toDataURL('image/jpeg', 0.85);
+                setCapturedImage(imageSrc);
+                onCapture(imageSrc);
+                setState('captured');
+                stopCamera();
+            }
+            setScreenFlash(false);
+        }, 300); // Flash dura 300ms antes de capturar
     }, [onCapture, stopCamera]);
 
     const retake = useCallback(() => {
@@ -283,6 +293,17 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                                 }}
                             />
 
+                            {/* Screen Flash - Simula flash frontal */}
+                            {screenFlash && (
+                                <div
+                                    className="absolute inset-0 z-50 pointer-events-none"
+                                    style={{
+                                        background: 'linear-gradient(180deg, #FFFEF0 0%, #FFFDE0 50%, #FFFEF0 100%)',
+                                        opacity: 1,
+                                    }}
+                                />
+                            )}
+
                             {!isVideoReady && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black">
                                     <div className="text-center">
@@ -340,10 +361,10 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                                 onClick={capture}
                                 disabled={!isVideoReady}
                                 className={`w-20 h-20 rounded-full bg-white border-4 flex items-center justify-center shadow-lg transition-all ${faceDetected
-                                        ? 'border-green-500 hover:scale-105 active:scale-95'
-                                        : isVideoReady
-                                            ? 'border-blue-500 hover:scale-105 active:scale-95'
-                                            : 'border-gray-300 opacity-50 cursor-not-allowed'
+                                    ? 'border-green-500 hover:scale-105 active:scale-95'
+                                    : isVideoReady
+                                        ? 'border-blue-500 hover:scale-105 active:scale-95'
+                                        : 'border-gray-300 opacity-50 cursor-not-allowed'
                                     }`}
                             >
                                 <div className={`w-14 h-14 rounded-full transition-all ${faceDetected ? 'bg-green-500' : isVideoReady ? 'bg-blue-500' : 'bg-gray-400'
