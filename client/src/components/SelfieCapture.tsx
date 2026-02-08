@@ -1,38 +1,88 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Camera, RefreshCw, Check, AlertCircle, ChevronRight } from "lucide-react";
+import { Camera, RefreshCw, Check, AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import * as faceapi from 'face-api.js';
 
 interface SelfieCaptureProps {
     onCapture: (base64Image: string) => void;
     onSkip?: () => void;
 }
 
-type CaptureState = 'instructions' | 'camera' | 'captured' | 'error';
+type CaptureState = 'instructions' | 'loading' | 'camera' | 'captured' | 'error';
 
 export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const animationRef = useRef<number | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [state, setState] = useState<CaptureState>('instructions');
     const [error, setError] = useState<string | null>(null);
     const [isVideoReady, setIsVideoReady] = useState(false);
+    const [faceDetected, setFaceDetected] = useState(false);
+    const [modelsLoaded, setModelsLoaded] = useState(false);
 
-    // Attach stream to video element using callback ref
-    const attachStreamToVideo = useCallback((video: HTMLVideoElement | null) => {
-        if (video && streamRef.current && video.srcObject !== streamRef.current) {
-            console.log('[SelfieCapture] Attaching stream to video');
-            video.srcObject = streamRef.current;
-            video.play().catch(err => {
-                console.error('[SelfieCapture] Video play error:', err);
-            });
+    // Load face-api.js models
+    const loadModels = useCallback(async () => {
+        try {
+            console.log('[SelfieCapture] Loading face detection models...');
+            await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+            setModelsLoaded(true);
+            console.log('[SelfieCapture] Models loaded successfully');
+            return true;
+        } catch (err) {
+            console.error('[SelfieCapture] Failed to load models:', err);
+            return false;
         }
     }, []);
 
+    // Face detection loop
+    const detectFace = useCallback(async () => {
+        if (!videoRef.current || !modelsLoaded || state !== 'camera') return;
+
+        try {
+            const detection = await faceapi.detectSingleFace(
+                videoRef.current,
+                new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+            );
+
+            setFaceDetected(!!detection);
+
+            // Continue detection loop
+            if (state === 'camera') {
+                animationRef.current = requestAnimationFrame(() => {
+                    setTimeout(detectFace, 200); // Run every 200ms
+                });
+            }
+        } catch (err) {
+            console.error('[SelfieCapture] Face detection error:', err);
+        }
+    }, [modelsLoaded, state]);
+
+    // Start face detection when video is ready
+    useEffect(() => {
+        if (isVideoReady && modelsLoaded && state === 'camera') {
+            console.log('[SelfieCapture] Starting face detection loop');
+            detectFace();
+        }
+
+        return () => {
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+            }
+        };
+    }, [isVideoReady, modelsLoaded, state, detectFace]);
+
     const startCamera = useCallback(async () => {
         setError(null);
-        setIsVideoReady(false);
+        setState('loading');
+
+        // Load models first
+        const loaded = await loadModels();
+        if (!loaded) {
+            console.warn('[SelfieCapture] Models not loaded, continuing without face detection');
+        }
 
         if (!navigator.mediaDevices?.getUserMedia) {
             setError("Câmera não disponível. Use HTTPS ou um navegador compatível.");
@@ -51,80 +101,64 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                 audio: false,
             });
 
-            console.log('[SelfieCapture] Camera access granted, tracks:', mediaStream.getTracks().length);
+            console.log('[SelfieCapture] Camera access granted');
             streamRef.current = mediaStream;
             setState('camera');
 
-            // Try to attach immediately if video ref already exists
             if (videoRef.current) {
-                attachStreamToVideo(videoRef.current);
+                videoRef.current.srcObject = mediaStream;
             }
 
         } catch (err: any) {
             console.error("[SelfieCapture] Camera error:", err);
             if (err.name === 'NotAllowedError') {
-                setError("Permissão de câmera negada. Por favor, permita o acesso à câmera nas configurações do navegador.");
+                setError("Permissão de câmera negada. Por favor, permita o acesso à câmera.");
             } else if (err.name === 'NotFoundError') {
                 setError("Nenhuma câmera encontrada no dispositivo.");
-            } else if (err.name === 'NotReadableError') {
-                setError("A câmera está sendo usada por outro aplicativo.");
             } else {
                 setError(`Não foi possível acessar a câmera: ${err.message || err.name}`);
             }
             setState('error');
         }
-    }, [attachStreamToVideo]);
+    }, [loadModels]);
 
     const stopCamera = useCallback(() => {
         if (streamRef.current) {
-            console.log('[SelfieCapture] Stopping camera');
             streamRef.current.getTracks().forEach(track => track.stop());
             streamRef.current = null;
         }
+        if (animationRef.current) {
+            cancelAnimationFrame(animationRef.current);
+        }
         setIsVideoReady(false);
+        setFaceDetected(false);
     }, []);
 
-    // Handle video element ready
     const handleVideoRef = useCallback((video: HTMLVideoElement | null) => {
         (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = video;
         if (video && streamRef.current) {
-            console.log('[SelfieCapture] Video ref callback - attaching stream');
             video.srcObject = streamRef.current;
         }
     }, []);
 
-    // Handle video can play
     const handleCanPlay = useCallback(() => {
-        console.log('[SelfieCapture] Video can play');
         setIsVideoReady(true);
         if (videoRef.current) {
             videoRef.current.play().catch(console.error);
         }
     }, []);
 
-    // Handle video playing
-    const handlePlaying = useCallback(() => {
-        console.log('[SelfieCapture] Video is playing');
-        setIsVideoReady(true);
-    }, []);
-
     const capture = useCallback(() => {
-        if (!videoRef.current || !canvasRef.current) {
-            console.error('[SelfieCapture] Missing refs for capture');
-            return;
-        }
+        if (!videoRef.current || !canvasRef.current) return;
 
         const video = videoRef.current;
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
 
-        console.log('[SelfieCapture] Capturing - video size:', video.videoWidth, 'x', video.videoHeight);
-
         if (context && video.videoWidth && video.videoHeight) {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
-            // Mirror the image
             context.translate(video.videoWidth, 0);
             context.scale(-1, 1);
             context.drawImage(video, 0, 0);
@@ -134,21 +168,22 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
             onCapture(imageSrc);
             setState('captured');
             stopCamera();
-        } else {
-            console.error('[SelfieCapture] Video not ready for capture');
         }
     }, [onCapture, stopCamera]);
 
     const retake = useCallback(() => {
         setCapturedImage(null);
+        setFaceDetected(false);
         startCamera();
     }, [startCamera]);
 
-    // Cleanup on unmount
     useEffect(() => {
         return () => {
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(track => track.stop());
+            }
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
             }
         };
     }, []);
@@ -203,6 +238,27 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                     </motion.div>
                 )}
 
+                {/* Loading Screen */}
+                {state === 'loading' && (
+                    <motion.div
+                        key="loading"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="bg-white rounded-3xl border border-gray-100 p-8 text-center shadow-sm"
+                    >
+                        <div className="w-20 h-20 mx-auto mb-6 bg-blue-50 rounded-full flex items-center justify-center">
+                            <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">
+                            Preparando câmera...
+                        </h3>
+                        <p className="text-gray-500 text-sm">
+                            Carregando detecção facial
+                        </p>
+                    </motion.div>
+                )}
+
                 {/* Camera Screen */}
                 {state === 'camera' && (
                     <motion.div
@@ -212,16 +268,13 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                         exit={{ opacity: 0 }}
                         className="relative"
                     >
-                        {/* Camera Container */}
                         <div className="relative aspect-[3/4] w-full rounded-3xl overflow-hidden bg-black">
-                            {/* Video - using callback ref for reliable attachment */}
                             <video
                                 ref={handleVideoRef}
                                 autoPlay
                                 playsInline
                                 muted
                                 onCanPlay={handleCanPlay}
-                                onPlaying={handlePlaying}
                                 style={{
                                     width: '100%',
                                     height: '100%',
@@ -230,7 +283,6 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                                 }}
                             />
 
-                            {/* Loading indicator */}
                             {!isVideoReady && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black">
                                     <div className="text-center">
@@ -240,7 +292,6 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                                 </div>
                             )}
 
-                            {/* Dark overlay with oval cutout - only show when video is ready */}
                             {isVideoReady && (
                                 <div className="absolute inset-0 pointer-events-none">
                                     <svg className="w-full h-full" viewBox="0 0 300 400" preserveAspectRatio="none">
@@ -256,49 +307,58 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                                             fill="rgba(0,0,0,0.5)"
                                             mask="url(#faceMask)"
                                         />
-                                        {/* Oval border */}
+                                        {/* Oval border - changes color based on face detection */}
                                         <ellipse
                                             cx="150"
                                             cy="180"
                                             rx="90"
                                             ry="120"
                                             fill="none"
-                                            stroke="white"
-                                            strokeWidth="3"
-                                            strokeDasharray="8 4"
+                                            stroke={faceDetected ? "#22c55e" : "white"}
+                                            strokeWidth={faceDetected ? "4" : "3"}
+                                            strokeDasharray={faceDetected ? "0" : "8 4"}
+                                            style={{ transition: 'all 0.3s ease' }}
                                         />
                                     </svg>
                                 </div>
                             )}
 
-                            {/* Top instruction */}
                             {isVideoReady && (
                                 <div className="absolute top-6 left-0 right-0 flex justify-center">
-                                    <div className="bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full">
+                                    <div className={`backdrop-blur-sm px-4 py-2 rounded-full transition-all ${faceDetected ? 'bg-green-500/80' : 'bg-black/50'
+                                        }`}>
                                         <p className="text-white text-sm font-medium">
-                                            Posicione seu rosto no oval
+                                            {faceDetected ? '✓ Rosto detectado' : 'Posicione seu rosto no oval'}
                                         </p>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* Capture Button */}
                         <div className="flex justify-center mt-6">
                             <button
                                 onClick={capture}
                                 disabled={!isVideoReady}
-                                className={`w-20 h-20 rounded-full bg-white border-4 flex items-center justify-center shadow-lg transition-all ${isVideoReady
-                                        ? 'border-blue-500 hover:scale-105 active:scale-95'
-                                        : 'border-gray-300 opacity-50 cursor-not-allowed'
+                                className={`w-20 h-20 rounded-full bg-white border-4 flex items-center justify-center shadow-lg transition-all ${faceDetected
+                                        ? 'border-green-500 hover:scale-105 active:scale-95'
+                                        : isVideoReady
+                                            ? 'border-blue-500 hover:scale-105 active:scale-95'
+                                            : 'border-gray-300 opacity-50 cursor-not-allowed'
                                     }`}
                             >
-                                <div className={`w-14 h-14 rounded-full ${isVideoReady ? 'bg-blue-500' : 'bg-gray-400'}`} />
+                                <div className={`w-14 h-14 rounded-full transition-all ${faceDetected ? 'bg-green-500' : isVideoReady ? 'bg-blue-500' : 'bg-gray-400'
+                                    }`} />
                             </button>
                         </div>
 
-                        <p className="text-center text-gray-500 text-sm mt-4">
-                            {isVideoReady ? 'Toque para capturar' : 'Aguarde a câmera iniciar...'}
+                        <p className="text-center text-sm mt-4">
+                            {faceDetected ? (
+                                <span className="text-green-600 font-medium">Pronto! Toque para capturar</span>
+                            ) : isVideoReady ? (
+                                <span className="text-gray-500">Aguardando detecção do rosto...</span>
+                            ) : (
+                                <span className="text-gray-500">Iniciando câmera...</span>
+                            )}
                         </p>
                     </motion.div>
                 )}
@@ -311,7 +371,6 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                         animate={{ opacity: 1, scale: 1 }}
                         className="text-center"
                     >
-                        {/* Preview */}
                         <div className="relative aspect-[3/4] w-full rounded-3xl overflow-hidden mb-6 border-4 border-green-500">
                             <img
                                 src={capturedImage}
@@ -383,7 +442,6 @@ export function SelfieCapture({ onCapture, onSkip }: SelfieCaptureProps) {
                 )}
             </AnimatePresence>
 
-            {/* Hidden Canvas */}
             <canvas ref={canvasRef} className="hidden" />
         </div>
     );

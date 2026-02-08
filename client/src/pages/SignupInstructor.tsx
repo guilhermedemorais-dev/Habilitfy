@@ -3,35 +3,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
-import { CheckCircle2, ChevronRight, ChevronLeft, Upload, Camera, ArrowLeft } from "lucide-react";
+import { ChevronRight, ChevronLeft, Upload, ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
-import { WebcamCapture } from "@/components/WebcamCapture";
+import { SelfieCapture } from "@/components/SelfieCapture";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProgressDots } from "@/components/ui/ProgressDots";
-
-// Máscaras de input
-const maskCPF = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  return digits
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-};
-
-const maskPhone = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 10) {
-    return digits.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2");
-  }
-  return digits.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2");
-};
-
-const maskCEP = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-  return digits.replace(/(\d{5})(\d)/, "$1-$2");
-};
+import { maskCNPJ, maskPhone, maskCEP, isValidCNPJ, BRAZILIAN_STATES } from "@/lib/validators";
 
 // Google Icon
 const GoogleIcon = () => (
@@ -43,8 +22,6 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const STATES = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
-
 export default function SignupInstructor() {
   const [step, setStep] = useState(1);
   const [, setLocation] = useLocation();
@@ -54,34 +31,22 @@ export default function SignupInstructor() {
   const { toast } = useToast();
 
   const [form, setForm] = useState({
-    // Personal
-    firstName: "",
-    lastName: "",
-    cpf: "",
+    // Step 1: Dados da Empresa
+    fullName: "",
+    cnpj: "",
     phone: "",
-    birthDate: "",
     addressLine: "",
     zipCode: "",
     neighborhood: "",
     city: "",
     state: "",
-    // Professional / Documents
-    documentNumber: "",
-    credentialNumber: "",
-    selfieImageUrl: "",
-    documentFrontImageUrl: "",
-    documentBackImageUrl: "",
+    // Step 2: Documentos
+    cnhFrontImageUrl: "",
+    cnhBackImageUrl: "",
     credentialImageUrl: "",
-    // Vehicle
-    vehicleModel: "",
-    vehicleYear: "",
-    vehicleType: "",
-    vehiclePlate: "",
-    vehicleImageUrl: "",
-    vehicleDocImageUrl: "",
-    vehiclePlateImageUrl: "",
-    vehicleAuthorizationImageUrl: "",
-    // Auth
+    // Step 3: Selfie
+    selfieImageUrl: "",
+    // Step 4: Conta
     email: "",
     password: "",
     confirmPassword: "",
@@ -128,35 +93,28 @@ export default function SignupInstructor() {
     };
 
     if (step === 1) {
-      requireField("firstName", "Nome");
-      requireField("lastName", "Sobrenome");
-      requireField("cpf", "CPF");
+      requireField("fullName", "Nome Completo");
+      requireField("cnpj", "CNPJ");
       requireField("phone", "WhatsApp");
       requireField("addressLine", "Endereço");
       requireField("zipCode", "CEP");
       requireField("neighborhood", "Bairro");
       requireField("city", "Cidade");
       requireField("state", "Estado");
+      // Validação real de CNPJ
+      if (form.cnpj && !isValidCNPJ(form.cnpj)) {
+        nextErrors["cnpj"] = "CNPJ inválido.";
+      }
     }
 
     if (step === 2) {
-      requireField("selfieImageUrl", "Selfie");
-      requireField("documentNumber", "Número do Documento");
-      requireField("documentFrontImageUrl", "Frente do Documento");
-      requireField("documentBackImageUrl", "Verso do Documento");
-      requireField("credentialNumber", "Número da Credencial");
-      requireField("credentialImageUrl", "Foto da Credencial");
+      requireField("cnhFrontImageUrl", "Frente da CNH");
+      requireField("cnhBackImageUrl", "Verso da CNH");
+      requireField("credentialImageUrl", "Credencial de Instrutor");
     }
 
     if (step === 3) {
-      requireField("vehicleModel", "Modelo do Veículo");
-      requireField("vehicleYear", "Ano do Veículo");
-      requireField("vehicleType", "Tipo de Veículo");
-      requireField("vehiclePlate", "Placa");
-      requireField("vehicleImageUrl", "Foto do Veículo");
-      requireField("vehicleDocImageUrl", "Documento do Veículo");
-      requireField("vehiclePlateImageUrl", "Foto da Placa");
-      requireField("vehicleAuthorizationImageUrl", "Doc. de Autorização");
+      requireField("selfieImageUrl", "Selfie");
     }
 
     if (step === 4) {
@@ -184,7 +142,7 @@ export default function SignupInstructor() {
       return;
     }
 
-    if (step < 4) {
+    if (step < totalSteps) {
       setFieldErrors({});
       setStep(step + 1);
       return;
@@ -195,14 +153,15 @@ export default function SignupInstructor() {
       await apiRequest("POST", "/api/users/register", {
         ...form,
         role: "instructor",
-        documentImageUrl: form.documentFrontImageUrl,
+        firstName: form.fullName.split(" ")[0],
+        lastName: form.fullName.split(" ").slice(1).join(" "),
       });
 
       toast({
         title: "Cadastro realizado!",
-        description: "Bem-vindo ao HabilitFy.",
+        description: "Seu cadastro está em análise. Você receberá um e-mail quando for aprovado.",
       });
-      setLocation("/dashboard/instrutor");
+      setLocation("/login");
     } catch (err: any) {
       setError(err?.message || "Não foi possível enviar o cadastro.");
     } finally {
@@ -210,10 +169,14 @@ export default function SignupInstructor() {
     }
   };
 
+  const handleGoogleSignup = () => {
+    window.location.href = "/api/auth/google";
+  };
+
   const stepTitles: Record<number, string> = {
-    1: "Dados Pessoais",
-    2: "Documentos e Credencial",
-    3: "Dados do Veículo",
+    1: "Dados da Empresa",
+    2: "Documentos",
+    3: "Verificação Facial",
     4: "Criar Conta",
   };
 
@@ -252,40 +215,29 @@ export default function SignupInstructor() {
             transition={{ duration: 0.3 }}
             className="space-y-4"
           >
+            {/* Step 1: Dados da Empresa */}
             {step === 1 && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Nome</Label>
-                    <Input
-                      value={form.firstName}
-                      onChange={(e) => updateForm("firstName", e.target.value)}
-                      placeholder="Nome"
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("firstName") ? "border-red-500" : ""}`}
-                    />
-                    {getError("firstName") && <p className="text-xs text-red-600">{getError("firstName")}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Sobrenome</Label>
-                    <Input
-                      value={form.lastName}
-                      onChange={(e) => updateForm("lastName", e.target.value)}
-                      placeholder="Sobrenome"
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("lastName") ? "border-red-500" : ""}`}
-                    />
-                    {getError("lastName") && <p className="text-xs text-red-600">{getError("lastName")}</p>}
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Nome Completo</Label>
+                  <Input
+                    value={form.fullName}
+                    onChange={(e) => updateForm("fullName", e.target.value)}
+                    placeholder="Seu nome completo"
+                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("fullName") ? "border-red-500" : ""}`}
+                  />
+                  {getError("fullName") && <p className="text-xs text-red-600">{getError("fullName")}</p>}
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">CPF</Label>
+                  <Label className="text-sm font-medium text-gray-700">CNPJ</Label>
                   <Input
-                    value={form.cpf}
-                    onChange={(e) => updateForm("cpf", maskCPF(e.target.value))}
-                    placeholder="000.000.000-00"
-                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("cpf") ? "border-red-500" : ""}`}
+                    value={form.cnpj}
+                    onChange={(e) => updateForm("cnpj", maskCNPJ(e.target.value))}
+                    placeholder="00.000.000/0000-00"
+                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("cnpj") ? "border-red-500" : ""}`}
                   />
-                  {getError("cpf") && <p className="text-xs text-red-600">{getError("cpf")}</p>}
+                  {getError("cnpj") && <p className="text-xs text-red-600">{getError("cnpj")}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -352,7 +304,7 @@ export default function SignupInstructor() {
                       className={`flex h-14 w-full rounded-2xl border bg-gray-50 px-4 text-base ${getError("state") ? "border-red-500" : "border-gray-200"}`}
                     >
                       <option value="">Selecione</option>
-                      {STATES.map((uf) => (
+                      {BRAZILIAN_STATES.map((uf) => (
                         <option key={uf} value={uf}>{uf}</option>
                       ))}
                     </select>
@@ -362,282 +314,205 @@ export default function SignupInstructor() {
               </>
             )}
 
+            {/* Step 2: Documentos */}
             {step === 2 && (
               <>
                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl text-blue-800 text-sm flex gap-3 mb-4">
-                  <Camera className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <Upload className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold">Verificação e Credenciamento</p>
-                    <p>Envie sua selfie, documentos pessoais e sua credencial do Detran.</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  <Label className="text-sm font-medium text-gray-700">Sua Selfie</Label>
-                  <div className="border rounded-2xl overflow-hidden bg-gray-50">
-                    <WebcamCapture onCapture={(img) => updateForm('selfieImageUrl', img)} label="Tirar Selfie" />
-                  </div>
-                  {form.selfieImageUrl && <p className="text-sm text-green-600 text-center font-medium">Selfie capturada ✓</p>}
-                  {getError("selfieImageUrl") && <p className="text-xs text-red-600 text-center">{getError("selfieImageUrl")}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Nº Documento (CNH/RG)</Label>
-                    <Input
-                      value={form.documentNumber}
-                      onChange={(e) => updateForm("documentNumber", e.target.value)}
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("documentNumber") ? "border-red-500" : ""}`}
-                    />
-                    {getError("documentNumber") && <p className="text-xs text-red-600">{getError("documentNumber")}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Nº Credencial Detran</Label>
-                    <Input
-                      value={form.credentialNumber}
-                      onChange={(e) => updateForm("credentialNumber", e.target.value)}
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("credentialNumber") ? "border-red-500" : ""}`}
-                    />
-                    {getError("credentialNumber") && <p className="text-xs text-red-600">{getError("credentialNumber")}</p>}
+                    <p className="font-semibold">Envie seus documentos</p>
+                    <p>Fotos da CNH (frente e verso) e sua credencial de instrutor do Detran.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Frente Documento</Label>
-                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.documentFrontImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                      <Upload className={`w-6 h-6 mb-1 ${form.documentFrontImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                      <span className="text-xs text-gray-500">{form.documentFrontImageUrl ? "Enviado ✓" : "FRENTE"}</span>
-                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("documentFrontImageUrl", e.target.files)} />
+                    <Label className="text-sm font-medium text-gray-700">CNH (Frente)</Label>
+                    <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-2xl cursor-pointer hover:bg-gray-50 transition-colors ${form.cnhFrontImageUrl ? "border-green-500 bg-green-50" : "border-gray-300"}`}>
+                      {form.cnhFrontImageUrl ? (
+                        <img src={form.cnhFrontImageUrl} alt="CNH Frente" className="h-full w-full object-cover rounded-2xl" />
+                      ) : (
+                        <>
+                          <Upload className="w-6 h-6 text-gray-400 mb-1" />
+                          <span className="text-xs text-gray-500">Upload</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={(e) => handleFile("cnhFrontImageUrl", e.target.files)}
+                      />
                     </label>
-                    {getError("documentFrontImageUrl") && <p className="text-xs text-red-600">{getError("documentFrontImageUrl")}</p>}
+                    {getError("cnhFrontImageUrl") && <p className="text-xs text-red-600">{getError("cnhFrontImageUrl")}</p>}
                   </div>
+
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Verso Documento</Label>
-                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.documentBackImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                      <Upload className={`w-6 h-6 mb-1 ${form.documentBackImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                      <span className="text-xs text-gray-500">{form.documentBackImageUrl ? "Enviado ✓" : "VERSO"}</span>
-                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("documentBackImageUrl", e.target.files)} />
+                    <Label className="text-sm font-medium text-gray-700">CNH (Verso)</Label>
+                    <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-2xl cursor-pointer hover:bg-gray-50 transition-colors ${form.cnhBackImageUrl ? "border-green-500 bg-green-50" : "border-gray-300"}`}>
+                      {form.cnhBackImageUrl ? (
+                        <img src={form.cnhBackImageUrl} alt="CNH Verso" className="h-full w-full object-cover rounded-2xl" />
+                      ) : (
+                        <>
+                          <Upload className="w-6 h-6 text-gray-400 mb-1" />
+                          <span className="text-xs text-gray-500">Upload</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={(e) => handleFile("cnhBackImageUrl", e.target.files)}
+                      />
                     </label>
-                    {getError("documentBackImageUrl") && <p className="text-xs text-red-600">{getError("documentBackImageUrl")}</p>}
+                    {getError("cnhBackImageUrl") && <p className="text-xs text-red-600">{getError("cnhBackImageUrl")}</p>}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Foto da Credencial Detran</Label>
-                  <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.credentialImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                    <Upload className={`w-6 h-6 mb-1 ${form.credentialImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                    <span className="text-xs text-gray-500">{form.credentialImageUrl ? "Credencial enviada ✓" : "Enviar Credencial"}</span>
-                    <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("credentialImageUrl", e.target.files)} />
+                  <Label className="text-sm font-medium text-gray-700">Credencial de Instrutor (Detran)</Label>
+                  <label className={`flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-2xl cursor-pointer hover:bg-gray-50 transition-colors ${form.credentialImageUrl ? "border-green-500 bg-green-50" : "border-gray-300"}`}>
+                    {form.credentialImageUrl ? (
+                      <img src={form.credentialImageUrl} alt="Credencial" className="h-full w-full object-cover rounded-2xl" />
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                        <span className="text-sm text-gray-500">Clique para enviar</span>
+                        <span className="text-xs text-gray-400">JPEG, PNG até 5MB</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => handleFile("credentialImageUrl", e.target.files)}
+                    />
                   </label>
                   {getError("credentialImageUrl") && <p className="text-xs text-red-600">{getError("credentialImageUrl")}</p>}
                 </div>
               </>
             )}
 
+            {/* Step 3: Selfie */}
             {step === 3 && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Modelo</Label>
-                    <Input
-                      value={form.vehicleModel}
-                      onChange={(e) => updateForm("vehicleModel", e.target.value)}
-                      placeholder="Ex: Hyundai HB20"
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("vehicleModel") ? "border-red-500" : ""}`}
-                    />
-                    {getError("vehicleModel") && <p className="text-xs text-red-600">{getError("vehicleModel")}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Ano</Label>
-                    <Input
-                      value={form.vehicleYear}
-                      onChange={(e) => updateForm("vehicleYear", e.target.value)}
-                      placeholder="2023"
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("vehicleYear") ? "border-red-500" : ""}`}
-                    />
-                    {getError("vehicleYear") && <p className="text-xs text-red-600">{getError("vehicleYear")}</p>}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Tipo</Label>
-                    <select
-                      value={form.vehicleType}
-                      onChange={(e) => updateForm("vehicleType", e.target.value)}
-                      className={`flex h-14 w-full rounded-2xl border bg-gray-50 px-4 text-base ${getError("vehicleType") ? "border-red-500" : "border-gray-200"}`}
-                    >
-                      <option value="">Selecione</option>
-                      <option value="carro">Carro</option>
-                      <option value="moto">Moto</option>
-                      <option value="caminhao">Caminhão</option>
-                    </select>
-                    {getError("vehicleType") && <p className="text-xs text-red-600">{getError("vehicleType")}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Placa</Label>
-                    <Input
-                      value={form.vehiclePlate}
-                      onChange={(e) => updateForm("vehiclePlate", e.target.value.toUpperCase())}
-                      placeholder="ABC1D23"
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("vehiclePlate") ? "border-red-500" : ""}`}
-                    />
-                    {getError("vehiclePlate") && <p className="text-xs text-red-600">{getError("vehiclePlate")}</p>}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Foto do Veículo</Label>
-                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.vehicleImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                      <Upload className={`w-6 h-6 mb-1 ${form.vehicleImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                      <span className="text-xs text-gray-500">{form.vehicleImageUrl ? "Enviado ✓" : "Foto Veículo"}</span>
-                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("vehicleImageUrl", e.target.files)} />
-                    </label>
-                    {getError("vehicleImageUrl") && <p className="text-xs text-red-600">{getError("vehicleImageUrl")}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Foto da Placa</Label>
-                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.vehiclePlateImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                      <Upload className={`w-6 h-6 mb-1 ${form.vehiclePlateImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                      <span className="text-xs text-gray-500">{form.vehiclePlateImageUrl ? "Enviado ✓" : "Foto Placa"}</span>
-                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("vehiclePlateImageUrl", e.target.files)} />
-                    </label>
-                    {getError("vehiclePlateImageUrl") && <p className="text-xs text-red-600">{getError("vehiclePlateImageUrl")}</p>}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Doc. Veículo</Label>
-                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.vehicleDocImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                      <Upload className={`w-6 h-6 mb-1 ${form.vehicleDocImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                      <span className="text-xs text-gray-500">{form.vehicleDocImageUrl ? "Enviado ✓" : "CRLV"}</span>
-                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("vehicleDocImageUrl", e.target.files)} />
-                    </label>
-                    {getError("vehicleDocImageUrl") && <p className="text-xs text-red-600">{getError("vehicleDocImageUrl")}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Autorização</Label>
-                    <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${form.vehicleAuthorizationImageUrl ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                      <Upload className={`w-6 h-6 mb-1 ${form.vehicleAuthorizationImageUrl ? 'text-green-500' : 'text-gray-400'}`} />
-                      <span className="text-xs text-gray-500">{form.vehicleAuthorizationImageUrl ? "Enviado ✓" : "Autorização"}</span>
-                      <Input type="file" className="hidden" accept="image/*" onChange={(e) => handleFile("vehicleAuthorizationImageUrl", e.target.files)} />
-                    </label>
-                    {getError("vehicleAuthorizationImageUrl") && <p className="text-xs text-red-600">{getError("vehicleAuthorizationImageUrl")}</p>}
-                  </div>
-                </div>
+                <SelfieCapture onCapture={(img) => updateForm('selfieImageUrl', img)} />
+                {getError("selfieImageUrl") && <p className="text-xs text-red-600 text-center mt-4">{getError("selfieImageUrl")}</p>}
               </>
             )}
 
+            {/* Step 4: Criar Conta */}
             {step === 4 && (
               <>
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">E-mail</Label>
+                  <Input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => updateForm("email", e.target.value)}
+                    placeholder="seu@email.com"
+                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("email") ? "border-red-500" : ""}`}
+                  />
+                  {getError("email") && <p className="text-xs text-red-600">{getError("email")}</p>}
                 </div>
-                <h3 className="text-xl font-bold text-center text-gray-900 mb-4">Quase lá!</h3>
 
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">E-mail</Label>
-                    <Input
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => updateForm("email", e.target.value)}
-                      placeholder="seu@email.com"
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("email") ? "border-red-500" : ""}`}
-                    />
-                    {getError("email") && <p className="text-xs text-red-600">{getError("email")}</p>}
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Senha</Label>
+                  <Input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => updateForm("password", e.target.value)}
+                    placeholder="••••••••"
+                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("password") ? "border-red-500" : ""}`}
+                  />
+                  {getError("password") && <p className="text-xs text-red-600">{getError("password")}</p>}
+                </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Senha</Label>
-                    <Input
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => updateForm("password", e.target.value)}
-                      placeholder="••••••••"
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("password") ? "border-red-500" : ""}`}
-                    />
-                    {getError("password") && <p className="text-xs text-red-600">{getError("password")}</p>}
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Confirmar Senha</Label>
+                  <Input
+                    type="password"
+                    value={form.confirmPassword}
+                    onChange={(e) => updateForm("confirmPassword", e.target.value)}
+                    placeholder="••••••••"
+                    className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("confirmPassword") ? "border-red-500" : ""}`}
+                  />
+                  {getError("confirmPassword") && <p className="text-xs text-red-600">{getError("confirmPassword")}</p>}
+                </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Confirmar Senha</Label>
-                    <Input
-                      type="password"
-                      value={form.confirmPassword}
-                      onChange={(e) => updateForm("confirmPassword", e.target.value)}
-                      placeholder="••••••••"
-                      className={`h-14 rounded-2xl bg-gray-50 border-gray-200 ${getError("confirmPassword") ? "border-red-500" : ""}`}
-                    />
-                    {getError("confirmPassword") && <p className="text-xs text-red-600">{getError("confirmPassword")}</p>}
-                  </div>
-
-                  <div className="relative my-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-gray-200"></span>
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-white px-2 text-gray-500">Ou entre com</span>
-                    </div>
-                  </div>
-
-                  <a href="/api/auth/google" className="block">
-                    <Button variant="outline" className="w-full h-14 rounded-2xl gap-2" type="button">
-                      <GoogleIcon />
-                      Continuar com Google
-                    </Button>
-                  </a>
-
-                  <div className="flex items-start space-x-3 p-3 border rounded-2xl hover:bg-gray-50 transition-colors">
-                    <Checkbox
-                      id="terms"
-                      checked={form.acceptTerms}
-                      onCheckedChange={(checked) => updateForm("acceptTerms", checked as boolean)}
-                      className="mt-1"
-                    />
-                    <Label htmlFor="terms" className="text-sm font-normal text-gray-600 leading-snug cursor-pointer">
-                      Declaro que as informações são verdadeiras e aceito os <Link href="/termos" className="text-emerald-600 hover:underline font-medium">Termos de Uso</Link> e <Link href="/privacidade" className="text-emerald-600 hover:underline font-medium">Política de Privacidade</Link>.
+                <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  <Checkbox
+                    id="acceptTerms"
+                    checked={form.acceptTerms}
+                    onCheckedChange={(checked) => updateForm("acceptTerms", checked as boolean)}
+                    className="mt-1"
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label htmlFor="acceptTerms" className="text-sm font-medium cursor-pointer">
+                      Aceito os <Link href="/termos" className="text-blue-600 underline">termos de uso</Link> e{" "}
+                      <Link href="/privacidade" className="text-blue-600 underline">política de privacidade</Link>
                     </Label>
                   </div>
-                  {getError("acceptTerms") && <p className="text-xs text-red-600">{getError("acceptTerms")}</p>}
                 </div>
+                {getError("acceptTerms") && <p className="text-xs text-red-600">{getError("acceptTerms")}</p>}
+
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-gray-500">ou</span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGoogleSignup}
+                  className="w-full h-14 rounded-2xl border-gray-200 text-gray-700 font-medium gap-3"
+                >
+                  <GoogleIcon />
+                  Continuar com Google
+                </Button>
               </>
             )}
-
-            {error && <p className="text-sm text-red-600 text-center bg-red-50 p-3 rounded-2xl">{error}</p>}
           </motion.div>
         </AnimatePresence>
       </main>
 
       {/* Footer Fixo */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-4 z-50">
-        <div className="flex gap-3 max-w-lg mx-auto">
+      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-6">
+        <div className="flex gap-4 max-w-lg mx-auto">
           {step > 1 && (
             <Button
               variant="outline"
               onClick={() => setStep(step - 1)}
-              className="flex-1 h-14 rounded-2xl text-base"
+              className="flex-1 h-14 rounded-2xl border-gray-200 text-gray-700 font-semibold gap-2"
             >
-              <ChevronLeft className="w-4 h-4 mr-1" /> Voltar
+              <ChevronLeft className="w-5 h-5" />
+              Voltar
             </Button>
           )}
           <Button
             onClick={handleNext}
-            className="flex-1 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25"
             disabled={isSubmitting}
+            className="flex-1 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-2"
           >
-            {isSubmitting ? "Cadastrando..." : step === 4 ? "Criar Conta" : "Próximo"}
-            {!isSubmitting && step < 4 && <ChevronRight className="w-4 h-4 ml-1" />}
+            {isSubmitting ? "Enviando..." : step === totalSteps ? "Finalizar Cadastro" : "Próximo"}
+            {!isSubmitting && step < totalSteps && <ChevronRight className="w-5 h-5" />}
           </Button>
         </div>
-        <div className="text-center mt-3">
-          <p className="text-xs text-gray-500">
-            Já tem uma conta? <Link href="/login" className="text-emerald-600 font-medium hover:underline">Fazer Login</Link>
-          </p>
-        </div>
+
+        {error && (
+          <p className="text-sm text-red-600 text-center mt-3">{error}</p>
+        )}
+
+        <p className="text-center text-sm text-gray-500 mt-4">
+          Já tem uma conta?{" "}
+          <Link href="/login" className="text-emerald-600 font-medium hover:underline">
+            Fazer Login
+          </Link>
+        </p>
       </footer>
     </div>
   );
