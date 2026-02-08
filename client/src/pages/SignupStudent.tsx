@@ -1,8 +1,8 @@
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useState } from "react";
 import { CheckCircle2, ChevronRight, ChevronLeft, Upload, Camera, ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +31,13 @@ export default function SignupStudent() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const { toast } = useToast();
+    const [googleUser, setGoogleUser] = useState<{
+        googleId: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        profileImageUrl?: string;
+    } | null>(null);
 
     const [form, setForm] = useState({
         firstName: "",
@@ -48,6 +55,34 @@ export default function SignupStudent() {
         licenseImageUrl: "",
         acceptTerms: false,
     });
+
+    // Detectar Google OAuth callback
+    React.useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('google_connected') === 'true') {
+            // Buscar dados do usuário Google da sessão
+            fetch('/api/auth/pending-google-user', { credentials: 'include' })
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    if (data) {
+                        setGoogleUser(data);
+                        setForm(prev => ({
+                            ...prev,
+                            firstName: data.firstName || prev.firstName,
+                            lastName: data.lastName || prev.lastName,
+                            email: data.email || prev.email,
+                        }));
+                        toast({
+                            title: "Google conectado!",
+                            description: "Preencha os dados restantes para completar o cadastro.",
+                        });
+                    }
+                })
+                .catch(console.error);
+            // Limpar URL
+            window.history.replaceState({}, '', '/signup-student');
+        }
+    }, [toast]);
 
     const totalSteps = 5;
 
@@ -118,10 +153,13 @@ export default function SignupStudent() {
 
         if (step === 5) {
             requireField("email", "E-mail");
-            requireField("password", "Senha");
-            requireField("confirmPassword", "Confirmação de senha");
-            if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
-                nextErrors["confirmPassword"] = "As senhas não conferem.";
+            // Senha só é obrigatória se NÃO estiver usando Google
+            if (!googleUser) {
+                requireField("password", "Senha");
+                requireField("confirmPassword", "Confirmação de senha");
+                if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
+                    nextErrors["confirmPassword"] = "As senhas não conferem.";
+                }
             }
             if (!form.acceptTerms) {
                 nextErrors["acceptTerms"] = "Você deve aceitar os termos.";
@@ -151,7 +189,8 @@ export default function SignupStudent() {
         try {
             await apiRequest("POST", "/api/users/register", {
                 ...form,
-                role: "student"
+                role: "student",
+                googleId: googleUser?.googleId || undefined,
             });
 
             toast({

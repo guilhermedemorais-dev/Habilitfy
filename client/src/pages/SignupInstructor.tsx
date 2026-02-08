@@ -1,8 +1,8 @@
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useState } from "react";
 import { ChevronRight, ChevronLeft, Upload, ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -29,6 +29,13 @@ export default function SignupInstructor() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const [googleUser, setGoogleUser] = useState<{
+    googleId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    profileImageUrl?: string;
+  } | null>(null);
 
   const [form, setForm] = useState({
     // Step 1: Dados da Empresa
@@ -52,6 +59,31 @@ export default function SignupInstructor() {
     confirmPassword: "",
     acceptTerms: false,
   });
+
+  // Detectar Google OAuth callback
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google_connected') === 'true') {
+      fetch('/api/auth/pending-google-user', { credentials: 'include' })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setGoogleUser(data);
+            setForm(prev => ({
+              ...prev,
+              fullName: `${data.firstName || ''} ${data.lastName || ''}`.trim() || prev.fullName,
+              email: data.email || prev.email,
+            }));
+            toast({
+              title: "Google conectado!",
+              description: "Preencha os dados restantes para completar o cadastro.",
+            });
+          }
+        })
+        .catch(console.error);
+      window.history.replaceState({}, '', '/signup-instructor');
+    }
+  }, [toast]);
 
   const totalSteps = 4;
 
@@ -119,10 +151,13 @@ export default function SignupInstructor() {
 
     if (step === 4) {
       requireField("email", "E-mail");
-      requireField("password", "Senha");
-      requireField("confirmPassword", "Confirmação de senha");
-      if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
-        nextErrors["confirmPassword"] = "As senhas não conferem.";
+      // Senha só é obrigatória se NÃO estiver usando Google
+      if (!googleUser) {
+        requireField("password", "Senha");
+        requireField("confirmPassword", "Confirmação de senha");
+        if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
+          nextErrors["confirmPassword"] = "As senhas não conferem.";
+        }
       }
       if (!form.acceptTerms) {
         nextErrors["acceptTerms"] = "Você deve aceitar os termos.";
@@ -155,6 +190,7 @@ export default function SignupInstructor() {
         role: "instructor",
         firstName: form.fullName.split(" ")[0],
         lastName: form.fullName.split(" ").slice(1).join(" "),
+        googleId: googleUser?.googleId || undefined,
       });
 
       toast({
