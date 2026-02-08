@@ -24,7 +24,7 @@ export const sessions = mysqlTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-export const userRoleEnum = mysqlEnum('user_role', ['student', 'instructor', 'admin']);
+export const userRoleEnum = mysqlEnum('role', ['student', 'instructor', 'admin']);
 export const kycStatusEnum = mysqlEnum('kyc_status', ['pending', 'approved', 'rejected']);
 export const bookingStatusEnum = mysqlEnum('booking_status', ['pending', 'confirmed', 'paid', 'completed', 'cancelled']);
 export const instructorStatusEnum = mysqlEnum('instructor_status', ['pending', 'approved', 'rejected']);
