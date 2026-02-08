@@ -456,21 +456,6 @@ export default function SignupStudent() {
                                         {getError("confirmPassword") && <p className="text-xs text-red-600">{getError("confirmPassword")}</p>}
                                     </div>
 
-                                    <div className="relative my-4">
-                                        <div className="absolute inset-0 flex items-center">
-                                            <span className="w-full border-t border-gray-200"></span>
-                                        </div>
-                                        <div className="relative flex justify-center text-xs uppercase">
-                                            <span className="bg-white px-2 text-gray-500">Ou entre com</span>
-                                        </div>
-                                    </div>
-
-                                    <a href="/api/auth/google" className="block">
-                                        <Button variant="outline" className="w-full h-14 rounded-2xl gap-2" type="button">
-                                            <GoogleIcon />
-                                            Continuar com Google
-                                        </Button>
-                                    </a>
 
                                     <div className="flex items-start space-x-3 p-3 border rounded-2xl hover:bg-gray-50 transition-colors">
                                         <Checkbox
