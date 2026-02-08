@@ -546,6 +546,10 @@ export const insertInstructorSchema = createInsertSchema(instructors).omit({
   updatedAt: true,
   rating: true,
   reviewsCount: true,
+}).extend({
+  pricePerHour: z.coerce.number().min(0),
+  lat: z.coerce.number().optional(),
+  lng: z.coerce.number().optional(),
 });
 export type InsertInstructor = z.infer<typeof insertInstructorSchema>;
 export type Instructor = typeof instructors.$inferSelect;
