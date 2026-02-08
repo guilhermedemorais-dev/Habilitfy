@@ -424,8 +424,9 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.post('/api/users/register', async (req: Request, res: Response) => {
     try {
       const {
-        firstName, lastName, email, cpf, phone, addressLine, zipCode, neighborhood, city, state, role,
+        firstName, lastName, fullName, email, cpf, cnpj, phone, addressLine, zipCode, neighborhood, city, state, role,
         birthDate, selfieImageUrl, documentFrontImageUrl, documentBackImageUrl, theoreticalProofImageUrl, licenseImageUrl, isLicensed,
+        cnhFrontImageUrl, cnhBackImageUrl, credentialImageUrl,
         password, confirmPassword, googleId
       } = req.body;
 
@@ -464,14 +465,19 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const verificationToken = googleId ? null : crypto.randomBytes(32).toString('hex');
       const isVerified = !!googleId; // Google users are verified by default
 
+      // Extract first/last name from fullName if provided (instructor flow)
+      const finalFirstName = firstName?.trim() || (fullName ? fullName.split(' ')[0] : '');
+      const finalLastName = lastName?.trim() || (fullName ? fullName.split(' ').slice(1).join(' ') : '');
+
       // 1. Create User
       const newUser = await storage.upsertUser({
         id: userId,
         email: email.toLowerCase().trim(),
         googleId: googleId || null,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        cpf: cpf?.replace(/\D/g, '') || null,
+        firstName: finalFirstName,
+        lastName: finalLastName,
+        cpf: role !== 'instructor' ? (cpf?.replace(/\D/g, '') || null) : null,
+        cnpj: role === 'instructor' ? (cnpj?.replace(/\D/g, '') || null) : null,
         phone: phone?.replace(/\D/g, '') || null,
         addressLine: addressLine?.trim() || null,
         zipCode: zipCode?.replace(/\D/g, '') || null,
@@ -503,6 +509,8 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
       // Instructor specific images
       let savedCredentialImageUrl = null;
+      let savedCnhFrontImageUrl = null;
+      let savedCnhBackImageUrl = null;
       let savedVehicleAuthorizationImageUrl = null;
       let savedVehicleImageUrl = null;
       let savedVehicleDocImageUrl = null;
@@ -519,13 +527,18 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       if (role === 'instructor') {
-        const { credentialImageUrl, vehicleAuthorizationImageUrl, vehicleImageUrl, vehicleDocImageUrl, vehiclePlateImageUrl } = req.body;
-        // Reuse 'document_front' type for generic docs or add specific types to saveBase64Image if needed, but 'document_front' works for storage organization
-        if (credentialImageUrl) savedCredentialImageUrl = await saveBase64Image(credentialImageUrl, userId, 'document_front');
-        if (vehicleAuthorizationImageUrl) savedVehicleAuthorizationImageUrl = await saveBase64Image(vehicleAuthorizationImageUrl, userId, 'document_front');
-        if (vehicleImageUrl) savedVehicleImageUrl = await saveBase64Image(vehicleImageUrl, userId, 'document_front');
-        if (vehicleDocImageUrl) savedVehicleDocImageUrl = await saveBase64Image(vehicleDocImageUrl, userId, 'document_front');
-        if (vehiclePlateImageUrl) savedVehiclePlateImageUrl = await saveBase64Image(vehiclePlateImageUrl, userId, 'document_front');
+        const { vehicleAuthorizationImageUrl, vehicleImageUrl, vehicleDocImageUrl, vehiclePlateImageUrl } = req.body;
+
+        // CNH images
+        if (cnhFrontImageUrl) savedCnhFrontImageUrl = await saveBase64Image(cnhFrontImageUrl, userId, 'cnh_front');
+        if (cnhBackImageUrl) savedCnhBackImageUrl = await saveBase64Image(cnhBackImageUrl, userId, 'cnh_back');
+
+        // Other instructor docs
+        if (credentialImageUrl) savedCredentialImageUrl = await saveBase64Image(credentialImageUrl, userId, 'credential');
+        if (vehicleAuthorizationImageUrl) savedVehicleAuthorizationImageUrl = await saveBase64Image(vehicleAuthorizationImageUrl, userId, 'vehicle_auth');
+        if (vehicleImageUrl) savedVehicleImageUrl = await saveBase64Image(vehicleImageUrl, userId, 'vehicle');
+        if (vehicleDocImageUrl) savedVehicleDocImageUrl = await saveBase64Image(vehicleDocImageUrl, userId, 'vehicle_doc');
+        if (vehiclePlateImageUrl) savedVehiclePlateImageUrl = await saveBase64Image(vehiclePlateImageUrl, userId, 'vehicle_plate');
       }
 
       // 3. Create KYC Verification Record
@@ -559,14 +572,16 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
           credentialNumber: credentialNumber || "",
           documentNumber: documentNumber || "",
           selfieImageUrl: savedSelfieUrl,
-          documentImageUrl: savedDocumentFrontUrl, // Use front image for legacy/instructor table field
+          documentImageUrl: savedDocumentFrontUrl,
+          cnhFrontImageUrl: savedCnhFrontImageUrl,
+          cnhBackImageUrl: savedCnhBackImageUrl,
           credentialImageUrl: savedCredentialImageUrl,
           vehicleAuthorizationImageUrl: savedVehicleAuthorizationImageUrl,
           vehicleImageUrl: savedVehicleImageUrl,
           vehicleDocImageUrl: savedVehicleDocImageUrl,
           vehiclePlateImageUrl: savedVehiclePlateImageUrl,
           status: "pending",
-          maxBookingsPerStudent: 0 // Default
+          maxBookingsPerStudent: 0
         });
       }
 
