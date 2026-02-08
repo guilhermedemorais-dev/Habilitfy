@@ -107,8 +107,7 @@ export default function Login() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center gap-2 mb-2">
-            <img src={logoBlue} alt="HabilitFy" className="h-8 w-auto" />
-            <span className="text-xl font-bold text-[#3B82F6]">HabilitFy</span>
+            <img src={logoBlue} alt="HabilitFy" style={{ height: '25px', width: 'auto' }} />
           </div>
         </div>
 
