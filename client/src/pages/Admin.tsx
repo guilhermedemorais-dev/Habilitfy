@@ -1974,10 +1974,10 @@ export default function Admin() {
                     <CardContent className="p-0">
                       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-6 py-4">
                         <div>
-                          <p className="text-sm font-semibold text-slate-800">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-blue-100">
                             Mapa Brasil
                           </p>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-500 dark:text-blue-400">
                             Distribuicao por instrutores e alunos com
                             localizacao cadastrada.
                           </p>
@@ -2127,10 +2127,10 @@ export default function Admin() {
                   <Card className="border border-slate-200 shadow-sm">
                     <CardContent className="space-y-4 p-6">
                       <div>
-                        <p className="text-sm font-semibold text-slate-800">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-blue-100">
                           Alertas criticos
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 dark:text-blue-400">
                           Pendencias que exigem atencao imediata.
                         </p>
                       </div>
@@ -2140,7 +2140,7 @@ export default function Admin() {
                           return (
                             <div
                               key={alert.label}
-                              className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white px-3 py-3"
+                              className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white px-3 py-3 dark:bg-slate-800 dark:border-slate-700"
                             >
                               <div
                                 className={`flex h-9 w-9 items-center justify-center rounded-lg ${alert.bg} ${alert.tone}`}
@@ -2148,10 +2148,10 @@ export default function Admin() {
                                 <Icon className="h-4 w-4" />
                               </div>
                               <div className="flex-1">
-                                <p className="text-sm font-semibold text-slate-800">
+                                <p className="text-sm font-semibold text-slate-800 dark:text-blue-100">
                                   {alert.label}
                                 </p>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-slate-500 dark:text-blue-400">
                                   {alert.helper}
                                 </p>
                               </div>
@@ -2172,10 +2172,10 @@ export default function Admin() {
                   <CardContent className="space-y-4 p-6">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-800">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-blue-100">
                           Grafico financeiro
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 dark:text-blue-400">
                           Transacoes por periodo e status.
                         </p>
                       </div>
@@ -2263,10 +2263,10 @@ export default function Admin() {
               <section id="kyc" className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-blue-100">
                       Instrutores pendentes (KYC)
                     </h2>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-blue-400">
                       Aprovações manuais aguardando análise.
                     </p>
                   </div>
@@ -2362,9 +2362,9 @@ export default function Admin() {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <div className="text-sm text-slate-700">
+                                  <div className="text-sm text-slate-700 dark:text-blue-200">
                                     {vehicleLabel || "—"}{" "}
-                                    <span className="text-xs text-slate-400">
+                                    <span className="text-xs text-slate-400 dark:text-blue-400">
                                       {typeLabel}
                                     </span>
                                   </div>
@@ -2432,10 +2432,10 @@ export default function Admin() {
               <section id="instrutores" className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-blue-100">
                       Lista de instrutores
                     </h2>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-blue-400">
                       Base completa de instrutores cadastrados.
                     </p>
                   </div>
@@ -2526,9 +2526,9 @@ export default function Admin() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell>
-                                  <div className="text-sm text-slate-700">
+                                  <div className="text-sm text-slate-700 dark:text-blue-200">
                                     {vehicleLabel || "—"}{" "}
-                                    <span className="text-xs text-slate-400">
+                                    <span className="text-xs text-slate-400 dark:text-blue-400">
                                       {typeLabel}
                                     </span>
                                   </div>
@@ -2556,10 +2556,10 @@ export default function Admin() {
               <section id="alunos" className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-blue-100">
                       Lista de alunos
                     </h2>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-blue-400">
                       Alunos cadastrados e ativos na plataforma.
                     </p>
                   </div>
@@ -2624,10 +2624,10 @@ export default function Admin() {
               <section id="agendamentos" className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-blue-100">
                       Últimos agendamentos
                     </h2>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-blue-400">
                       Registros mais recentes da plataforma.
                     </p>
                   </div>
