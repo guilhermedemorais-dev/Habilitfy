@@ -14,3 +14,4 @@ client_secret_*.json
 .factory/bots/runtime/out/
 .factory/bots/runtime/.env
 logs/
+backups/
