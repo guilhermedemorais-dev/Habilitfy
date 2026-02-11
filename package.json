@@ -11,6 +11,7 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "seed:auth": "tsx --env-file=.env script/seed-auth-users.ts",
+    "seed:full": "tsx --env-file=.env script/reset_and_seed_comprehensive.ts",
     "test": "vitest run && playwright test",
     "test:unit": "vitest run",
     "test:watch": "vitest",
@@ -112,6 +113,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@testing-library/user-event": "^14.6.1",
@@ -127,6 +129,7 @@
     "@types/supertest": "^6.0.3",
     "drizzle-kit": "^0.31.8",
     "jsdom": "^27.4.0",
+    "mysqldump": "^3.2.0",
     "tsx": "^4.20.5",
     "vitest": "^4.0.16"
   },
