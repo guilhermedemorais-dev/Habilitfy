@@ -32,3 +32,34 @@ CREATE TABLE IF NOT EXISTS `admin_logs` (
 -- 6. Update the master admin user
 UPDATE `users` SET `admin_role` = 'master', `is_verified` = TRUE 
 WHERE `email` = 'guilhermemp.business@gmail.com' AND `role` = 'admin';
+
+-- 7. Ensure integrations table exists and has initial data
+CREATE TABLE IF NOT EXISTS `integrations` (
+  `id` VARCHAR(36) NOT NULL DEFAULT (UUID()),
+  `name` VARCHAR(255) NOT NULL,
+  `slug` VARCHAR(100) NOT NULL,
+  `category` VARCHAR(100) NOT NULL,
+  `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  `environment` ENUM('development', 'production') NOT NULL DEFAULT 'production',
+  `is_default` BOOLEAN DEFAULT FALSE,
+  `fields` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `integrations_slug_env_idx` (`slug`, `environment`),
+  INDEX `integrations_category_env_idx` (`category`, `environment`)
+);
+
+-- Insert OpenAI (Inactive by default on Production)
+INSERT IGNORE INTO `integrations` (`id`, `name`, `slug`, `category`, `status`, `environment`, `is_default`, `fields`)
+VALUES (
+  UUID(), 'OpenAI Production', 'openai', 'ai', 'inactive', 'production', 1, 
+  '[{"key": "apiKey", "label": "API Key", "type": "secret", "required": true, "value": ""}, {"key": "organization", "label": "Organization ID", "type": "text", "required": false, "value": ""}]'
+);
+
+-- Insert AbacatePay (Inactive by default on Production)
+INSERT IGNORE INTO `integrations` (`id`, `name`, `slug`, `category`, `status`, `environment`, `is_default`, `fields`)
+VALUES (
+  UUID(), 'AbacatePay Production', 'abacatepay', 'payment', 'inactive', 'production', 1,
+  '[{"key": "apiKey", "label": "API Key", "type": "secret", "required": true, "value": ""}, {"key": "baseUrl", "label": "Base URL", "type": "url", "required": false, "value": "https://api.abacatepay.com"}, {"key": "devMode", "label": "Modo Desenvolvimento", "type": "boolean", "required": false, "value": "false"}]'
+);

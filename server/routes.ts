@@ -394,22 +394,51 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
 
   // --- AI Assistant Route (Real) ---
+  // Helper function to resolve OpenAI configuration
+  const resolveOpenAIIntegrationConfig = async () => {
+    const environment =
+      process.env.NODE_ENV === "production" ? "production" : "development";
+    const integration = await storage.getIntegrationBySlug(
+      "openai",
+      environment,
+    );
+    if (!integration || integration.status !== "active") {
+      return {};
+    }
+    const fields = Array.isArray(integration.fields) ? integration.fields : [];
+    const readField = (key: string) =>
+      fields.find((field) => field.key === key)?.value ?? null;
+    const apiKey = readField("apiKey") || readField("api_key");
+    const organization = readField("organization");
+
+    return {
+      apiKey: apiKey?.trim() || undefined,
+      organization: organization?.trim() || undefined,
+    };
+  };
+
   app.post('/api/ai/chat', requireAdminRole('support'), async (req: any, res: Response) => {
     try {
-      if (!process.env.OPENAI_API_KEY) {
-        // Fail gracefully if no key is configured, but inform user this is a configuration issue, not a mock.
+      const config = await resolveOpenAIIntegrationConfig();
+      const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
+
+      if (!apiKey) {
+        // Fail gracefully if no key is configured, but inform user this is a configuration issue
         return res.json({
           role: 'assistant',
-          content: '⚠️ Erro de Configuração: A chave da API OpenAI (OPENAI_API_KEY) não foi encontrada no servidor. Configure-a no arquivo .env para ativar a inteligência real.'
+          content: '⚠️ Erro de Configuração: A chave da API OpenAI não foi encontrada. Por favor, configure a integração "OpenAI" no menu Configurações > Integrações do Painel Administrativo.'
         });
       }
 
       const { message } = req.body;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openai = new OpenAI({
+        apiKey: apiKey,
+        organization: config.organization
+      });
 
       const completion = await openai.chat.completions.create({
         messages: [
-          { role: "system", content: "Você é o assistente virtual do painel administrativo do HabilitFy. Ajude com dúvidas sobre gestão, instrutores, alunos e financeiro. Seja sucinto e profissional." },
+          { role: "system", content: "Você é o assistente virtual do painel administrativo do HabilitFy. Ajude com dúvidas sobre gestão, instrutores, alunos e financeiro. Seja sucinto e profissional. Ao responder, sempre considere que você está falando com um administrador do sistema." },
           { role: "user", content: message }
         ],
         model: "gpt-4o",
@@ -419,9 +448,18 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         role: 'assistant',
         content: completion.choices[0].message.content
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI Error:", error);
-      res.status(500).json({ message: "Erro ao comunicar com serviço de IA." });
+
+      // Handle specific OpenAI errors
+      if (error.status === 401) {
+        return res.json({
+          role: 'assistant',
+          content: '⚠️ Erro de Autenticação: A chave da API OpenAI configurada é inválida. Verifique a integração no Painel Admin.'
+        });
+      }
+
+      res.status(500).json({ message: "Erro ao comunicar com serviço de AI." });
     }
   });
 
