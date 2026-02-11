@@ -1948,13 +1948,13 @@ export default function Admin() {
                       >
                         <CardContent className="flex items-center justify-between gap-4 p-5">
                           <div>
-                            <p className="text-xs uppercase tracking-wide text-slate-500">
+                            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-blue-400">
                               {stat.label}
                             </p>
-                            <p className="text-2xl font-bold text-slate-900">
+                            <p className="text-2xl font-bold text-slate-900 dark:text-blue-100">
                               {value}
                             </p>
-                            <p className="text-xs text-slate-400">
+                            <p className="text-xs text-slate-400 dark:text-blue-300/70">
                               {stat.helper}
                             </p>
                           </div>
