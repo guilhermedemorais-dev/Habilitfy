@@ -8,9 +8,9 @@ tmp_tsx/
 .env
 .env.*
 client_secret_*.json
-factory/.venv/
-test-results/
-factory/factory/config/mcp.toml
-factory/factory/bots/runtime/out/
-factory/factory/bots/runtime/.env
+.factory/
+.factory/.venv/
+.factory/config/mcp.toml
+.factory/bots/runtime/out/
+.factory/bots/runtime/.env
 logs/

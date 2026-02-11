@@ -40,12 +40,33 @@ export function getSession() {
     }
 
     const MySQLStoreSession = MySQLStore(session);
+
+    // Parse DATABASE_URL to extract connection params for the session store
+    let dbHost = process.env.DB_HOST || 'localhost';
+    let dbPort = parseInt(process.env.DB_PORT || '3306');
+    let dbUser = process.env.DB_USER || 'root';
+    let dbPassword = process.env.DB_PASSWORD || '';
+    let dbName = process.env.DB_NAME || 'habilitfy';
+
+    if (process.env.DATABASE_URL) {
+        try {
+            const url = new URL(process.env.DATABASE_URL);
+            dbHost = url.hostname || dbHost;
+            dbPort = url.port ? parseInt(url.port) : dbPort;
+            dbUser = url.username || dbUser;
+            dbPassword = url.password || dbPassword;
+            dbName = url.pathname.replace('/', '') || dbName;
+        } catch (e) {
+            // fallback to individual env vars
+        }
+    }
+
     const sessionStore = new MySQLStoreSession({
-        host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT || '3306'),
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'habilitfy',
+        host: dbHost,
+        port: dbPort,
+        user: dbUser,
+        password: dbPassword,
+        database: dbName,
         createDatabaseTable: true,
         schema: {
             tableName: 'sessions',
@@ -104,6 +125,7 @@ export async function setupAuth(app: Express) {
                     try {
                         const email = profile.emails?.[0]?.value;
                         const googleId = profile.id;
+                        logger.info(`[auth] Google Strategy - Looking up user: googleId=${googleId}, email=${email}`);
 
                         // Try to find user by googleId first, then by email
                         let user = await storage.getUserByGoogleId?.(googleId);
@@ -113,6 +135,7 @@ export async function setupAuth(app: Express) {
                         }
 
                         if (user) {
+                            logger.info(`[auth] Google Strategy - User found: id=${user.id}, email=${user.email}`);
                             // Update user with Google profile info if needed
                             if (!user.googleId) {
                                 await storage.upsertUser({
@@ -128,9 +151,11 @@ export async function setupAuth(app: Express) {
                             return done(null, user);
                         }
 
+                        logger.info(`[auth] Google Strategy - User NOT found, passing to registration flow`);
                         // User not found - return false but pass profile for registration flow
                         return done(null, false, { profile } as any);
-                    } catch (err) {
+                    } catch (err: any) {
+                        logger.error(`[auth] Google Strategy ERROR: ${err?.message || err}`, { stack: err?.stack });
                         return done(err as Error);
                     }
                 }
@@ -328,11 +353,18 @@ export async function setupAuth(app: Express) {
     app.post("/api/login", (req, res, next) => {
         logger.info("[auth] POST /api/login hit (LocalStrategy)");
         passport.authenticate("local", (err: any, user: any, info: any) => {
-            if (err) return next(err);
+            if (err) {
+                logger.error(`[auth] POST /api/login DB/Auth error: ${err?.message || err}`, { stack: err?.stack });
+                return res.status(500).json({ message: err?.message || "Erro interno de autenticação" });
+            }
             if (!user) return res.status(401).json({ message: "Credenciais inválidas" });
             req.logIn(user, (loginErr) => {
-                if (loginErr) return next(loginErr);
-                return res.json(user);
+                if (loginErr) {
+                    logger.error(`[auth] POST /api/login session error: ${loginErr?.message}`);
+                    return res.status(500).json({ message: loginErr?.message || "Erro ao criar sessão" });
+                }
+                const { password: _pw, verificationToken: _vt, ...safeUser } = user;
+                return res.json(safeUser);
             });
         })(req, res, next);
     });
@@ -423,3 +455,24 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
     return next();
 };
+
+export function requireAdminRole(requiredRole: 'master' | 'manager' | 'support' = 'support') {
+    return (req: any, res: any, next: any) => {
+        if (!req.isAuthenticated() || !req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ message: "Forbidden: Admin access required" });
+        }
+
+        const userRole = req.user.adminRole;
+
+        // Hierarchy: master > manager > support
+        const roles = ['support', 'manager', 'master'];
+        const userRoleIndex = roles.indexOf(userRole);
+        const requiredRoleIndex = roles.indexOf(requiredRole);
+
+        if (userRoleIndex < requiredRoleIndex) {
+            return res.status(403).json({ message: `Forbidden: Requires ${requiredRole} role` });
+        }
+
+        next();
+    };
+}

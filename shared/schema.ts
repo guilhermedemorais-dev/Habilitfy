@@ -25,6 +25,7 @@ export const sessions = mysqlTable(
 );
 
 export const userRoleEnum = mysqlEnum('role', ['student', 'instructor', 'admin']);
+export const adminRoleEnum = mysqlEnum('admin_role', ['master', 'manager', 'support']);
 export const kycStatusEnum = mysqlEnum('kyc_status', ['pending', 'approved', 'rejected']);
 export const bookingStatusEnum = mysqlEnum('booking_status', ['pending', 'confirmed', 'paid', 'completed', 'cancelled']);
 export const instructorStatusEnum = mysqlEnum('instructor_status', ['pending', 'approved', 'rejected']);
@@ -107,6 +108,7 @@ export const users = mysqlTable("users", {
   lastName: varchar("last_name", { length: 255 }),
   profileImageUrl: varchar("profile_image_url", { length: 500 }),
   role: userRoleEnum.default('student').notNull(),
+  adminRole: adminRoleEnum,
   kycStatus: kycStatusEnum.default("approved").notNull(),
   phone: varchar("phone", { length: 50 }),
   cpf: varchar("cpf", { length: 20 }),
@@ -123,6 +125,15 @@ export const users = mysqlTable("users", {
   verificationToken: varchar("verification_token", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const adminLogs = mysqlTable("admin_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  adminId: varchar("admin_id", { length: 36 }).references(() => users.id).notNull(),
+  action: varchar("action", { length: 255 }).notNull(),
+  targetId: varchar("target_id", { length: 36 }),
+  changes: json("changes"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const instructors = mysqlTable("instructors", {
@@ -157,6 +168,14 @@ export const instructors = mysqlTable("instructors", {
   status: instructorStatusEnum.default('pending').notNull(),
   serviceAreas: text("service_areas"),
   pixKey: varchar("pix_key", { length: 255 }),
+  // Novos campos - Fase 2.5
+  yearsExperience: int("years_experience").default(0),
+  languages: json("languages").$type<string[]>(),
+  specialties: json("specialties").$type<string[]>(),
+  workingHours: varchar("working_hours", { length: 100 }),
+  responseTime: varchar("response_time", { length: 50 }),
+  galleryImages: json("gallery_images").$type<string[]>(),
+  lessonsCompleted: int("lessons_completed").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -570,6 +589,8 @@ export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type Review = typeof reviews.$inferSelect;
 export type Dispute = typeof disputes.$inferSelect;
 export type AdminSettings = typeof adminSettings.$inferSelect;
+export type AdminLog = typeof adminLogs.$inferSelect;
+
 
 export type Transaction = typeof transactions.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;

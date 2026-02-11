@@ -9,6 +9,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import type { Instructor } from "@shared/schema";
+import { InstructorCard, type InstructorWithUser } from "@/components/InstructorCard";
 import {
   InstructorFilters,
   useFilteredInstructors,
@@ -19,12 +20,20 @@ import {
 } from "@/components/filters/InstructorFilters";
 
 // Fix Leaflet Icon
-const createCustomIcon = (price: number) => {
+const createCustomIcon = () => {
   return divIcon({
     className: "custom-pin",
-    html: `<div class="bg-primary text-white font-bold text-xs px-2 py-1 rounded-lg shadow-lg border-2 border-white transform -translate-x-1/2 -translate-y-full whitespace-nowrap">R$ ${price}</div><div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-primary mx-auto"></div>`,
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
+    html: `
+      <div class="relative w-12 h-12 transition-transform hover:scale-110">
+        <img 
+          src="/marker-icon.png" 
+          alt="Instrutor" 
+          class="w-full h-full drop-shadow-lg"
+        />
+      </div>
+    `,
+    iconSize: [48, 48],
+    iconAnchor: [24, 48], // Bottom center anchor (pin style)
   });
 };
 
@@ -60,7 +69,14 @@ export default function MapPage() {
     saveFiltersToStorage(defaultFilters);
   }, []);
 
-  const { data: instructors = [], isLoading } = useQuery<Instructor[]>({
+  /*
+  const isLoading = false;
+  const instructors: InstructorWithUser[] = [
+    // ... mocked data removed ...
+  ] as any;
+  */
+
+  const { data: instructors = [], isLoading } = useQuery<InstructorWithUser[]>({
     queryKey: ["/api/instructors"],
   });
 
@@ -234,7 +250,7 @@ export default function MapPage() {
                 <Marker
                   key={instructor.id}
                   position={[parseFloat(instructor.lat!), parseFloat(instructor.lng!)]}
-                  icon={createCustomIcon(parseFloat(instructor.pricePerHour))}
+                  icon={createCustomIcon()}
                   eventHandlers={{
                     click: () => setSelectedInstructor(instructor.id),
                   }}
@@ -251,52 +267,23 @@ export default function MapPage() {
             </div>
           )}
 
-          {/* Selected Instructor Card Float */}
+          {/* Selected Instructor Card Float - Usando InstructorCard padrão */}
           {selectedInstructor && currentInstructor && (
             <div className="absolute bottom-20 left-4 right-4 z-[1000] animate-in slide-in-from-bottom-10 fade-in duration-300">
-              <Card className="border-none shadow-2xl rounded-2xl overflow-hidden">
-                <CardContent className="p-0 flex h-32">
-                  <div className="w-32 h-full relative bg-gradient-to-br from-green-100 to-yellow-100 flex items-center justify-center">
-                    {currentInstructor.vehicleImageUrl ? (
-                      <img src={currentInstructor.vehicleImageUrl} className="w-full h-full object-cover" alt="Veículo" />
-                    ) : (
-                      <span className="text-3xl">🚗</span>
-                    )}
-                    <div className="absolute top-2 left-2 bg-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                      {currentInstructor.rating || "5.0"} ★
-                    </div>
-                  </div>
-                  <div className="flex-1 p-4 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-slate-900 leading-tight">Instrutor</h3>
-                        <span className="font-bold text-primary">R${currentInstructor.pricePerHour}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">{currentInstructor.vehicleModel} • {currentInstructor.vehicleType}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{currentInstructor.neighborhood}</p>
-                    </div>
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 flex-1 text-xs border-slate-200"
-                        onClick={() => setSelectedInstructor(null)}
-                      >
-                        Fechar
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="h-8 flex-1 text-xs bg-primary hover:bg-green-700 text-white shadow-sm"
-                        asChild
-                      >
-                        <Link href={`/instrutor/${currentInstructor.id}`}>
-                          Ver Perfil
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full bg-white shadow-lg hover:bg-slate-100"
+                  onClick={() => setSelectedInstructor(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <InstructorCard
+                  instructor={currentInstructor}
+                  className="shadow-2xl border-none"
+                />
+              </div>
             </div>
           )}
         </>
@@ -313,39 +300,14 @@ export default function MapPage() {
               <EmptyState />
             ) : (
               filteredInstructors.map((instructor) => (
-                <Link key={instructor.id} href={`/instrutor/${instructor.id}`}>
-                  <Card className={cn(
-                    "border-none shadow-sm active:scale-[0.98] transition-transform",
+                <InstructorCard
+                  key={instructor.id}
+                  instructor={instructor}
+                  className={cn(
+                    "mb-4 border-none shadow-sm active:scale-[0.98] transition-transform",
                     selectedInstructor === instructor.id && "ring-2 ring-primary"
-                  )}>
-                    <CardContent className="p-4 flex gap-4">
-                      <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-green-100 to-yellow-100 flex items-center justify-center overflow-hidden">
-                        {instructor.vehicleImageUrl ? (
-                          <img src={instructor.vehicleImageUrl} className="w-full h-full object-cover" alt="Veículo" />
-                        ) : (
-                          <span className="text-3xl">🚗</span>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between">
-                          <h3 className="font-bold text-slate-900">Instrutor Profissional</h3>
-                          <div className="flex items-center gap-1 text-yellow-600 font-bold text-sm">
-                            <Star className="w-3 h-3 fill-current" />
-                            {instructor.rating || "5.0"}
-                          </div>
-                        </div>
-                        <p className="text-sm text-slate-500">{instructor.vehicleModel} • {instructor.vehicleType}</p>
-                        <p className="text-sm text-slate-400 mt-1">{instructor.neighborhood}</p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="font-bold text-primary">R$ {instructor.pricePerHour}<span className="text-xs font-normal text-slate-400">/aula</span></span>
-                          <span className="h-7 px-2 text-primary text-xs font-semibold flex items-center">
-                            Ver detalhes
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                  )}
+                />
               ))
             )}
           </div>

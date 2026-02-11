@@ -28,7 +28,14 @@ import {
   Wallet,
   WalletCards,
   X,
+  Lock,
+  Map as MapIcon,
 } from "lucide-react";
+import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
+import { AdminMap } from "@/components/admin/AdminMap";
+import { AdminMonitoring } from "@/components/admin/AdminMonitoring";
+import { AdminAIChat } from "@/components/admin/AdminAIChat";
+import { AdminFinancialCharts } from "@/components/admin/AdminFinancialCharts";
 import {
   MapContainer,
   TileLayer,
@@ -1185,8 +1192,15 @@ export default function Admin() {
       },
       { label: "Taxas", href: "#taxas", icon: CalendarCheck },
       { label: "Integrações", href: "#integracoes", icon: Plug },
+      {
+        label: "Gestão Acesso",
+        href: "#acesso",
+        icon: Lock,
+        hidden: user?.adminRole !== 'master'
+      },
+      { label: "Mapa", href: "#mapa", icon: MapIcon },
     ],
-    [counts.pending, pendingWithdrawals.length],
+    [counts.pending, pendingWithdrawals.length, user?.adminRole],
   );
 
   const stats = useMemo(
@@ -1761,7 +1775,7 @@ export default function Admin() {
             </div>
             <Separator />
             <nav className="flex-1 space-y-1 px-4 py-4">
-              {navItems.map((item) => (
+              {navItems.filter(item => !item.hidden).map((item) => (
                 <a
                   key={item.href}
                   href={item.href}
@@ -1807,7 +1821,7 @@ export default function Admin() {
                       </SheetHeader>
                       <Separator />
                       <nav className="space-y-1 px-4 py-4">
-                        {navItems.map((item) => (
+                        {navItems.filter(item => !item.hidden).map((item) => (
                           <a
                             key={item.href}
                             href={item.href}
@@ -1912,6 +1926,12 @@ export default function Admin() {
                     Exportar relatórios
                   </Button>
                 </div>
+
+                <AdminMonitoring />
+
+
+                <AdminFinancialCharts />
+
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   {stats.map((stat) => {
                     const Icon = stat.icon;
@@ -3495,6 +3515,24 @@ export default function Admin() {
                 </div>
               </section>
 
+              {user?.adminRole === 'master' && (
+                <section id="acesso" className="space-y-4">
+                  <AdminUsersTable />
+                </section>
+              )}
+
+              <section id="mapa" className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Mapa de Usuários</h2>
+                    <p className="text-sm text-slate-500">
+                      Visualização geográfica de instrutores e alunos.
+                    </p>
+                  </div>
+                </div>
+                <AdminMap instructors={instructorsData || []} students={studentsData || []} />
+              </section>
+
               <section id="integracoes" className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -4019,6 +4057,7 @@ export default function Admin() {
               </section>
             </div>
           </main>
+          <AdminAIChat />
         </div>
       </div>
     </AuthGuard>

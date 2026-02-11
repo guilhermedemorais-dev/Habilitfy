@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import type { Instructor } from "@shared/schema";
 import heroImg from "@assets/generated_images/happy_driving_lesson_in_brazil.png";
+import { InstructorCard, type InstructorWithUser } from "@/components/InstructorCard";
 
 const logoBlue = "/logo-topo.webp";
 
@@ -133,77 +134,9 @@ const CategoryPill = ({
   </button>
 );
 
-type InstructorListItem = Instructor & {
-  name?: string;
-  photo?: string;
-  user?: {
-    id: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-    profileImageUrl?: string | null;
-  } | null;
-};
 
-const InstructorCard = ({ instructor }: { instructor: InstructorListItem }) => {
-  const categoryLabel =
-    instructor.vehicleType || instructor.serviceAreas || "Carro";
-  const instructorName =
-    instructor.name ||
-    `${instructor.user?.firstName || ""} ${instructor.user?.lastName || ""}`.trim() ||
-    instructor.user?.email ||
-    "Instrutor";
-  const instructorPhoto =
-    instructor.photo || instructor.user?.profileImageUrl || "";
-  const ratingValue = Number(instructor.rating || 0);
-  const priceValue = Number(instructor.pricePerHour || 0);
 
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-center gap-3">
-        <div className="h-12 w-12 overflow-hidden rounded-xl bg-slate-100">
-          {instructorPhoto ? (
-            <img
-              src={instructorPhoto}
-              alt={`Foto de ${instructorName}`}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-slate-400">
-              {instructorName.charAt(0)}
-            </div>
-          )}
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-slate-900">
-            {instructorName}
-          </p>
-          <div className="flex items-center gap-1 text-xs text-slate-500">
-            <Star className="h-3.5 w-3.5 text-amber-400" />
-            <span>
-              {ratingValue.toFixed(1)} ({instructor.reviewsCount || 0})
-            </span>
-          </div>
-        </div>
-      </div>
-      <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-        <MapPin className="h-3.5 w-3.5" />
-        <span>{instructor.neighborhood}</span>
-      </div>
-      <div className="mt-3 flex items-center justify-between">
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-500">
-          {categoryLabel}
-        </span>
-        <span className="text-sm font-semibold text-slate-900">
-          R$ {priceValue.toFixed(0)}/aula
-        </span>
-      </div>
-      <Button className="mt-4 w-full rounded-full" size="sm" asChild>
-        <Link href={`/instrutor/${instructor.id}`}>Agendar</Link>
-      </Button>
-    </div>
-  );
-};
+
 
 const DesktopSidebar = () => {
   const [location] = useLocation();
@@ -248,7 +181,7 @@ export default function Home() {
   const [maxPrice, setMaxPrice] = useState("");
   const [activeStep, setActiveStep] = useState(0);
   const { data: apiInstructors = [], isLoading: instructorsLoading } = useQuery<
-    InstructorListItem[]
+    InstructorWithUser[]
   >({
     queryKey: ["/api/instructors"],
   });

@@ -5,6 +5,7 @@ import { GraduationCap, BadgeCheck, Mail, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useGlobalAlert } from "@/components/ui/GlobalAlert";
 import { motion } from "framer-motion";
 
 const logoBlue = "/logo-new-blue.svg";
@@ -39,6 +40,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
+  const { showAlert } = useGlobalAlert();
 
   // Redirecionar se já estiver logado
   useEffect(() => {
@@ -57,26 +59,19 @@ export default function Login() {
     const error = params.get("error");
 
     if (error === "account_not_found") {
-      toast({
-        title: "Conta não encontrada",
-        description: "Você precisa se cadastrar antes de fazer login com o Google.",
-        variant: "destructive",
-      });
+      showAlert("error", "Conta não encontrada", "Você precisa se cadastrar antes de fazer login com o Google.");
     } else if (error === "auth_failed") {
-      toast({
-        title: "Falha na autenticação",
-        description: "Não foi possível fazer login com o Google. Tente novamente.",
-        variant: "destructive",
-      });
+      showAlert("error", "Falha na autenticação", "Não foi possível fazer login com o Google. Tente novamente.");
     }
-  }, [toast]);
+  }, [showAlert]);
 
   const handleLogin = async () => {
     try {
       if (!loginMutation) return;
       await loginMutation.mutateAsync({ username: email, password });
-    } catch (e) {
+    } catch (e: any) {
       console.log("Login failed", e);
+      showAlert("error", "Erro no Login", e.message || "Verifique suas credenciais e tente novamente.");
     }
   };
 

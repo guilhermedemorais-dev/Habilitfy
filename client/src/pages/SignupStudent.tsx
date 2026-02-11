@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { SelfieCapture } from "@/components/SelfieCapture";
 import { useToast } from "@/hooks/use-toast";
+import { useGlobalAlert } from "@/components/ui/GlobalAlert";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProgressDots } from "@/components/ui/ProgressDots";
 import { maskCPF, maskPhone, isValidCPF } from "@/lib/validators";
@@ -31,6 +32,7 @@ export default function SignupStudent() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const { toast } = useToast();
+    const { showAlert } = useGlobalAlert();
     const [googleUser, setGoogleUser] = useState<{
         googleId: string;
         email: string;
@@ -193,13 +195,9 @@ export default function SignupStudent() {
                 googleId: googleUser?.googleId || undefined,
             });
 
-            toast({
-                title: "Cadastro realizado!",
-                description: "Bem-vindo ao HabilitFy.",
-            });
-            setLocation("/dashboard/aluno");
+            showAlert("success", "Cadastro realizado!", "Bem-vindo ao HabilitFy.", () => setLocation("/dashboard/aluno"));
         } catch (err: any) {
-            setError(err?.message || "Não foi possível enviar o cadastro.");
+            showAlert("error", "Erro no Cadastro", err?.message || "Não foi possível enviar o cadastro.");
         } finally {
             setIsSubmitting(false);
         }

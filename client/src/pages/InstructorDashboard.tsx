@@ -28,6 +28,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { WalletCard } from "@/components/dashboard/wallet/WalletCard";
 import { TransactionHistory } from "@/components/dashboard/wallet/TransactionHistory";
+import { ProfileEditor } from "@/components/dashboard/ProfileEditor";
+import { PwaInstallBanner } from "@/components/pwa/PwaInstallBanner";
 
 export default function InstructorDashboard() {
   const [date, setDate] = useState<Date>(new Date());
@@ -509,17 +511,20 @@ export default function InstructorDashboard() {
           </div>
         </header>
 
+        <PwaInstallBanner />
+
         <div className="p-6 space-y-6">
           {!isKycApproved ? (
             <KYCPendingBlock status={user?.kycStatus} />
           ) : (
             <Tabs defaultValue="overview" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-4 lg:w-fit">
+              <TabsList className="grid w-full grid-cols-5 lg:w-fit">
                 <TabsTrigger value="overview">Resumo</TabsTrigger>
                 <TabsTrigger value="schedule">Agenda</TabsTrigger>
+                <TabsTrigger value="profile">Perfil</TabsTrigger>
                 <TabsTrigger value="vehicles">Veículos</TabsTrigger>
-                < TabsTrigger value="support">Suporte</TabsTrigger>
-              </TabsList >
+                <TabsTrigger value="support">Suporte</TabsTrigger>
+              </TabsList>
 
               <TabsContent value="overview" className="space-y-6 outline-none">
                 {/* Stats Grid */}
@@ -877,6 +882,10 @@ export default function InstructorDashboard() {
                   </div >
                 </div >
               </TabsContent >
+
+              <TabsContent value="profile" className="space-y-6 outline-none">
+                {instructorProfile && <ProfileEditor instructor={instructorProfile} />}
+              </TabsContent>
 
               <TabsContent value="vehicles" className="space-y-6 outline-none">
                 < div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

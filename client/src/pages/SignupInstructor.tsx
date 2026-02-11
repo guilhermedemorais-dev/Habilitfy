@@ -8,6 +8,7 @@ import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { SelfieCapture } from "@/components/SelfieCapture";
 import { useToast } from "@/hooks/use-toast";
+import { useGlobalAlert } from "@/components/ui/GlobalAlert";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProgressDots } from "@/components/ui/ProgressDots";
 import { maskCNPJ, maskPhone, maskCEP, isValidCNPJ, BRAZILIAN_STATES } from "@/lib/validators";
@@ -29,6 +30,7 @@ export default function SignupInstructor() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const { showAlert } = useGlobalAlert();
   const [googleUser, setGoogleUser] = useState<{
     googleId: string;
     email: string;
@@ -193,13 +195,9 @@ export default function SignupInstructor() {
         googleId: googleUser?.googleId || undefined,
       });
 
-      toast({
-        title: "Cadastro realizado!",
-        description: "Seu cadastro está em análise. Você receberá um e-mail quando for aprovado.",
-      });
-      setLocation("/login");
+      showAlert("success", "Cadastro realizado!", "Seu cadastro está em análise. Você receberá um e-mail quando for aprovado.", () => setLocation("/login"));
     } catch (err: any) {
-      setError(err?.message || "Não foi possível enviar o cadastro.");
+      showAlert("error", "Erro no Cadastro", err?.message || "Não foi possível enviar o cadastro.");
     } finally {
       setIsSubmitting(false);
     }

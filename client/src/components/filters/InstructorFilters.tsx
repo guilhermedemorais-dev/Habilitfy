@@ -36,7 +36,7 @@ export interface FilterState {
 }
 
 export const defaultFilters: FilterState = {
-    distanceRadius: 15,
+    distanceRadius: 50,
     minPrice: 0,
     maxPrice: 0,
     categories: [],
@@ -103,7 +103,7 @@ export function InstructorFilters({
 
     const activeFiltersCount = useMemo(() => {
         let count = 0;
-        if (filters.distanceRadius !== 15 && showDistance) count++;
+        if (filters.distanceRadius !== 50 && showDistance) count++;
         if (filters.minPrice > 0) count++;
         if (filters.maxPrice > 0) count++;
         if (filters.categories.length > 0) count++;

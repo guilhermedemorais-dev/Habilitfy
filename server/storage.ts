@@ -172,6 +172,8 @@ export interface IStorage {
       isDefault?: boolean;
     },
   ): Promise<PaymentGateway>;
+  getAdminFinancialMetrics(): Promise<Array<{ name: string; gmv: number; revenue: number }>>;
+  getAdminGrowthMetrics(): Promise<Array<{ name: string; newUsers: number; churn: number }>>;
   getIntegrations(filters?: {
     category?: string;
     status?: string;
@@ -1565,6 +1567,36 @@ export class DatabaseStorage implements IStorage {
     await db.update(supportTickets).set({ ...data, updatedAt: new Date() }).where(eq(supportTickets.id, id));
     const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, id));
     return ticket;
+  }
+  async getAdminFinancialMetrics(): Promise<Array<{ name: string; gmv: number; revenue: number }>> {
+    const rows = await db
+      .select({
+        name: sql<string>`DATE_FORMAT(${transactions.createdAt}, '%Y-%m')`,
+        gmv: sql<number>`sum(${transactions.amountGross})`.mapWith(Number),
+        revenue: sql<number>`sum(${transactions.amountNet})`.mapWith(Number),
+      })
+      .from(transactions)
+      .where(eq(transactions.status, 'paid'))
+      .groupBy(sql`DATE_FORMAT(${transactions.createdAt}, '%Y-%m')`)
+      .orderBy(sql`DATE_FORMAT(${transactions.createdAt}, '%Y-%m')`)
+      .limit(12);
+
+    return rows.map(r => ({ ...r, gmv: r.gmv || 0, revenue: r.revenue || 0 }));
+  }
+
+  async getAdminGrowthMetrics(): Promise<Array<{ name: string; newUsers: number; churn: number }>> {
+    const rows = await db
+      .select({
+        name: sql<string>`DATE_FORMAT(${users.createdAt}, '%Y-%m')`,
+        newUsers: sql<number>`count(${users.id})`.mapWith(Number),
+      })
+      .from(users)
+      .where(eq(users.role, 'student'))
+      .groupBy(sql`DATE_FORMAT(${users.createdAt}, '%Y-%m')`)
+      .orderBy(sql`DATE_FORMAT(${users.createdAt}, '%Y-%m')`)
+      .limit(12);
+
+    return rows.map(r => ({ name: r.name, newUsers: r.newUsers || 0, churn: 0 }));
   }
 }
 

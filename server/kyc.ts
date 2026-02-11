@@ -399,7 +399,7 @@ export function fileToBase64(filePath: string): string {
 export async function saveBase64Image(
     base64Data: string,
     userId: string,
-    type: 'selfie' | 'document_front' | 'document_back'
+    type: 'selfie' | 'document_front' | 'document_back' | 'cnh_front' | 'cnh_back' | 'credential' | 'vehicle_auth' | 'vehicle' | 'vehicle_doc' | 'vehicle_plate'
 ): Promise<string> {
     const uploadsDir = path.join(process.cwd(), 'uploads', 'kyc', userId);
 

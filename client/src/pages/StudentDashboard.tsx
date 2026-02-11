@@ -13,6 +13,7 @@ import { ReviewDialog } from "@/components/reviews/ReviewDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useEffect, useState } from "react";
+import { PwaInstallBanner } from "@/components/pwa/PwaInstallBanner";
 import { QRCodeSVG } from "qrcode.react";
 import { KYCPendingBlock } from "@/components/dashboard/KYCPendingBlock";
 
@@ -175,6 +176,8 @@ export default function StudentDashboard() {
             </Button>
           </div>
         </header>
+
+        <PwaInstallBanner />
 
         <div className="px-6 -mt-16 space-y-6">
           {!isKycApproved ? (
