@@ -1211,8 +1211,8 @@ export default function Admin() {
         loading: instructorsLoading,
         helper: "Aguardando validação",
         icon: AlertTriangle,
-        tone: "text-yellow-700",
-        bg: "bg-yellow-100/70",
+        tone: "text-yellow-700 dark:text-yellow-400",
+        bg: "bg-yellow-100/70 dark:bg-yellow-900/30",
       },
       {
         label: "Instrutores aprovados",
@@ -1220,8 +1220,8 @@ export default function Admin() {
         loading: instructorsLoading,
         helper: "Ativos na plataforma",
         icon: UserCheck,
-        tone: "text-green-700",
-        bg: "bg-green-100/70",
+        tone: "text-green-700 dark:text-green-400",
+        bg: "bg-green-100/70 dark:bg-green-900/30",
       },
       {
         label: "Total de instrutores",
@@ -1229,8 +1229,8 @@ export default function Admin() {
         loading: instructorsLoading,
         helper: "Base cadastrada",
         icon: Users,
-        tone: "text-slate-700",
-        bg: "bg-slate-100",
+        tone: "text-slate-700 dark:text-slate-300",
+        bg: "bg-slate-100 dark:bg-slate-800",
       },
       {
         label: "Total de alunos",
@@ -1238,8 +1238,8 @@ export default function Admin() {
         loading: studentsLoading,
         helper: "Cadastros ativos",
         icon: GraduationCap,
-        tone: "text-blue-700",
-        bg: "bg-blue-100/70",
+        tone: "text-blue-700 dark:text-blue-400",
+        bg: "bg-blue-100/70 dark:bg-blue-900/30",
       },
       {
         label: "Agendamentos",
@@ -1247,8 +1247,8 @@ export default function Admin() {
         loading: dashboardLoading,
         helper: "Total registrados",
         icon: Calendar,
-        tone: "text-indigo-700",
-        bg: "bg-indigo-100/70",
+        tone: "text-indigo-700 dark:text-indigo-400",
+        bg: "bg-indigo-100/70 dark:bg-indigo-900/30",
       },
       {
         label: "Aulas concluídas",
@@ -1256,8 +1256,8 @@ export default function Admin() {
         loading: dashboardLoading,
         helper: "Finalizadas",
         icon: CalendarCheck,
-        tone: "text-emerald-700",
-        bg: "bg-emerald-100/70",
+        tone: "text-emerald-700 dark:text-emerald-400",
+        bg: "bg-emerald-100/70 dark:bg-emerald-900/30",
       },
       {
         label: "Volume financeiro",
@@ -1265,8 +1265,8 @@ export default function Admin() {
         loading: dashboardLoading,
         helper: "Pagas + concluídas",
         icon: Wallet,
-        tone: "text-slate-700",
-        bg: "bg-slate-100",
+        tone: "text-slate-700 dark:text-slate-300",
+        bg: "bg-slate-100 dark:bg-slate-800",
         format: formatCurrency,
       },
       {
@@ -1275,8 +1275,8 @@ export default function Admin() {
         loading: dashboardLoading,
         helper: "Retido em contas",
         icon: WalletCards,
-        tone: "text-teal-700",
-        bg: "bg-teal-100/70",
+        tone: "text-teal-700 dark:text-teal-400",
+        bg: "bg-teal-100/70 dark:bg-teal-900/30",
         format: formatCurrency,
       },
     ],
@@ -1301,8 +1301,8 @@ export default function Admin() {
         loading: financeSummaryLoading,
         helper: "Pagos no gateway",
         icon: DollarSign,
-        tone: "text-emerald-700",
-        bg: "bg-emerald-100/70",
+        tone: "text-emerald-700 dark:text-emerald-400",
+        bg: "bg-emerald-100/70 dark:bg-emerald-900/30",
         format: formatCurrency,
       },
       {
@@ -1311,8 +1311,8 @@ export default function Admin() {
         loading: financeSummaryLoading,
         helper: "Aguardando confirmacao",
         icon: RefreshCcw,
-        tone: "text-blue-700",
-        bg: "bg-blue-100/70",
+        tone: "text-blue-700 dark:text-blue-400",
+        bg: "bg-blue-100/70 dark:bg-blue-900/30",
         format: formatCurrency,
       },
       {
@@ -1321,8 +1321,8 @@ export default function Admin() {
         loading: financeSummaryLoading,
         helper: "Disponivel para saque",
         icon: WalletCards,
-        tone: "text-teal-700",
-        bg: "bg-teal-100/70",
+        tone: "text-teal-700 dark:text-teal-400",
+        bg: "bg-teal-100/70 dark:bg-teal-900/30",
         format: formatCurrency,
       },
       {
@@ -1331,8 +1331,8 @@ export default function Admin() {
         loading: financeSummaryLoading,
         helper: "Em analise",
         icon: Banknote,
-        tone: "text-yellow-700",
-        bg: "bg-yellow-100/70",
+        tone: "text-yellow-700 dark:text-yellow-400",
+        bg: "bg-yellow-100/70 dark:bg-yellow-900/30",
         format: formatCurrency,
       },
       {
@@ -1341,8 +1341,8 @@ export default function Admin() {
         loading: financeSummaryLoading,
         helper: "Ultimos pagamentos",
         icon: Receipt,
-        tone: "text-orange-700",
-        bg: "bg-orange-100/70",
+        tone: "text-orange-700 dark:text-orange-400",
+        bg: "bg-orange-100/70 dark:bg-orange-900/30",
         format: formatCurrency,
       },
     ],
@@ -1757,9 +1757,9 @@ export default function Admin() {
 
   return (
     <AuthGuard redirectTo="/admin" requiredRoles={["admin"]}>
-      <div className="min-h-screen bg-background text-slate-900">
+      <div className="min-h-screen bg-background text-slate-900 dark:text-slate-100">
         <div className="flex">
-          <aside className="sticky top-0 hidden h-screen w-64 flex-col border-r border-slate-200 bg-white lg:flex">
+          <aside className="sticky top-0 hidden h-screen w-64 flex-col border-r border-slate-200 bg-white lg:flex dark:bg-slate-900 dark:border-slate-800">
             <div className="px-6 py-6">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
@@ -1769,35 +1769,35 @@ export default function Admin() {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                     HabilitFy
                   </p>
-                  <p className="text-lg font-bold text-slate-900">Admin</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white">Admin</p>
                 </div>
               </div>
             </div>
-            <Separator />
+            <Separator className="dark:bg-slate-800" />
             <nav className="flex-1 space-y-1 px-4 py-4">
               {navItems.filter(item => !item.hidden).map((item) => (
                 <a
                   key={item.href}
                   href={item.href}
-                  className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   <span className="flex items-center gap-3">
-                    <item.icon className="h-4 w-4 text-slate-500" />
+                    <item.icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                     {item.label}
                   </span>
                   {item.badge ? (
-                    <Badge className="bg-yellow-100 text-yellow-800">
+                    <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500">
                       {item.badge}
                     </Badge>
                   ) : null}
                 </a>
               ))}
             </nav>
-            <Separator />
+            <Separator className="dark:bg-slate-800" />
             <div className="px-4 py-4">
               <Button
                 variant="ghost"
-                className="w-full justify-start gap-2"
+                className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-400"
                 onClick={logout}
               >
                 <LogOut className="h-4 w-4" />
@@ -1806,44 +1806,44 @@ export default function Admin() {
             </div>
           </aside>
           <main className="flex-1">
-            <header className="sticky top-0 z-20 border-b border-slate-200 bg-background/90 backdrop-blur">
+            <header className="sticky top-0 z-20 border-b border-slate-200 bg-background/90 backdrop-blur dark:bg-slate-900/90 dark:border-slate-800">
               <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4 lg:px-10">
                 <div className="flex items-center gap-3">
                   <Sheet>
                     <SheetTrigger asChild>
-                      <Button variant="outline" size="icon" className="lg:hidden">
-                        <Menu className="h-4 w-4" />
+                      <Button variant="outline" size="icon" className="lg:hidden dark:bg-slate-800 dark:border-slate-700">
+                        <Menu className="h-4 w-4 dark:text-slate-200" />
                       </Button>
                     </SheetTrigger>
-                    <SheetContent side="left" className="w-72 p-0">
+                    <SheetContent side="left" className="w-72 p-0 dark:bg-slate-900 dark:border-slate-800">
                       <SheetHeader className="px-6 py-6 text-left">
-                        <SheetTitle>Painel Admin</SheetTitle>
+                        <SheetTitle className="dark:text-white">Painel Admin</SheetTitle>
                       </SheetHeader>
-                      <Separator />
+                      <Separator className="dark:bg-slate-800" />
                       <nav className="space-y-1 px-4 py-4">
                         {navItems.filter(item => !item.hidden).map((item) => (
                           <a
                             key={item.href}
                             href={item.href}
-                            className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                            className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                           >
                             <span className="flex items-center gap-3">
-                              <item.icon className="h-4 w-4 text-slate-500" />
+                              <item.icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                               {item.label}
                             </span>
                             {item.badge ? (
-                              <Badge className="bg-yellow-100 text-yellow-800">
+                              <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500">
                                 {item.badge}
                               </Badge>
                             ) : null}
                           </a>
                         ))}
                       </nav>
-                      <Separator />
+                      <Separator className="dark:bg-slate-800" />
                       <div className="px-4 py-4">
                         <Button
                           variant="ghost"
-                          className="w-full justify-start gap-2"
+                          className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-400"
                           onClick={logout}
                         >
                           <LogOut className="h-4 w-4" />
@@ -1853,22 +1853,22 @@ export default function Admin() {
                     </SheetContent>
                   </Sheet>
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-slate-500">
+                    <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Painel Administrativo
                     </p>
-                    <h1 className="text-2xl font-bold text-slate-900">
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                       Dashboard
                     </h1>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-slate-600 shadow-sm xl:flex">
-                    <Search className="h-4 w-4 text-slate-400" />
+                  <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-slate-600 shadow-sm xl:flex dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
+                    <Search className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                     <Input
                       placeholder="Buscar usuarios, transacoes..."
                       value={globalSearch}
                       onChange={(event) => setGlobalSearch(event.target.value)}
-                      className="h-8 w-64 border-0 p-0 shadow-none focus-visible:ring-0"
+                      className="h-8 w-64 border-0 p-0 shadow-none focus-visible:ring-0 dark:bg-transparent dark:text-white dark:placeholder:text-slate-500"
                     />
                   </div>
                   <Button
