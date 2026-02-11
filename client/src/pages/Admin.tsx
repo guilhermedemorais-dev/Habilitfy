@@ -1757,19 +1757,19 @@ export default function Admin() {
 
   return (
     <AuthGuard redirectTo="/admin" requiredRoles={["admin"]}>
-      <div className="min-h-screen bg-background text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen bg-background text-slate-900 dark:text-blue-100">
         <div className="flex">
           <aside className="sticky top-0 hidden h-screen w-64 flex-col border-r border-slate-200 bg-white lg:flex dark:bg-slate-900 dark:border-slate-800">
             <div className="px-6 py-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary dark:bg-blue-900/30 dark:text-blue-300">
                   HF
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-blue-400">
                     HabilitFy
                   </p>
-                  <p className="text-lg font-bold text-slate-900 dark:text-white">Admin</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-blue-100">Admin</p>
                 </div>
               </div>
             </div>
@@ -1779,14 +1779,14 @@ export default function Admin() {
                 <a
                   key={item.href}
                   href={item.href}
-                  className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-blue-200 dark:hover:bg-slate-800/50"
                 >
                   <span className="flex items-center gap-3">
-                    <item.icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                    <item.icon className="h-4 w-4 text-slate-500 dark:text-blue-400" />
                     {item.label}
                   </span>
                   {item.badge ? (
-                    <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500">
+                    <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
                       {item.badge}
                     </Badge>
                   ) : null}
@@ -1797,7 +1797,7 @@ export default function Admin() {
             <div className="px-4 py-4">
               <Button
                 variant="ghost"
-                className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-400"
+                className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800/50 dark:text-blue-300"
                 onClick={logout}
               >
                 <LogOut className="h-4 w-4" />
@@ -1812,12 +1812,12 @@ export default function Admin() {
                   <Sheet>
                     <SheetTrigger asChild>
                       <Button variant="outline" size="icon" className="lg:hidden dark:bg-slate-800 dark:border-slate-700">
-                        <Menu className="h-4 w-4 dark:text-slate-200" />
+                        <Menu className="h-4 w-4 dark:text-blue-200" />
                       </Button>
                     </SheetTrigger>
                     <SheetContent side="left" className="w-72 p-0 dark:bg-slate-900 dark:border-slate-800">
                       <SheetHeader className="px-6 py-6 text-left">
-                        <SheetTitle className="dark:text-white">Painel Admin</SheetTitle>
+                        <SheetTitle className="dark:text-blue-100">Painel Admin</SheetTitle>
                       </SheetHeader>
                       <Separator className="dark:bg-slate-800" />
                       <nav className="space-y-1 px-4 py-4">
@@ -1825,14 +1825,14 @@ export default function Admin() {
                           <a
                             key={item.href}
                             href={item.href}
-                            className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                            className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-blue-200 dark:hover:bg-slate-800/50"
                           >
                             <span className="flex items-center gap-3">
-                              <item.icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                              <item.icon className="h-4 w-4 text-slate-500 dark:text-blue-400" />
                               {item.label}
                             </span>
                             {item.badge ? (
-                              <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500">
+                              <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
                                 {item.badge}
                               </Badge>
                             ) : null}
@@ -1843,7 +1843,7 @@ export default function Admin() {
                       <div className="px-4 py-4">
                         <Button
                           variant="ghost"
-                          className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-400"
+                          className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800/50 dark:text-blue-300"
                           onClick={logout}
                         >
                           <LogOut className="h-4 w-4" />
@@ -1853,10 +1853,10 @@ export default function Admin() {
                     </SheetContent>
                   </Sheet>
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-blue-400">
                       Painel Administrativo
                     </p>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-blue-100">
                       Dashboard
                     </h1>
                   </div>
