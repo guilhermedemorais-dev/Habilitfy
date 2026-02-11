@@ -12,6 +12,7 @@ import { setupAuth, isAuthenticated, hashPassword, requireAdminRole } from "./au
 import { insertInstructorSchema, insertBookingSchema, insertReviewSchema, insertAvailabilitySchema, insertMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } from "./abacatepay";
+import { createStripeCheckoutSession, constructStripeWebhookEvent } from "./stripe";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { cacheMiddleware } from "./cache";
@@ -3015,6 +3016,104 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     } catch (error: any) {
       logger.error("Error processing withdrawal:", error);
       res.status(500).json({ message: error.message || "Withdrawal failed" });
+    }
+  });
+
+  // Stripe Payment Routes
+  app.post("/api/payments/stripe/checkout", paymentLimiter, isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { bookingId } = req.body;
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+      // Check if user owns booking
+      if (booking.studentId !== user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Get Stripe integration config
+      const environment = process.env.NODE_ENV === "production" ? "production" : "development";
+      const integration = await storage.getIntegrationBySlug("stripe", environment);
+
+      const config = integration?.status === "active" ? {
+        apiKey: integration.fields?.find((f: any) => f.key === "apiKey")?.value,
+        webhookSecret: integration.fields?.find((f: any) => f.key === "webhookSecret")?.value,
+      } : undefined;
+
+      const successUrl = `${req.protocol}://${req.get("host")}/sucesso?bookingId=${bookingId}&session_id={CHECKOUT_SESSION_ID}`;
+      const cancelUrl = `${req.protocol}://${req.get("host")}/checkout?bookingId=${bookingId}`;
+
+      const session = await createStripeCheckoutSession(booking, successUrl, cancelUrl, config);
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Stripe Checkout Error:", error);
+      res.status(500).json({ message: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/webhooks/stripe", async (req: Request, res: Response) => {
+    const sig = req.headers["stripe-signature"];
+    if (!sig) return res.status(400).send("Missing Stripe Signature");
+
+    try {
+      const environment = process.env.NODE_ENV === "production" ? "production" : "development";
+      const integration = await storage.getIntegrationBySlug("stripe", environment);
+
+      const config = integration?.status === "active" ? {
+        apiKey: integration.fields?.find((f: any) => f.key === "apiKey")?.value,
+        webhookSecret: integration.fields?.find((f: any) => f.key === "webhookSecret")?.value,
+      } : undefined;
+
+      // req.rawBody provided by server/index.ts middleware
+      const rawBody = (req as any).rawBody;
+      if (!rawBody) {
+        throw new Error("Raw body not available");
+      }
+
+      const event = constructStripeWebhookEvent(rawBody, sig as string, config);
+
+      if (event.type === "checkout.session.completed") {
+        const session = event.data.object as any;
+        const bookingId = session.metadata?.bookingId;
+
+        if (bookingId) {
+          console.log(`[Stripe] Payment confirmed for booking ${bookingId}`);
+
+          // Generate security codes
+          const startCode = Math.floor(1000 + Math.random() * 9000).toString();
+          const endCode = Math.floor(1000 + Math.random() * 9000).toString();
+
+          await storage.updateBooking(bookingId, {
+            paymentId: session.id,
+            paymentStatus: "paid",
+            paymentProvider: "stripe",
+            status: "paid",
+            startCode,
+            endCode
+          });
+
+          await storage.createTransaction({
+            type: "booking",
+            amount: session.amount_total ? (session.amount_total / 100).toString() : "0",
+            currency: "BRL",
+            status: "paid",
+            referenceId: bookingId,
+            referenceType: "booking",
+            metadata: { stripeSessionId: session.id },
+            instructorId: session.metadata?.instructorId || "",
+            studentId: session.metadata?.studentId || "",
+          });
+        }
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error("Stripe Webhook Error:", error.message);
+      res.status(400).send(`Webhook Error: ${error.message}`);
     }
   });
 

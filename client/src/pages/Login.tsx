@@ -102,14 +102,14 @@ export default function Login() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center gap-2 mb-2">
-            <img src={logoBlue} alt="HabilitFy" style={{ height: '25px', width: 'auto' }} />
+            <img src={logoBlue} alt="HabilitFy" className="h-20 w-auto" />
           </div>
         </div>
 
         {/* Cadastre-se section */}
         <div className="mb-6">
           <p className="text-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            ou cadastre-se
+            CADASTRE-SE
           </p>
           <div className="space-y-3">
             <Button
@@ -135,6 +135,11 @@ export default function Login() {
             </Button>
           </div>
         </div>
+
+        {/* Login Separator */}
+        <p className="text-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 mt-8">
+          ACESSE SUA CONTA
+        </p>
 
         {/* Login Form */}
         <div className="space-y-4">
