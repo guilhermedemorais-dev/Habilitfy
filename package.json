@@ -107,7 +107,8 @@
     "ws": "^8.18.0",
     "zod": "^3.25.76",
     "zod-validation-error": "^3.4.0",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.11",
+    "vite-plugin-pwa": "^1.2.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
@@ -126,7 +127,6 @@
     "drizzle-kit": "^0.31.8",
     "jsdom": "^27.4.0",
     "tsx": "^4.20.5",
-    "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.16"
   },
   "optionalDependencies": {
