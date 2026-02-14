@@ -6,6 +6,7 @@
   "scripts": {
     "dev:client": "vite dev --port 5000",
     "dev": "NODE_ENV=development TMPDIR=./tmp_tsx tsx --env-file=.env server/index.ts",
+    "postinstall": "chmod +x node_modules/.bin/esbuild node_modules/esbuild/bin/esbuild node_modules/@esbuild/*/bin/esbuild 2>/dev/null; exit 0",
     "build": "node script/build.cjs",
     "start": "node server.cjs",
     "check": "tsc",
