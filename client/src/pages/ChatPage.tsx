@@ -46,7 +46,7 @@ export default function ChatPage() {
     // Chat individual view
     if (view === "chat" && selectedContact) {
         return (
-            <div className="h-screen w-full bg-background pb-20 md:pb-0 flex flex-col">
+            <div className="fixed inset-0 z-[100] bg-background flex flex-col">
                 {/* Header */}
                 <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">
                     <div className="flex items-center gap-3 px-4 py-3">
@@ -87,7 +87,7 @@ export default function ChatPage() {
     // AI Chat view
     if (view === "ai") {
         return (
-            <div className="h-screen w-full bg-background pb-20 md:pb-0 flex flex-col">
+            <div className="fixed inset-0 z-[100] bg-background flex flex-col">
                 {/* Header */}
                 <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">
                     <div className="flex items-center gap-3 px-4 py-3">

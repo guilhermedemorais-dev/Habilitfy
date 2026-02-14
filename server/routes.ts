@@ -820,7 +820,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         await storage.createInstructor({
           userId: userId,
           bio: bio || "",
-          pricePerHour: pricePerHour ? String(pricePerHour) : "0",
+          pricePerHour: pricePerHour ? Number(pricePerHour) : 0,
           vehicleModel: vehicleModel || "",
           vehicleYear: vehicleYear || "",
           vehicleType: vehicleType || "",
@@ -1840,6 +1840,44 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     } catch (err) {
       console.error("Withdrawal error:", err);
       res.status(500).json({ message: "Erro ao solicitar saque" });
+    }
+  });
+
+  app.get('/api/admin/vehicles/pending', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const vehicles = await storage.getPendingVehicles();
+      res.json(vehicles);
+    } catch (error) {
+      console.error("Error fetching pending vehicles:", error);
+      res.status(500).json({ message: "Failed to fetch pending vehicles" });
+    }
+  });
+
+  app.patch('/api/admin/vehicles/:id/status', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const { status, rejectionReason } = req.body;
+      if (!['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+
+      const vehicle = await storage.updateVehicleStatus(
+        req.params.id,
+        status,
+        rejectionReason,
+        user.id
+      );
+      res.json(vehicle);
+    } catch (error) {
+      console.error("Error updating vehicle status:", error);
+      res.status(500).json({ message: "Failed to update vehicle status" });
     }
   });
 

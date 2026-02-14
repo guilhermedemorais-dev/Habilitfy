@@ -17,11 +17,11 @@ import { z } from "zod";
 export const sessions = mysqlTable(
   "sessions",
   {
-    sid: varchar("sid", { length: 255 }).primaryKey(),
-    sess: json("sess").notNull(),
-    expire: timestamp("expire").notNull(),
+    sessionId: varchar("session_id", { length: 128 }).primaryKey(),
+    expires: int("expires").notNull(),
+    data: text("data"),
   },
-  (table) => [index("IDX_session_expire").on(table.expire)],
+  (table) => [index("IDX_session_expires").on(table.expires)],
 );
 
 export const userRoleEnum = mysqlEnum('role', ['student', 'instructor', 'admin']);
@@ -205,7 +205,7 @@ export const bookings = mysqlTable("bookings", {
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
   cancelledAt: timestamp("cancelled_at"),
-  cancelledByRole: userRoleEnum,
+  cancelledByRole: mysqlEnum('cancelled_by_role', ['student', 'instructor', 'admin']),
   cancelledByUserId: varchar("cancelled_by_user_id", { length: 36 }).references(() => users.id),
   cancelReason: text("cancel_reason"),
   cancelledMinutes: int("cancelled_minutes"),
@@ -217,7 +217,7 @@ export const disputes = mysqlTable("disputes", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
   bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id).notNull(),
   openedByUserId: varchar("opened_by_user_id", { length: 36 }).references(() => users.id).notNull(),
-  openedByRole: userRoleEnum.notNull(),
+  openedByRole: mysqlEnum('opened_by_role', ['student', 'instructor', 'admin']).notNull(),
   reason: text("reason").notNull(),
   status: disputeStatusEnum.default("open").notNull(),
   resolution: disputeResolutionEnum,

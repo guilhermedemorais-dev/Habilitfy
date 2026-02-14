@@ -11,6 +11,7 @@ import {
   paymentGateways,
   integrations,
   adminSettings,
+  adminLogs,
   disputes,
   type User,
   type UpsertUser,
@@ -228,12 +229,27 @@ export interface IStorage {
 
   getVehicles(instructorId: string): Promise<Vehicle[]>;
   createVehicle(data: InsertVehicle): Promise<Vehicle>;
+  getPendingVehicles(): Promise<{ vehicle: Vehicle; instructor: Instructor; user: User }[]>;
+  updateVehicleStatus(id: string, status: string, rejectionReason?: string | null, adminId?: string): Promise<Vehicle>;
+
   updateVehicle(id: string, data: Partial<Vehicle>): Promise<Vehicle>;
   deleteVehicle(id: string): Promise<Vehicle | undefined>;
 
   createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket>;
   getSupportTickets(userId?: string): Promise<SupportTicket[]>;
   updateSupportTicket(id: string, data: Partial<SupportTicket>): Promise<SupportTicket>;
+
+  createTransaction(data: {
+    type: string;
+    amount: string;
+    currency?: string;
+    status: string;
+    referenceId?: string;
+    referenceType?: string;
+    metadata?: any;
+    instructorId?: string;
+    studentId?: string;
+  }): Promise<Transaction>;
 }
 
 
@@ -401,7 +417,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         totalBookings: sql<number>`count(${bookings.id})`.mapWith(Number),
         completedBookings: sql<number>`
-          count(*) filter (where ${bookings.status} = 'completed')
+          SUM(CASE WHEN ${bookings.status} = 'completed' THEN 1 ELSE 0 END)
         `.mapWith(Number),
         totalRevenue: sql<number>`
           coalesce(
@@ -483,10 +499,10 @@ export class DatabaseStorage implements IStorage {
           )
         `.mapWith(Number),
         failedTransactionsCount: sql<number>`
-          count(*) filter (where ${transactions.status} in ('failed', 'cancelled'))
+          SUM(CASE WHEN ${transactions.status} in ('failed', 'cancelled') THEN 1 ELSE 0 END)
         `.mapWith(Number),
         pendingTransactionsCount: sql<number>`
-          count(*) filter (where ${transactions.status} in ('pending', 'processing'))
+          SUM(CASE WHEN ${transactions.status} in ('pending', 'processing') THEN 1 ELSE 0 END)
         `.mapWith(Number),
       })
       .from(transactions);
@@ -514,7 +530,7 @@ export class DatabaseStorage implements IStorage {
           )
         `.mapWith(Number),
         pendingWithdrawalsCount: sql<number>`
-          count(*) filter (where ${withdrawals.status} in ('pending', 'approved'))
+          SUM(CASE WHEN ${withdrawals.status} in ('pending', 'approved') THEN 1 ELSE 0 END)
         `.mapWith(Number),
       })
       .from(withdrawals);
@@ -541,7 +557,12 @@ export class DatabaseStorage implements IStorage {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    const periodExpression = sql<Date>`date_trunc(${sql.raw(`'${period}'`)}, ${transactions.createdAt})`;
+    const periodExpressions = {
+      day: sql<Date>`DATE(${transactions.createdAt})`,
+      week: sql<Date>`DATE(DATE_SUB(${transactions.createdAt}, INTERVAL WEEKDAY(${transactions.createdAt}) DAY))`,
+      month: sql<Date>`DATE_FORMAT(${transactions.createdAt}, '%Y-%m-01')`,
+    };
+    const periodExpression = periodExpressions[period];
     const conditions = [gte(transactions.createdAt, since)];
 
     if (options?.status) {
@@ -629,7 +650,7 @@ export class DatabaseStorage implements IStorage {
                 count(${instructors.id})
               `.mapWith(Number),
             instructorsWithLocation: sql<number>`
-                count(*) filter (where ${instructors.lat} is not null and ${instructors.lng} is not null)
+                SUM(CASE WHEN ${instructors.lat} is not null and ${instructors.lng} is not null THEN 1 ELSE 0 END)
               `.mapWith(Number),
           })
           .from(instructors)
@@ -640,7 +661,7 @@ export class DatabaseStorage implements IStorage {
                 count(${instructors.id})
               `.mapWith(Number),
             instructorsWithLocation: sql<number>`
-                count(*) filter (where ${instructors.lat} is not null and ${instructors.lng} is not null)
+                SUM(CASE WHEN ${instructors.lat} is not null and ${instructors.lng} is not null THEN 1 ELSE 0 END)
               `.mapWith(Number),
           })
           .from(instructors),
@@ -650,7 +671,7 @@ export class DatabaseStorage implements IStorage {
             count(${users.id})
           `.mapWith(Number),
           studentsWithLocation: sql<number>`
-            count(*) filter (where ${users.lat} is not null and ${users.lng} is not null)
+            SUM(CASE WHEN ${users.lat} is not null and ${users.lng} is not null THEN 1 ELSE 0 END)
           `.mapWith(Number),
         })
         .from(users)
@@ -1545,6 +1566,44 @@ export class DatabaseStorage implements IStorage {
     return vehicle;
   }
 
+  async getPendingVehicles(): Promise<{ vehicle: Vehicle; instructor: Instructor; user: User }[]> {
+    const rows = await db
+      .select({
+        vehicle: vehicles,
+        instructor: instructors,
+        user: users,
+      })
+      .from(vehicles)
+      .innerJoin(instructors, eq(vehicles.instructorId, instructors.id))
+      .innerJoin(users, eq(instructors.userId, users.id))
+      .where(eq(vehicles.status, "pending"))
+      .orderBy(desc(vehicles.createdAt));
+    return rows;
+  }
+
+  async updateVehicleStatus(id: string, status: string, rejectionReason?: string | null, adminId?: string): Promise<Vehicle> {
+    await db
+      .update(vehicles)
+      .set({
+        status: status as any,
+        rejectionReason: rejectionReason || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(vehicles.id, id));
+
+    if (adminId) {
+      await db.insert(adminLogs).values({
+        adminId,
+        action: `vehicle_${status}`,
+        targetId: id,
+        changes: { status, rejectionReason },
+      });
+    }
+
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
+    return vehicle;
+  }
+
   async createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket> {
     const ticketId = crypto.randomUUID();
     await db.insert(supportTickets).values({ ...data, id: ticketId });
@@ -1597,6 +1656,36 @@ export class DatabaseStorage implements IStorage {
       .limit(12);
 
     return rows.map(r => ({ name: r.name, newUsers: r.newUsers || 0, churn: 0 }));
+  }
+
+  async createTransaction(data: {
+    type: string;
+    amount: string;
+    currency?: string;
+    status: string;
+    referenceId?: string;
+    referenceType?: string;
+    metadata?: any;
+    instructorId?: string;
+    studentId?: string;
+  }): Promise<Transaction> {
+    const id = crypto.randomUUID();
+    await db.insert(transactions).values({
+      id,
+      type: data.type as any,
+      status: data.status as any,
+      amountGross: data.amount,
+      amountNet: data.amount,
+      gateway: "stripe",
+      paymentId: data.metadata?.stripeSessionId || null,
+      fromUserId: data.studentId || null,
+      toUserId: data.instructorId || null,
+      bookingId: data.referenceType === "booking" ? data.referenceId : null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    const [transaction] = await db.select().from(transactions).where(eq(transactions.id, id));
+    return transaction;
   }
 }
 

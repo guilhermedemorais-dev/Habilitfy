@@ -67,15 +67,19 @@ export function getSession() {
         user: dbUser,
         password: dbPassword,
         database: dbName,
-        createDatabaseTable: true,
+        createDatabaseTable: false,
         schema: {
             tableName: 'sessions',
             columnNames: {
-                session_id: 'sid',
-                expires: 'expire',
-                data: 'sess'
+                session_id: 'session_id',
+                expires: 'expires',
+                data: 'data'
             }
         }
+    });
+
+    sessionStore.on?.('error', (error: any) => {
+        logger.error('❌ Session store error:', error);
     });
 
     return session({

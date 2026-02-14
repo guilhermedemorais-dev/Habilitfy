@@ -827,3 +827,27 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-02-11 19:11:03
+
+-- 
+-- Inserindo Usuários de Teste (Pendente e Rejeitado)
+-- Adicionado via script auxiliar
+--
+
+-- 1. Instrutor Pendente
+INSERT INTO users (id, email, password, first_name, last_name, role, kyc_status, phone, cpf, profile_image_url, is_verified, created_at)
+VALUES 
+('11111111-1111-1111-1111-111111111111', 'instrutor.pendente@habilitfy.test', '88f4f07a00d2ecba3ead4462cddb1c403a7f6a5c5befedfd7375814338e95732cf7399819e67371b3ac0ce1d8bab07c333e57f68e0880de6e1de9830f1fb0526.7f883b97fc7e6866dc144503770ca407', 'Instrutor', 'Pendente', 'instructor', 'pending', '(11) 99999-0001', '111.111.111-11', 'https://randomuser.me/api/portraits/men/50.jpg', 1, NOW());
+
+INSERT INTO instructors (user_id, bio, price_per_hour, vehicle_model, vehicle_year, vehicle_type, vehicle_plate, status, cnh_front_image_url, cnh_back_image_url, vehicle_doc_image_url, selfie_image_url, credential_number, neighborhood, city, state, lat, lng, pix_key)
+VALUES 
+('11111111-1111-1111-1111-111111111111', 'Instrutor recém-cadastrado aguardando aprovação.', '100.00', 'Fiat Mobi', '2024', 'car', 'TEST-001', 'pending', 'https://placehold.co/600x400/png?text=CNH+Frente', 'https://placehold.co/600x400/png?text=CNH+Verso', 'https://placehold.co/600x400/png?text=Doc+Veiculo', 'https://placehold.co/400x400/png?text=Selfie', '12345678900', 'Centro', 'Rio de Janeiro', 'RJ', '-22.9068', '-43.1729', 'instrutor.pendente@habilitfy.test');
+
+-- 2. Instrutor Rejeitado
+INSERT INTO users (id, email, password, first_name, last_name, role, kyc_status, phone, cpf, profile_image_url, is_verified, created_at)
+VALUES 
+('22222222-2222-2222-2222-222222222222', 'instrutor.rejeitado@habilitfy.test', '88f4f07a00d2ecba3ead4462cddb1c403a7f6a5c5befedfd7375814338e95732cf7399819e67371b3ac0ce1d8bab07c333e57f68e0880de6e1de9830f1fb0526.7f883b97fc7e6866dc144503770ca407', 'Instrutor', 'Rejeitado', 'instructor', 'rejected', '(11) 99999-0002', '222.222.222-22', 'https://randomuser.me/api/portraits/men/51.jpg', 1, NOW());
+
+INSERT INTO instructors (user_id, bio, price_per_hour, vehicle_model, vehicle_year, vehicle_type, vehicle_plate, status, cnh_front_image_url, cnh_back_image_url, vehicle_doc_image_url, selfie_image_url, credential_number, neighborhood, city, state, lat, lng, pix_key)
+VALUES 
+('22222222-2222-2222-2222-222222222222', 'Instrutor com documentação inválida.', '120.00', 'Honda CG 160', '2023', 'motorcycle', 'TEST-002', 'rejected', 'https://placehold.co/600x400/png?text=CNH+Borrada', 'https://placehold.co/600x400/png?text=CNH+Verso', 'https://placehold.co/600x400/png?text=Doc+Vencido', 'https://placehold.co/400x400/png?text=Selfie+Escura', '00000000000', 'Copacabana', 'Rio de Janeiro', 'RJ', '-22.9711', '-43.1823', 'instrutor.rejeitado@habilitfy.test');
+  

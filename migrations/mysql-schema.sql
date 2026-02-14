@@ -1,12 +1,27 @@
 -- HabilitFy MySQL Database Schema
--- Execute this in phpMyAdmin
+-- Synced with shared/schema.ts (Drizzle ORM source of truth)
+-- CRITICAL: Column names for shared enums use the ENUM name, not 'status'/'type'
+-- Example: mysqlEnum('instructor_status', ...) → column is `instructor_status`, NOT `status`
+-- Last sync: 2026-02-11
 
--- Sessions table (for express-session)
+-- Sessions table (express-mysql-session compatible)
+-- CRITICAL: expires must be INT (epoch), NOT TIMESTAMP
 CREATE TABLE IF NOT EXISTS `sessions` (
-  `sid` VARCHAR(255) NOT NULL PRIMARY KEY,
-  `sess` JSON NOT NULL,
-  `expire` TIMESTAMP NOT NULL,
-  INDEX `IDX_session_expire` (`expire`)
+  `session_id` VARCHAR(128) NOT NULL PRIMARY KEY,
+  `expires` INT UNSIGNED NOT NULL,
+  `data` MEDIUMTEXT,
+  INDEX `IDX_session_expires` (`expires`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Capture Sessions table (face capture flow)
+CREATE TABLE IF NOT EXISTS `capture_sessions` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `session_token` VARCHAR(64) NOT NULL UNIQUE,
+  `image_data` TEXT,
+  `capture_session_status` ENUM('pending', 'completed', 'expired') NOT NULL DEFAULT 'pending',
+  `expires_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Users table
@@ -18,13 +33,11 @@ CREATE TABLE IF NOT EXISTS `users` (
   `last_name` VARCHAR(255),
   `profile_image_url` VARCHAR(500),
   `role` ENUM('student', 'instructor', 'admin') NOT NULL DEFAULT 'student',
+  `admin_role` ENUM('master', 'manager', 'support') DEFAULT NULL,
   `kyc_status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'approved',
   `phone` VARCHAR(50),
   `cpf` VARCHAR(20),
   `cnpj` VARCHAR(20),
-  `admin_role` ENUM('master', 'manager', 'support') DEFAULT NULL,
-  `is_verified` TINYINT(1) NOT NULL DEFAULT 0,
-  `verification_token` VARCHAR(255),
   `address_line` VARCHAR(500),
   `zip_code` VARCHAR(20),
   `neighborhood` VARCHAR(255),
@@ -33,11 +46,24 @@ CREATE TABLE IF NOT EXISTS `users` (
   `lat` DECIMAL(10, 7),
   `lng` DECIMAL(10, 7),
   `password` TEXT,
+  `is_verified` TINYINT(1) NOT NULL DEFAULT 0,
+  `verification_token` VARCHAR(255),
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Instructors table
+-- Admin Logs table (aligned with Drizzle schema)
+CREATE TABLE IF NOT EXISTS `admin_logs` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `admin_id` VARCHAR(36) NOT NULL,
+  `action` VARCHAR(255) NOT NULL,
+  `target_id` VARCHAR(36),
+  `changes` JSON,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`admin_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Instructors table (SYNCED with Drizzle - all columns present)
 CREATE TABLE IF NOT EXISTS `instructors` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
   `user_id` VARCHAR(36) NOT NULL,
@@ -61,13 +87,22 @@ CREATE TABLE IF NOT EXISTS `instructors` (
   `document_number` VARCHAR(100),
   `document_image_url` VARCHAR(500),
   `selfie_image_url` VARCHAR(500),
+  `cnh_front_image_url` VARCHAR(500),
+  `cnh_back_image_url` VARCHAR(500),
   `vehicle_image_url` VARCHAR(500),
   `vehicle_doc_image_url` VARCHAR(500),
   `vehicle_plate_image_url` VARCHAR(500),
   `vehicle_authorization_image_url` VARCHAR(500),
-  `status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+  `instructor_status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   `service_areas` TEXT,
   `pix_key` VARCHAR(255),
+  `years_experience` INT DEFAULT 0,
+  `languages` JSON,
+  `specialties` JSON,
+  `working_hours` VARCHAR(100),
+  `response_time` VARCHAR(50),
+  `gallery_images` JSON,
+  `lessons_completed` INT DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
@@ -84,7 +119,7 @@ CREATE TABLE IF NOT EXISTS `bookings` (
   `rent_vehicle` BOOLEAN DEFAULT FALSE,
   `vehicle_rental_price` DECIMAL(10, 2) DEFAULT 0,
   `total_price` DECIMAL(10, 2) NOT NULL,
-  `status` ENUM('pending', 'confirmed', 'paid', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
+  `booking_status` ENUM('pending', 'confirmed', 'paid', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
   `meeting_address` TEXT,
   `student_notes` TEXT,
   `payment_status` VARCHAR(50) DEFAULT 'pending',
@@ -156,8 +191,8 @@ CREATE TABLE IF NOT EXISTS `disputes` (
   `opened_by_user_id` VARCHAR(36) NOT NULL,
   `opened_by_role` ENUM('student', 'instructor', 'admin') NOT NULL,
   `reason` TEXT NOT NULL,
-  `status` ENUM('open', 'in_review', 'resolved') NOT NULL DEFAULT 'open',
-  `resolution` ENUM('refund_student', 'release_instructor', 'split'),
+  `dispute_status` ENUM('open', 'in_review', 'resolved') NOT NULL DEFAULT 'open',
+  `dispute_resolution` ENUM('refund_student', 'release_instructor', 'split'),
   `resolved_by_user_id` VARCHAR(36),
   `resolved_at` TIMESTAMP NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -181,8 +216,8 @@ CREATE TABLE IF NOT EXISTS `admin_settings` (
 CREATE TABLE IF NOT EXISTS `transactions` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
   `booking_id` VARCHAR(36),
-  `type` ENUM('booking', 'withdrawal', 'refund', 'commission', 'affiliate', 'coupon') NOT NULL,
-  `status` ENUM('pending', 'paid', 'processing', 'refunded', 'cancelled', 'failed') NOT NULL DEFAULT 'pending',
+  `transaction_type` ENUM('booking', 'withdrawal', 'refund', 'commission', 'affiliate', 'coupon') NOT NULL,
+  `transaction_status` ENUM('pending', 'paid', 'processing', 'refunded', 'cancelled', 'failed') NOT NULL DEFAULT 'pending',
   `amount_gross` DECIMAL(10, 2) NOT NULL,
   `amount_net` DECIMAL(10, 2) NOT NULL,
   `gateway` VARCHAR(100),
@@ -212,7 +247,7 @@ CREATE TABLE IF NOT EXISTS `wallet_entries` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
   `wallet_id` VARCHAR(36) NOT NULL,
   `user_id` VARCHAR(36) NOT NULL,
-  `type` ENUM('credit', 'debit', 'refund', 'withdrawal', 'adjustment') NOT NULL,
+  `wallet_entry_type` ENUM('credit', 'debit', 'refund', 'withdrawal', 'adjustment') NOT NULL,
   `amount` DECIMAL(10, 2) NOT NULL,
   `description` TEXT,
   `booking_id` VARCHAR(36),
@@ -229,7 +264,7 @@ CREATE TABLE IF NOT EXISTS `withdrawals` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
   `user_id` VARCHAR(36) NOT NULL,
   `amount` DECIMAL(10, 2) NOT NULL,
-  `status` ENUM('pending', 'approved', 'rejected', 'processed') NOT NULL DEFAULT 'pending',
+  `withdrawal_status` ENUM('pending', 'approved', 'rejected', 'processed') NOT NULL DEFAULT 'pending',
   `destination_type` VARCHAR(50) DEFAULT 'pix',
   `destination_key` VARCHAR(255),
   `requested_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -262,7 +297,7 @@ CREATE TABLE IF NOT EXISTS `vehicles` (
   `year` INT NOT NULL,
   `plate` VARCHAR(20) NOT NULL,
   `category` VARCHAR(50) NOT NULL,
-  `status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+  `vehicle_status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   `photo_front` TEXT,
   `photo_side` TEXT,
   `photo_back` TEXT,
@@ -283,7 +318,7 @@ CREATE TABLE IF NOT EXISTS `support_tickets` (
   `message` TEXT NOT NULL,
   `attachment_urls` JSON,
   `type` VARCHAR(50) NOT NULL,
-  `status` ENUM('open', 'in_progress', 'resolved', 'closed') NOT NULL DEFAULT 'open',
+  `ticket_status` ENUM('open', 'in_progress', 'resolved', 'closed') NOT NULL DEFAULT 'open',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
@@ -295,14 +330,14 @@ CREATE TABLE IF NOT EXISTS `integrations` (
   `name` VARCHAR(255) NOT NULL,
   `slug` VARCHAR(100) NOT NULL,
   `category` VARCHAR(100) NOT NULL,
-  `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
-  `environment` ENUM('development', 'production') NOT NULL DEFAULT 'production',
+  `integration_status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  `integration_environment` ENUM('development', 'production') NOT NULL DEFAULT 'production',
   `is_default` BOOLEAN DEFAULT FALSE,
   `fields` JSON,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX `integrations_slug_env_idx` (`slug`, `environment`),
-  INDEX `integrations_category_env_idx` (`category`, `environment`)
+  INDEX `integrations_slug_env_idx` (`slug`, `integration_environment`),
+  INDEX `integrations_category_env_idx` (`category`, `integration_environment`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- KYC Verifications table
