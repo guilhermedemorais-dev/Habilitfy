@@ -1,6 +1,7 @@
 const { build: esbuild } = require("esbuild");
 const { build: viteBuild } = require("vite");
 const { rm, readFile } = require("fs/promises");
+const { existsSync } = require("fs");
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -33,7 +34,9 @@ const allowlist = [
 ];
 
 async function buildAll() {
-  await rm("dist", { recursive: true, force: true });
+  // Only delete client build output — preserve pre-built server bundle
+  // (needed for Hostinger where esbuild native binary can't execute)
+  await rm("dist/public", { recursive: true, force: true });
 
   console.log("building client...");
   await viteBuild();
@@ -46,19 +49,29 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
-  await esbuild({
-    entryPoints: ["server/index.ts"],
-    platform: "node",
-    bundle: true,
-    format: "cjs",
-    outfile: "dist/index.cjs",
-    define: {
-      "process.env.NODE_ENV": '"production"',
-    },
-    minify: true,
-    external: externals,
-    logLevel: "info",
-  });
+  try {
+    await esbuild({
+      entryPoints: ["server/index.ts"],
+      platform: "node",
+      bundle: true,
+      format: "cjs",
+      outfile: "dist/index.cjs",
+      define: {
+        "process.env.NODE_ENV": '"production"',
+      },
+      minify: true,
+      external: externals,
+      logLevel: "info",
+    });
+  } catch (err) {
+    // Hostinger shared hosting blocks native binaries (noexec).
+    // Fall back to pre-built dist/index.cjs committed in the repo.
+    if (existsSync("dist/index.cjs")) {
+      console.log("⚠️  esbuild failed, using pre-built dist/index.cjs");
+    } else {
+      throw err;
+    }
+  }
 }
 
 buildAll().catch((err) => {
