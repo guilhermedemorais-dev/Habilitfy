@@ -18,6 +18,22 @@
 const path = require('path');
 const fs = require('fs');
 
+// Carregar variáveis de ambiente
+try {
+    const dotenv = require('dotenv');
+    const envProductionPath = path.resolve(__dirname, '.env.production');
+
+    if (fs.existsSync(envProductionPath)) {
+        console.log('[server.cjs] Carregando .env.production');
+        dotenv.config({ path: envProductionPath });
+    } else {
+        console.log('[server.cjs] .env.production não encontrado, tentando .env padrão');
+        dotenv.config();
+    }
+} catch (e) {
+    console.log('[server.cjs] Nota: dotenv não pôde ser carregado (pode ser nativo no ambiente ou não instalado)');
+}
+
 // Garantir que NODE_ENV está definido
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
