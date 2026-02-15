@@ -16,7 +16,8 @@
     "test": "vitest run && playwright test",
     "test:unit": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "start:prod": "NODE_ENV=production tsx --env-file=.env.production server/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
