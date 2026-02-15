@@ -1121,6 +1121,28 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     }
   });
 
+  // GET /api/instructors - List all active instructors (public)
+  app.get('/api/instructors', async (req: Request, res: Response) => {
+    try {
+      const status = (req.query.status as string) || 'approved';
+      const instructors = await storage.getInstructorsWithUser(status);
+
+      const enriched = instructors.map(inst => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { password, ...safeUser } = inst.user || {} as any;
+        return {
+          ...inst,
+          user: inst.user ? safeUser : null
+        };
+      });
+
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching instructors:", error);
+      res.status(500).json({ message: "Failed to fetch instructors" });
+    }
+  });
+
   // PUT /api/instructors/:id/profile - Update instructor profile (bio, specialties, languages, etc.)
   app.put('/api/instructors/:id/profile', isAuthenticated, async (req: any, res: Response) => {
     try {

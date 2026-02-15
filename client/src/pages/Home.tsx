@@ -570,7 +570,7 @@ export default function Home() {
               </div>
 
               <div className="rounded-3xl bg-slate-900 p-6 text-white shadow-sm">
-                <h3 className="text-lg font-semibold">Tudo dentro das regras.</h3>
+                <h3 className="text-lg font-semibold text-white">Tudo dentro das regras.</h3>
                 <p className="mt-3 text-sm text-slate-300">
                   O HabilitFy opera respeitando as normas do processo de
                   habilitação no Brasil, garantindo segurança jurídica,
