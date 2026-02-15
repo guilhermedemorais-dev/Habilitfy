@@ -4,6 +4,10 @@ import * as dotenv from "dotenv";
 // Carregar .env.production
 dotenv.config({ path: ".env.production" });
 
+interface CountResult extends mysql.RowDataPacket {
+    count: number;
+}
+
 async function diagnose() {
     console.log("🔍 Diagnóstico de Dados do Banco de Dados (Produção)");
     console.log("==================================================");
@@ -22,11 +26,11 @@ async function diagnose() {
         console.log("\n✅ Conexão estabelecida com sucesso!");
 
         // 1. Check Users
-        const [usersCount] = await connection.execute("SELECT COUNT(*) as count FROM users");
-        // @ts-ignore
-        console.log(`\n👥 Total de Usuários: ${usersCount[0].count}`);
+        const [usersResult] = await connection.execute<CountResult[]>("SELECT COUNT(*) as count FROM users");
+        const usersCount = usersResult[0].count;
+        console.log(`\n👥 Total de Usuários: ${usersCount}`);
 
-        if (usersCount[0].count > 0) {
+        if (usersCount > 0) {
             const [users] = await connection.execute("SELECT id, email, role, kyc_status, is_verified FROM users LIMIT 5");
             console.log("   Exemplos de usuários:");
             // @ts-ignore
@@ -34,11 +38,11 @@ async function diagnose() {
         }
 
         // 2. Check Instructors
-        const [instructorsCount] = await connection.execute("SELECT COUNT(*) as count FROM instructors");
-        // @ts-ignore
-        console.log(`\n🎓 Total de Instrutores: ${instructorsCount[0].count}`);
+        const [instructorsResult] = await connection.execute<CountResult[]>("SELECT COUNT(*) as count FROM instructors");
+        const instructorsCount = instructorsResult[0].count;
+        console.log(`\n🎓 Total de Instrutores: ${instructorsCount}`);
 
-        if (instructorsCount[0].count > 0) {
+        if (instructorsCount > 0) {
             const [instructors] = await connection.execute("SELECT id, user_id, status, city, rating FROM instructors LIMIT 5");
             console.log("   Exemplos de instrutores:");
             // @ts-ignore
@@ -49,19 +53,15 @@ async function diagnose() {
 
         // 3. Check specific filtering conditions
         console.log("\n🕵️ Análise de Filtros Comuns:");
-        // @ts-ignore
-        const [activeInstructors] = await connection.execute(
+        const [activeInstructorsResult] = await connection.execute<CountResult[]>(
             "SELECT COUNT(*) as count FROM instructors WHERE status = 'approved'"
         );
-        // @ts-ignore
-        console.log(`   - Instrutores com status 'approved': ${activeInstructors[0].count}`);
+        console.log(`   - Instrutores com status 'approved': ${activeInstructorsResult[0].count}`);
 
-        // @ts-ignore
-        const [verifiedUsers] = await connection.execute(
+        const [verifiedUsersResult] = await connection.execute<CountResult[]>(
             "SELECT COUNT(*) as count FROM users WHERE is_verified = 1"
         );
-        // @ts-ignore
-        console.log(`   - Usuários verificados: ${verifiedUsers[0].count}`);
+        console.log(`   - Usuários verificados: ${verifiedUsersResult[0].count}`);
 
         await connection.end();
 
