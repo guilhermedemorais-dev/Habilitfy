@@ -9,9 +9,14 @@
 
 'use strict';
 
-const http = require('http');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+
+// [DEBUG EXTREMO] Cria um arquivo assim que o script é tocado
+try { fs.writeFileSync(path.join(__dirname, 'BOOT_MARKER.txt'), `Boot attempt at ${new Date().toISOString()}\n`); } catch (e) { }
+
+const util = require('util');
+const http = require('http');
 
 // Configuração
 const PORT = process.env.PORT || 3000; // Hostinger pode injetar um pipe (string) ou porta (número)
