@@ -2,6 +2,7 @@
   "name": "rest-express",
   "version": "1.0.0",
   "type": "module",
+  "main": "server.cjs",
   "license": "MIT",
   "scripts": {
     "dev:client": "vite dev --port 5000",

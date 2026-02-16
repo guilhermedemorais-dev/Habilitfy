@@ -1,0 +1,4 @@
+
+PassengerAppRoot "/home/u540864618/domains/habilitfy.com.br/public_html"
+PassengerAppType node
+PassengerStartupFile server.cjs
