@@ -1,81 +1,118 @@
 /**
- * server.cjs - Entry Point com Log Automático para stderr.log
- * Recriando o arquivo de log que o usuário precisa.
+ * server.cjs - Entry Point com "Modo de Emergência"
+ * 
+ * Se a aplicação principal falhar (falta de build, erro de código),
+ * este script sobe um servidor temporário mostrando o erro no navegador.
+ * 
+ * ISSO ELIMINA O ERRO 503 E MOSTRA O DIAGNÓSTICO NA TELA.
  */
 
 'use strict';
 
-const path = require('path');
+const http = require('http');
 const fs = require('fs');
-const util = require('util');
+const path = require('path');
 
-// O ARQUIVO QUE VOCÊ QUERIA ESTÁ DE VOLTA AQUI 👇
-const LOG_FILE = path.join(__dirname, 'stderr.log');
+// Configuração
+const PORT = process.env.PORT || 3000; // Hostinger geralmente injeta a porta
+const DIST_PATH = path.resolve(__dirname, 'dist', 'index.cjs');
 
-// Função para garantir que tudo vá para o arquivo
-const logFile = fs.createWriteStream(LOG_FILE, { flags: 'a' });
-const logStdout = process.stdout;
-const logStderr = process.stderr;
+// Função para iniciar servidor de erro (Fallback)
+function startFallbackServer(errorTitle, errorDetail) {
+    console.error(`[FALLBACK] Iniciando servidor de diagnóstico devido a: ${errorTitle}`);
 
-// Redireciona console.log e console.error para o arquivo
-console.log = function () {
-    logFile.write(util.format.apply(null, arguments) + '\n');
-    logStdout.write(util.format.apply(null, arguments) + '\n');
-};
-console.error = function () {
-    logFile.write(util.format.apply(null, arguments) + '\n');
-    logStderr.write(util.format.apply(null, arguments) + '\n');
-};
+    // Tenta ler .env para diagnóstico
+    let envStatus = "Não verificado";
+    try {
+        if (fs.existsSync(path.resolve(__dirname, '.env.production'))) {
+            envStatus = ".env.production encontrado";
+        } else {
+            envStatus = ".env.production NÃO encontrado (usando variáveis do sistema)";
+        }
+    } catch (e) { envStatus = `Erro ao ler .env: ${e.message}`; }
 
-console.log(`[${new Date().toISOString()}] === INICIANDO SERVIDOR ===`);
-console.log(`[BOOT] Redirecionando logs para ${LOG_FILE}`);
+    const html = `
+    <html>
+    <head>
+        <title>HabilitFy - Modo de Diagnóstico</title>
+        <style>
+            body { font-family: monospace; background: #1a1a1a; color: #ff5555; padding: 20px; }
+            .box { border: 1px solid #444; padding: 20px; background: #222; border-radius: 5px; margin-bottom: 20px; }
+            h1 { color: #ff5555; }
+            h2 { color: #fff; border-bottom: 1px solid #444; padding-bottom: 10px; }
+            pre { background: #000; padding: 15px; overflow-x: auto; color: #ddd; }
+            .success { color: #55ff55; }
+        </style>
+    </head>
+    <body>
+        <h1>⚠️ A aplicação falhou ao iniciar</h1>
+        <div class="box">
+            <h2>Motivo do Erro</h2>
+            <h3>${errorTitle}</h3>
+            <pre>${errorDetail}</pre>
+        </div>
 
-// Carregar variáveis de ambiente
+        <div class="box">
+            <h2>Diagnóstico do Ambiente</h2>
+            <ul>
+                <li><strong>Node Version:</strong> ${process.version}</li>
+                <li><strong>Platform:</strong> ${process.platform}</li>
+                <li><strong>CWD:</strong> ${process.cwd()}</li>
+                <li><strong>PORT:</strong> ${PORT}</li>
+                <li><strong>NODE_ENV:</strong> ${process.env.NODE_ENV}</li>
+                <li><strong>Arquivo Build:</strong> ${DIST_PATH}</li>
+                <li><strong>Status do Build:</strong> ${fs.existsSync(DIST_PATH) ? '<span class="success">ENCONTRADO</span>' : '❌ NÃO ENCONTRADO (Você precisa rodar npm run build)'}</li>
+                <li><strong>Env File:</strong> ${envStatus}</li>
+            </ul>
+        </div>
+    </body>
+    </html>
+    `;
+
+    const server = http.createServer((req, res) => {
+        res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' }); // Mantém 503 semanticamente, mas mostra conteúd
+        res.end(html);
+    });
+
+    server.listen(PORT, () => {
+        console.log(`[FALLBACK] Servidor de diagnóstico ouvindo na porta ${PORT}`);
+    });
+}
+
+// 1. Tentar carregar variáveis de ambiente
 try {
     const dotenv = require('dotenv');
-    const envProductionPath = path.resolve(__dirname, '.env.production');
-
-    if (fs.existsSync(envProductionPath)) {
-        console.log(`[BOOT] Carregando .env.production`);
-        dotenv.config({ path: envProductionPath });
-    } else {
-        console.log("[BOOT] .env.production não encontrado. Tentando .env padrão...");
-        dotenv.config();
-    }
+    const envPath = path.resolve(__dirname, '.env.production');
+    if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
+    else dotenv.config();
 } catch (e) {
-    console.error(`[BOOT] ERRO ao carregar dotenv: ${e.message}`);
+    console.error("Erro no dotenv:", e);
 }
 
-// Configurar Ambiente
-process.env.NODE_ENV = process.env.NODE_ENV || 'production';
-
-// Resolver caminho do build
-const distPath = path.resolve(__dirname, 'dist', 'index.cjs');
-
-if (!fs.existsSync(distPath)) {
-    console.error("___________________________________________________________");
-    console.error("[ERRO FATAL] Arquivo dist/index.cjs NÃO ENCONTRADO.");
-    console.error("O build falhou ou não existe.");
-    console.error("___________________________________________________________");
-    process.exit(1);
+// 2. Validação Prévia
+if (!fs.existsSync(DIST_PATH)) {
+    startFallbackServer(
+        "Build não encontrado",
+        `O arquivo ${DIST_PATH} não existe.\n\nExecute "npm run build" no servidor ou localmente e suba a pasta dist.`
+    );
+} else {
+    // 3. Tentativa de Inicialização Real
+    try {
+        console.log("[BOOT] Carregando aplicação...");
+        require(DIST_PATH);
+    } catch (err) {
+        startFallbackServer(
+            "Erro Fatal na Inicialização da Aplicação",
+            err.stack || err.message
+        );
+    }
 }
 
-// Tentar carregar a aplicação
-console.log("[BOOT] Iniciando aplicação...");
-
-try {
-    require(distPath);
-} catch (err) {
-    console.error("___________________________________________________________");
-    console.error("[ERRO FATAL] A aplicação falhou ao iniciar:");
-    console.error(err.stack || err);
-    console.error("___________________________________________________________");
-    process.exit(1);
-}
-
-// Captura erros que escaparam
+// 4. Captura de Erros Globais (caso quebre depois de iniciar)
 process.on('uncaughtException', (err) => {
-    console.error(`[UNCAUGHT EXCEPTION] ${err.message}`);
-    console.error(err.stack);
-    process.exit(1);
+    // Se a app já tomou a porta, não conseguimos subir o fallback na mesma porta facilmente
+    // Mas se o erro foi no boot, o fallback assume.
+    console.error('Uncaught Exception:', err);
+    // Se o servidor http não estiver ouvindo, tentamos subir o fallback
+    // (Lógica simplificada: apenas loga e tenta manter vivo ou morre e deixa o process manager reiniciar)
 });
