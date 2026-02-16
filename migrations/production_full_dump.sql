@@ -19,24 +19,29 @@
 -- Table structure for table `admin_logs`
 --
 
+-- ========================================
+-- Table: admin_logs
+-- ========================================
+
 DROP TABLE IF EXISTS `admin_logs`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `admin_logs` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `admin_id` varchar(36) NOT NULL,
-  `action` varchar(255) NOT NULL,
-  `entity_type` varchar(100) DEFAULT NULL,
-  `entity_id` varchar(36) DEFAULT NULL,
-  `details` json DEFAULT NULL,
-  `ip_address` varchar(50) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_admin_log_admin` (`admin_id`),
-  KEY `idx_admin_log_action` (`action`),
-  CONSTRAINT `admin_logs_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `admin_id` VARCHAR(36) NOT NULL,
+  `action` VARCHAR(255) NOT NULL,
+  `target_id` VARCHAR(36),
+  `changes` JSON,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_admin_id` ON `admin_logs`(`admin_id`);
+
+-- Foreign Keys
+ALTER TABLE `admin_logs`
+  ADD CONSTRAINT `fk_admin_logs_admin` FOREIGN KEY (`admin_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `admin_logs`
@@ -51,19 +56,22 @@ UNLOCK TABLES;
 -- Table structure for table `admin_settings`
 --
 
+-- ========================================
+-- Table: admin_settings
+-- ========================================
+
 DROP TABLE IF EXISTS `admin_settings`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `admin_settings` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `platform_fee_percent` decimal(5,2) DEFAULT '0.00',
-  `cancellation_fee_percent` decimal(5,2) DEFAULT '0.00',
-  `cancellation_instructor_share_percent` decimal(5,2) DEFAULT '0.00',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `key` VARCHAR(255),
+  `value` TEXT,
+  `description` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `key` (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `admin_settings`
@@ -79,21 +87,31 @@ UNLOCK TABLES;
 -- Table structure for table `availability`
 --
 
+-- ========================================
+-- Table: availability
+-- ========================================
+
 DROP TABLE IF EXISTS `availability`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `availability` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `instructor_id` varchar(36) NOT NULL,
-  `day_of_week` int NOT NULL,
-  `start_time` varchar(10) NOT NULL,
-  `end_time` varchar(10) NOT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `instructor_id` (`instructor_id`),
-  CONSTRAINT `availability_ibfk_1` FOREIGN KEY (`instructor_id`) REFERENCES `instructors` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `instructor_id` VARCHAR(36) NOT NULL,
+  `day_of_week` INT NOT NULL COMMENT '0-6',
+  `start_time` TIME,
+  `end_time` TIME,
+  `is_available` TINYINT(1) DEFAULT 1,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_instructor_id` ON `availability`(`instructor_id`);
+
+-- Foreign Keys
+ALTER TABLE `availability`
+  ADD CONSTRAINT `fk_availability_instructor` FOREIGN KEY (`instructor_id`) 
+  REFERENCES `instructors`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `availability`
@@ -109,48 +127,79 @@ UNLOCK TABLES;
 -- Table structure for table `bookings`
 --
 
+
+-- ========================================
+-- Table: capture_sessions
+-- ========================================
+
+DROP TABLE IF EXISTS `capture_sessions`;
+
+CREATE TABLE `capture_sessions` (
+  `id` VARCHAR(36) NOT NULL,
+  `session_token` VARCHAR(64) NOT NULL,
+  `image_data` TEXT,
+  `status` ENUM('pending', 'completed', 'expired') NOT NULL DEFAULT 'pending',
+  `expires_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `session_token` (`session_token`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS `bookings`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `bookings` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `student_id` varchar(36) NOT NULL,
-  `instructor_id` varchar(36) NOT NULL,
-  `date` timestamp NOT NULL,
-  `duration` int NOT NULL DEFAULT '50',
-  `price` decimal(10,2) NOT NULL,
-  `rent_vehicle` tinyint(1) DEFAULT '0',
-  `vehicle_rental_price` decimal(10,2) DEFAULT '0.00',
-  `total_price` decimal(10,2) NOT NULL,
-  `status` enum('pending','confirmed','paid','completed','cancelled') NOT NULL DEFAULT 'pending',
-  `meeting_address` text,
-  `student_notes` text,
-  `payment_status` varchar(50) DEFAULT 'pending',
-  `payment_id` varchar(255) DEFAULT NULL,
-  `payment_provider` varchar(100) DEFAULT NULL,
-  `payment_url` varchar(500) DEFAULT NULL,
-  `payment_methods` json DEFAULT NULL,
-  `payment_dev_mode` tinyint(1) DEFAULT NULL,
-  `paid_at` timestamp NULL DEFAULT NULL,
-  `start_code` varchar(10) DEFAULT NULL,
-  `end_code` varchar(10) DEFAULT NULL,
-  `started_at` timestamp NULL DEFAULT NULL,
-  `completed_at` timestamp NULL DEFAULT NULL,
-  `cancelled_at` timestamp NULL DEFAULT NULL,
-  `cancelled_by_role` enum('student','instructor','admin') DEFAULT NULL,
-  `cancelled_by_user_id` varchar(36) DEFAULT NULL,
-  `cancel_reason` text,
-  `cancelled_minutes` int DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `student_id` (`student_id`),
-  KEY `instructor_id` (`instructor_id`),
-  KEY `cancelled_by_user_id` (`cancelled_by_user_id`),
-  CONSTRAINT `bookings_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `bookings_ibfk_2` FOREIGN KEY (`instructor_id`) REFERENCES `instructors` (`id`),
-  CONSTRAINT `bookings_ibfk_3` FOREIGN KEY (`cancelled_by_user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `id` VARCHAR(36) NOT NULL,
+  `student_id` VARCHAR(36) NOT NULL,
+  `instructor_id` VARCHAR(36) NOT NULL,
+  `date` TIMESTAMP NOT NULL,
+  `duration` INT DEFAULT 50,
+  `price` DECIMAL(10, 2) NOT NULL,
+  `rent_vehicle` TINYINT(1) DEFAULT 0,
+  `vehicle_rental_price` DECIMAL(10, 2) DEFAULT 0.00,
+  `total_price` DECIMAL(10, 2) NOT NULL,
+  `status` ENUM('pending', 'confirmed', 'paid', 'completed', 'cancelled') DEFAULT 'pending',
+  `meeting_address` TEXT,
+  `student_notes` TEXT,
+  `payment_status` VARCHAR(50) DEFAULT 'pending',
+  `payment_id` VARCHAR(255),
+  `payment_provider` VARCHAR(100),
+  `payment_url` VARCHAR(500),
+  `payment_methods` JSON,
+  `payment_dev_mode` TINYINT(1),
+  `paid_at` TIMESTAMP,
+  `start_code` VARCHAR(10),
+  `end_code` VARCHAR(10),
+  `started_at` TIMESTAMP,
+  `completed_at` TIMESTAMP,
+  `cancelled_at` TIMESTAMP,
+  `cancelled_by_role` ENUM('student', 'instructor', 'admin'),
+  `cancelled_by_user_id` VARCHAR(36),
+  `cancel_reason` TEXT,
+  `cancelled_minutes` INT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_student_id` ON `bookings`(`student_id`);
+CREATE INDEX `idx_instructor_id` ON `bookings`(`instructor_id`);
+CREATE INDEX `idx_cancelled_by_user_id` ON `bookings`(`cancelled_by_user_id`);
+
+-- Foreign Keys
+ALTER TABLE `bookings`
+  ADD CONSTRAINT `fk_bookings_student` FOREIGN KEY (`student_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
+
+ALTER TABLE `bookings`
+  ADD CONSTRAINT `fk_bookings_instructor` FOREIGN KEY (`instructor_id`) 
+  REFERENCES `instructors`(`id`) ON DELETE CASCADE;
+
+ALTER TABLE `bookings`
+  ADD CONSTRAINT `fk_bookings_cancelled_by` FOREIGN KEY (`cancelled_by_user_id`) 
+  REFERENCES `users`(`id`) ON DELETE SET NULL;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -167,30 +216,36 @@ UNLOCK TABLES;
 -- Table structure for table `disputes`
 --
 
+-- ========================================
+-- Table: disputes
+-- ========================================
+
 DROP TABLE IF EXISTS `disputes`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `disputes` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `booking_id` varchar(36) NOT NULL,
-  `opened_by_user_id` varchar(36) NOT NULL,
-  `opened_by_role` enum('student','instructor','admin') NOT NULL,
-  `reason` text NOT NULL,
-  `status` enum('open','in_review','resolved') NOT NULL DEFAULT 'open',
-  `resolution` enum('refund_student','release_instructor','split') DEFAULT NULL,
-  `resolved_by_user_id` varchar(36) DEFAULT NULL,
-  `resolved_at` timestamp NULL DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `booking_id` (`booking_id`),
-  KEY `opened_by_user_id` (`opened_by_user_id`),
-  KEY `resolved_by_user_id` (`resolved_by_user_id`),
-  CONSTRAINT `disputes_ibfk_1` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`),
-  CONSTRAINT `disputes_ibfk_2` FOREIGN KEY (`opened_by_user_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `disputes_ibfk_3` FOREIGN KEY (`resolved_by_user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `booking_id` VARCHAR(36) NOT NULL,
+  `opened_by` VARCHAR(36) NOT NULL,
+  `reason` TEXT,
+  `status` ENUM('open', 'in_progress', 'resolved', 'closed') DEFAULT 'open',
+  `resolution` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_booking_id` ON `disputes`(`booking_id`);
+CREATE INDEX `idx_opened_by` ON `disputes`(`opened_by`);
+
+-- Foreign Keys
+ALTER TABLE `disputes`
+  ADD CONSTRAINT `fk_disputes_booking` FOREIGN KEY (`booking_id`) 
+  REFERENCES `bookings`(`id`) ON DELETE CASCADE;
+
+ALTER TABLE `disputes`
+  ADD CONSTRAINT `fk_disputes_opener` FOREIGN KEY (`opened_by`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `disputes`
@@ -209,41 +264,56 @@ DROP TABLE IF EXISTS `instructors`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `instructors` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `user_id` varchar(36) NOT NULL,
-  `bio` text,
-  `price_per_hour` decimal(10,2) NOT NULL,
-  `slot_duration_minutes` int NOT NULL DEFAULT '50',
-  `max_bookings_per_student` int NOT NULL DEFAULT '0',
-  `vehicle_model` varchar(255) NOT NULL,
-  `vehicle_year` varchar(10) DEFAULT NULL,
-  `vehicle_type` varchar(100) NOT NULL,
-  `vehicle_plate` varchar(20) DEFAULT NULL,
-  `rating` decimal(3,2) DEFAULT '0.00',
-  `reviews_count` int DEFAULT '0',
-  `lat` decimal(10,7) DEFAULT NULL,
-  `lng` decimal(10,7) DEFAULT NULL,
-  `neighborhood` varchar(255) DEFAULT NULL,
-  `city` varchar(255) DEFAULT NULL,
-  `state` varchar(50) DEFAULT NULL,
-  `credential_number` varchar(100) DEFAULT NULL,
-  `credential_image_url` varchar(500) DEFAULT NULL,
-  `document_number` varchar(100) DEFAULT NULL,
-  `document_image_url` varchar(500) DEFAULT NULL,
-  `selfie_image_url` varchar(500) DEFAULT NULL,
-  `vehicle_image_url` varchar(500) DEFAULT NULL,
-  `vehicle_doc_image_url` varchar(500) DEFAULT NULL,
-  `vehicle_plate_image_url` varchar(500) DEFAULT NULL,
-  `vehicle_authorization_image_url` varchar(500) DEFAULT NULL,
-  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
-  `service_areas` text,
-  `pix_key` varchar(255) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`),
-  CONSTRAINT `instructors_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `bio` TEXT,
+  `price_per_hour` DECIMAL(10, 2),
+  `vehicle_model` VARCHAR(100),
+  `vehicle_year` INT,
+  `vehicle_type` ENUM('car', 'motorcycle', 'both'),
+  `vehicle_plate` VARCHAR(20),
+  `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  `credential_image_url` VARCHAR(500),
+  `document_image_url` VARCHAR(500),
+  `vehicle_doc_image_url` VARCHAR(500),
+  `selfie_image_url` VARCHAR(500),
+  `cnh_front_image_url` VARCHAR(500),
+  `cnh_back_image_url` VARCHAR(500),
+  `vehicle_image_url` VARCHAR(500),
+  `vehicle_plate_image_url` VARCHAR(500),
+  `vehicle_authorization_image_url` VARCHAR(500),
+  `credential_number` VARCHAR(50),
+  `document_number` VARCHAR(100),
+  `neighborhood` VARCHAR(255),
+  `city` VARCHAR(255),
+  `state` VARCHAR(50),
+  `lat` DECIMAL(10, 7),
+  `lng` DECIMAL(10, 7),
+  `pix_key` VARCHAR(255),
+  `service_areas` TEXT,
+  `slot_duration_minutes` INT DEFAULT 50,
+  `max_bookings_per_student` INT DEFAULT 0,
+  `rating` DECIMAL(3, 2) DEFAULT 0.00,
+  `reviews_count` INT DEFAULT 0,
+  `years_experience` INT DEFAULT 0,
+  `languages` JSON,
+  `specialties` JSON,
+  `working_hours` VARCHAR(100),
+  `response_time` VARCHAR(50),
+  `gallery_images` JSON,
+  `lessons_completed` INT DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_user_id` ON `instructors`(`user_id`);
+
+-- Foreign Keys
+ALTER TABLE `instructors`
+  ADD CONSTRAINT `fk_instructors_user` FOREIGN KEY (`user_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -260,25 +330,29 @@ UNLOCK TABLES;
 -- Table structure for table `integrations`
 --
 
+-- ========================================
+-- Table: integrations
+-- ========================================
+
 DROP TABLE IF EXISTS `integrations`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `integrations` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `name` varchar(255) NOT NULL,
-  `slug` varchar(100) NOT NULL,
-  `category` varchar(100) NOT NULL,
-  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
-  `environment` enum('development','production') NOT NULL DEFAULT 'production',
-  `is_default` tinyint(1) DEFAULT '0',
-  `fields` json DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `integrations_slug_env_idx` (`slug`,`environment`),
-  KEY `integrations_category_env_idx` (`category`,`environment`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `slug` VARCHAR(100) NOT NULL,
+  `category` VARCHAR(100) NOT NULL,
+  `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  `environment` ENUM('development', 'production') NOT NULL DEFAULT 'production',
+  `is_default` TINYINT(1) DEFAULT 0,
+  `fields` JSON,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_integrations_slug_env` ON `integrations`(`slug`, `environment`);
+CREATE INDEX `idx_integrations_category_env` ON `integrations`(`category`, `environment`);
 
 --
 -- Dumping data for table `integrations`
@@ -294,38 +368,34 @@ UNLOCK TABLES;
 -- Table structure for table `kyc_verifications`
 --
 
+-- ========================================
+-- Table: kyc_verifications
+-- ========================================
+
 DROP TABLE IF EXISTS `kyc_verifications`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `kyc_verifications` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `user_id` varchar(36) NOT NULL,
-  `selfie_url` varchar(500) DEFAULT NULL,
-  `document_front_url` varchar(500) DEFAULT NULL,
-  `document_back_url` varchar(500) DEFAULT NULL,
-  `extracted_name` varchar(255) DEFAULT NULL,
-  `extracted_cpf` varchar(20) DEFAULT NULL,
-  `extracted_birth_date` timestamp NULL DEFAULT NULL,
-  `extracted_document_number` varchar(100) DEFAULT NULL,
-  `face_match_score` decimal(5,4) DEFAULT NULL,
-  `face_match_passed` tinyint(1) DEFAULT '0',
-  `liveness_score` decimal(5,4) DEFAULT NULL,
-  `liveness_passed` tinyint(1) DEFAULT '0',
-  `document_valid` tinyint(1) DEFAULT '0',
-  `document_validation_details` json DEFAULT NULL,
-  `status` enum('pending','processing','approved','rejected','requires_review') NOT NULL DEFAULT 'pending',
-  `rejection_reason` text,
-  `review_notes` text,
-  `reviewed_by_user_id` varchar(36) DEFAULT NULL,
-  `reviewed_at` timestamp NULL DEFAULT NULL,
-  `ip_address` varchar(50) DEFAULT NULL,
-  `user_agent` text,
-  `device_fingerprint` varchar(255) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `document_type` VARCHAR(50),
+  `document_number` VARCHAR(100),
+  `document_image_url` VARCHAR(500),
+  `selfie_image_url` VARCHAR(500),
+  `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  `rejection_reason` TEXT,
+  `verified_at` TIMESTAMP,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_user_id` ON `kyc_verifications`(`user_id`);
+
+-- Foreign Keys
+ALTER TABLE `kyc_verifications`
+  ADD CONSTRAINT `fk_kyc_verifications_user` FOREIGN KEY (`user_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `kyc_verifications`
@@ -340,26 +410,41 @@ UNLOCK TABLES;
 -- Table structure for table `messages`
 --
 
+-- ========================================
+-- Table: messages
+-- ========================================
+
 DROP TABLE IF EXISTS `messages`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `messages` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `sender_id` varchar(36) NOT NULL,
-  `receiver_id` varchar(36) NOT NULL,
-  `booking_id` varchar(36) DEFAULT NULL,
-  `content` text NOT NULL,
-  `read` tinyint(1) NOT NULL DEFAULT '0',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `sender_id` (`sender_id`),
-  KEY `receiver_id` (`receiver_id`),
-  KEY `booking_id` (`booking_id`),
-  CONSTRAINT `messages_ibfk_1` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `messages_ibfk_2` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `messages_ibfk_3` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `sender_id` VARCHAR(36) NOT NULL,
+  `recipient_id` VARCHAR(36) NOT NULL,
+  `booking_id` VARCHAR(36),
+  `content` TEXT,
+  `is_read` TINYINT(1) DEFAULT 0,
+  `read_at` TIMESTAMP,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_sender_id` ON `messages`(`sender_id`);
+CREATE INDEX `idx_recipient_id` ON `messages`(`recipient_id`);
+CREATE INDEX `idx_booking_id` ON `messages`(`booking_id`);
+
+-- Foreign Keys
+ALTER TABLE `messages`
+  ADD CONSTRAINT `fk_messages_sender` FOREIGN KEY (`sender_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
+
+ALTER TABLE `messages`
+  ADD CONSTRAINT `fk_messages_recipient` FOREIGN KEY (`recipient_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
+
+ALTER TABLE `messages`
+  ADD CONSTRAINT `fk_messages_booking` FOREIGN KEY (`booking_id`) 
+  REFERENCES `bookings`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `messages`
@@ -374,24 +459,32 @@ UNLOCK TABLES;
 -- Table structure for table `notifications`
 --
 
+-- ========================================
+-- Table: notifications
+-- ========================================
+
 DROP TABLE IF EXISTS `notifications`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `notifications` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `user_id` varchar(36) NOT NULL,
-  `type` varchar(100) NOT NULL,
-  `title` varchar(255) NOT NULL,
-  `message` text NOT NULL,
-  `read` tinyint(1) DEFAULT '0',
-  `data` json DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_notification_user` (`user_id`),
-  KEY `idx_notification_read` (`read`),
-  CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `type` VARCHAR(100),
+  `title` VARCHAR(255),
+  `message` TEXT,
+  `data` JSON,
+  `is_read` TINYINT(1) DEFAULT 0,
+  `read_at` TIMESTAMP,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_user_id` ON `notifications`(`user_id`);
+
+-- Foreign Keys
+ALTER TABLE `notifications`
+  ADD CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `notifications`
@@ -406,20 +499,22 @@ UNLOCK TABLES;
 -- Table structure for table `payment_gateways`
 --
 
+-- ========================================
+-- Table: payment_gateways
+-- ========================================
+
 DROP TABLE IF EXISTS `payment_gateways`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `payment_gateways` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `provider` varchar(100) NOT NULL,
-  `api_key` text,
-  `status` varchar(50) DEFAULT 'active',
-  `is_default` tinyint(1) DEFAULT '0',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `id` VARCHAR(36) NOT NULL,
+  `name` VARCHAR(100),
+  `provider` VARCHAR(100),
+  `config` JSON,
+  `is_active` TINYINT(1),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `payment_gateways`
@@ -438,21 +533,33 @@ DROP TABLE IF EXISTS `reviews`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `reviews` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `booking_id` varchar(36) NOT NULL,
-  `student_id` varchar(36) NOT NULL,
-  `instructor_id` varchar(36) NOT NULL,
-  `rating` int NOT NULL,
-  `comment` text,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `booking_id` (`booking_id`),
-  KEY `student_id` (`student_id`),
-  KEY `instructor_id` (`instructor_id`),
-  CONSTRAINT `reviews_ibfk_1` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`),
-  CONSTRAINT `reviews_ibfk_2` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `reviews_ibfk_3` FOREIGN KEY (`instructor_id`) REFERENCES `instructors` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `id` VARCHAR(36) NOT NULL,
+  `booking_id` VARCHAR(36) NOT NULL,
+  `student_id` VARCHAR(36) NOT NULL,
+  `instructor_id` VARCHAR(36) NOT NULL,
+  `rating` INT NOT NULL,
+  `comment` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_booking_id` ON `reviews`(`booking_id`);
+CREATE INDEX `idx_student_id` ON `reviews`(`student_id`);
+CREATE INDEX `idx_instructor_id` ON `reviews`(`instructor_id`);
+
+-- Foreign Keys
+ALTER TABLE `reviews`
+  ADD CONSTRAINT `fk_reviews_booking` FOREIGN KEY (`booking_id`) 
+  REFERENCES `bookings`(`id`) ON DELETE CASCADE;
+
+ALTER TABLE `reviews`
+  ADD CONSTRAINT `fk_reviews_student` FOREIGN KEY (`student_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
+
+ALTER TABLE `reviews`
+  ADD CONSTRAINT `fk_reviews_instructor` FOREIGN KEY (`instructor_id`) 
+  REFERENCES `instructors`(`id`) ON DELETE CASCADE;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -469,19 +576,19 @@ UNLOCK TABLES;
 -- Table structure for table `seed_metadata`
 --
 
+-- ========================================
+-- Table: seed_metadata
+-- ========================================
+
 DROP TABLE IF EXISTS `seed_metadata`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `seed_metadata` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `executed_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `version` varchar(50) DEFAULT NULL,
-  `total_instructors` int DEFAULT NULL,
-  `total_reviews` int DEFAULT NULL,
-  `status` varchar(20) DEFAULT NULL,
+  `id` VARCHAR(36) NOT NULL,
+  `seed_name` VARCHAR(255),
+  `executed_at` TIMESTAMP,
+  `version` VARCHAR(50),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `seed_metadata`
@@ -497,17 +604,18 @@ UNLOCK TABLES;
 -- Table structure for table `sessions`
 --
 
+-- ========================================
+-- Table: sessions
+-- ========================================
+
 DROP TABLE IF EXISTS `sessions`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `sessions` (
-  `sid` varchar(255) NOT NULL,
-  `sess` json NOT NULL,
-  `expire` timestamp NOT NULL,
-  PRIMARY KEY (`sid`),
-  KEY `IDX_session_expire` (`expire`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `session_id` VARCHAR(128) NOT NULL,
+  `expires` INT UNSIGNED,
+  `data` MEDIUMTEXT,
+  PRIMARY KEY (`session_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `sessions`
@@ -522,24 +630,37 @@ UNLOCK TABLES;
 -- Table structure for table `support_tickets`
 --
 
+-- ========================================
+-- Table: support_tickets
+-- ========================================
+
 DROP TABLE IF EXISTS `support_tickets`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `support_tickets` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `user_id` varchar(36) NOT NULL,
-  `subject` varchar(255) NOT NULL,
-  `message` text NOT NULL,
-  `attachment_urls` json DEFAULT NULL,
-  `type` varchar(50) NOT NULL,
-  `status` enum('open','in_progress','resolved','closed') NOT NULL DEFAULT 'open',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`),
-  CONSTRAINT `support_tickets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `subject` VARCHAR(255),
+  `message` TEXT,
+  `status` ENUM('open', 'in_progress', 'resolved', 'closed') DEFAULT 'open',
+  `priority` ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'low',
+  `assigned_to` VARCHAR(36),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_user_id` ON `support_tickets`(`user_id`);
+CREATE INDEX `idx_assigned_to` ON `support_tickets`(`assigned_to`);
+
+-- Foreign Keys
+ALTER TABLE `support_tickets`
+  ADD CONSTRAINT `fk_support_tickets_user` FOREIGN KEY (`user_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
+
+ALTER TABLE `support_tickets`
+  ADD CONSTRAINT `fk_support_tickets_assigned` FOREIGN KEY (`assigned_to`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `support_tickets`
@@ -558,26 +679,38 @@ DROP TABLE IF EXISTS `transactions`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `transactions` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `booking_id` varchar(36) DEFAULT NULL,
-  `type` enum('booking','withdrawal','refund','commission','affiliate','coupon') NOT NULL,
-  `status` enum('pending','paid','processing','refunded','cancelled','failed') NOT NULL DEFAULT 'pending',
-  `amount_gross` decimal(10,2) NOT NULL,
-  `amount_net` decimal(10,2) NOT NULL,
-  `gateway` varchar(100) DEFAULT NULL,
-  `payment_id` varchar(255) DEFAULT NULL,
-  `from_user_id` varchar(36) DEFAULT NULL,
-  `to_user_id` varchar(36) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `booking_id` (`booking_id`),
-  KEY `from_user_id` (`from_user_id`),
-  KEY `to_user_id` (`to_user_id`),
-  CONSTRAINT `transactions_ibfk_1` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`),
-  CONSTRAINT `transactions_ibfk_2` FOREIGN KEY (`from_user_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `transactions_ibfk_3` FOREIGN KEY (`to_user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `id` VARCHAR(36) NOT NULL,
+  `booking_id` VARCHAR(36),
+  `type` ENUM('booking', 'withdrawal', 'refund', 'commission', 'affiliate', 'coupon') NOT NULL,
+  `status` ENUM('pending', 'paid', 'processing', 'refunded', 'cancelled', 'failed') DEFAULT 'pending',
+  `amount_gross` DECIMAL(10, 2) NOT NULL,
+  `amount_net` DECIMAL(10, 2) NOT NULL,
+  `gateway` VARCHAR(100),
+  `payment_id` VARCHAR(255),
+  `from_user_id` VARCHAR(36),
+  `to_user_id` VARCHAR(36),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_booking_id` ON `transactions`(`booking_id`);
+CREATE INDEX `idx_from_user_id` ON `transactions`(`from_user_id`);
+CREATE INDEX `idx_to_user_id` ON `transactions`(`to_user_id`);
+
+-- Foreign Keys
+ALTER TABLE `transactions`
+  ADD CONSTRAINT `fk_transactions_booking` FOREIGN KEY (`booking_id`) 
+  REFERENCES `bookings`(`id`) ON DELETE SET NULL;
+
+ALTER TABLE `transactions`
+  ADD CONSTRAINT `fk_transactions_from_user` FOREIGN KEY (`from_user_id`) 
+  REFERENCES `users`(`id`) ON DELETE SET NULL;
+
+ALTER TABLE `transactions`
+  ADD CONSTRAINT `fk_transactions_to_user` FOREIGN KEY (`to_user_id`) 
+  REFERENCES `users`(`id`) ON DELETE SET NULL;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -597,34 +730,34 @@ DROP TABLE IF EXISTS `users`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `users` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `email` varchar(255) DEFAULT NULL,
-  `google_id` varchar(255) DEFAULT NULL,
-  `first_name` varchar(255) DEFAULT NULL,
-  `last_name` varchar(255) DEFAULT NULL,
-  `profile_image_url` varchar(500) DEFAULT NULL,
-  `role` enum('student','instructor','admin') NOT NULL DEFAULT 'student',
-  `kyc_status` enum('pending','approved','rejected') NOT NULL DEFAULT 'approved',
-  `phone` varchar(50) DEFAULT NULL,
-  `cpf` varchar(20) DEFAULT NULL,
-  `cnpj` varchar(20) DEFAULT NULL,
-  `admin_role` enum('master','manager','support') DEFAULT NULL,
-  `is_verified` tinyint(1) NOT NULL DEFAULT '0',
-  `verification_token` varchar(255) DEFAULT NULL,
-  `address_line` varchar(500) DEFAULT NULL,
-  `zip_code` varchar(20) DEFAULT NULL,
-  `neighborhood` varchar(255) DEFAULT NULL,
-  `city` varchar(255) DEFAULT NULL,
-  `state` varchar(50) DEFAULT NULL,
-  `lat` decimal(10,7) DEFAULT NULL,
-  `lng` decimal(10,7) DEFAULT NULL,
-  `password` text,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `id` VARCHAR(36) NOT NULL,
+  `email` VARCHAR(255),
+  `google_id` VARCHAR(255),
+  `first_name` VARCHAR(255),
+  `last_name` VARCHAR(255),
+  `profile_image_url` VARCHAR(500),
+  `role` ENUM('student', 'instructor', 'admin') DEFAULT 'student',
+  `kyc_status` ENUM('pending', 'approved', 'rejected') DEFAULT 'approved',
+  `phone` VARCHAR(50),
+  `cpf` VARCHAR(20),
+  `cnpj` VARCHAR(20),
+  `admin_role` ENUM('master', 'manager', 'support'),
+  `is_verified` TINYINT(1) DEFAULT 0,
+  `verification_token` VARCHAR(255),
+  `address_line` VARCHAR(500),
+  `zip_code` VARCHAR(20),
+  `neighborhood` VARCHAR(255),
+  `city` VARCHAR(255),
+  `state` VARCHAR(50),
+  `lat` DECIMAL(10, 7),
+  `lng` DECIMAL(10, 7),
+  `password` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `google_id` (`google_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -645,27 +778,33 @@ DROP TABLE IF EXISTS `vehicles`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `vehicles` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `instructor_id` varchar(36) NOT NULL,
-  `brand` varchar(100) NOT NULL,
-  `model` varchar(100) NOT NULL,
-  `year` int NOT NULL,
-  `plate` varchar(20) NOT NULL,
-  `category` varchar(50) NOT NULL,
-  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
-  `photo_front` text,
-  `photo_side` text,
-  `photo_back` text,
-  `photo_interior` text,
-  `document_crlv` text,
-  `document_lav` text,
-  `rejection_reason` text,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `instructor_id` (`instructor_id`),
-  CONSTRAINT `vehicles_ibfk_1` FOREIGN KEY (`instructor_id`) REFERENCES `instructors` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `id` VARCHAR(36) NOT NULL,
+  `instructor_id` VARCHAR(36) NOT NULL,
+  `brand` VARCHAR(100) NOT NULL,
+  `model` VARCHAR(100) NOT NULL,
+  `year` INT NOT NULL,
+  `plate` VARCHAR(20) NOT NULL,
+  `category` VARCHAR(50) NOT NULL,
+  `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  `photo_front` TEXT,
+  `photo_side` TEXT,
+  `photo_back` TEXT,
+  `photo_interior` TEXT,
+  `document_crlv` TEXT,
+  `document_lav` TEXT,
+  `rejection_reason` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_instructor_id` ON `vehicles`(`instructor_id`);
+
+-- Foreign Keys
+ALTER TABLE `vehicles`
+  ADD CONSTRAINT `fk_vehicles_instructor` FOREIGN KEY (`instructor_id`) 
+  REFERENCES `instructors`(`id`) ON DELETE CASCADE;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -682,30 +821,31 @@ UNLOCK TABLES;
 -- Table structure for table `wallet_entries`
 --
 
+-- ========================================
+-- Table: wallet_entries
+-- ========================================
+
 DROP TABLE IF EXISTS `wallet_entries`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `wallet_entries` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `wallet_id` varchar(36) NOT NULL,
-  `user_id` varchar(36) NOT NULL,
-  `type` enum('credit','debit','refund','withdrawal','adjustment') NOT NULL,
-  `amount` decimal(10,2) NOT NULL,
-  `description` text,
-  `booking_id` varchar(36) DEFAULT NULL,
-  `transaction_id` varchar(36) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `wallet_id` (`wallet_id`),
-  KEY `user_id` (`user_id`),
-  KEY `booking_id` (`booking_id`),
-  KEY `transaction_id` (`transaction_id`),
-  CONSTRAINT `wallet_entries_ibfk_1` FOREIGN KEY (`wallet_id`) REFERENCES `wallets` (`id`),
-  CONSTRAINT `wallet_entries_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `wallet_entries_ibfk_3` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`),
-  CONSTRAINT `wallet_entries_ibfk_4` FOREIGN KEY (`transaction_id`) REFERENCES `transactions` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `wallet_id` VARCHAR(36) NOT NULL,
+  `type` ENUM('credit', 'debit'),
+  `amount` DECIMAL(10,2),
+  `description` TEXT,
+  `reference_id` VARCHAR(36),
+  `reference_type` VARCHAR(100),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_wallet_id` ON `wallet_entries`(`wallet_id`);
+
+-- Foreign Keys
+ALTER TABLE `wallet_entries`
+  ADD CONSTRAINT `fk_wallet_entries_wallet` FOREIGN KEY (`wallet_id`) 
+  REFERENCES `wallets`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `wallet_entries`
@@ -720,21 +860,29 @@ UNLOCK TABLES;
 -- Table structure for table `wallets`
 --
 
+-- ========================================
+-- Table: wallets
+-- ========================================
+
 DROP TABLE IF EXISTS `wallets`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `wallets` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `user_id` varchar(36) NOT NULL,
-  `balance` decimal(10,2) DEFAULT '0.00',
-  `currency` varchar(10) DEFAULT 'BRL',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`),
-  CONSTRAINT `wallets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `balance` DECIMAL(10,2) DEFAULT 0.00,
+  `currency` VARCHAR(3) DEFAULT 'BRL',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_user_id` ON `wallets`(`user_id`);
+
+-- Foreign Keys
+ALTER TABLE `wallets`
+  ADD CONSTRAINT `fk_wallets_user` FOREIGN KEY (`user_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `wallets`
@@ -750,22 +898,22 @@ UNLOCK TABLES;
 -- Table structure for table `webhooks_events`
 --
 
+-- ========================================
+-- Table: webhooks_events
+-- ========================================
+
 DROP TABLE IF EXISTS `webhooks_events`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `webhooks_events` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `integration_slug` varchar(100) NOT NULL,
-  `event_type` varchar(255) NOT NULL,
-  `payload` json DEFAULT NULL,
-  `status` enum('received','processed','failed') NOT NULL DEFAULT 'received',
-  `error_message` text,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_webhook_slug` (`integration_slug`),
-  KEY `idx_webhook_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `event_type` VARCHAR(100),
+  `provider` VARCHAR(100),
+  `payload` JSON,
+  `status` ENUM('pending', 'processed', 'failed') DEFAULT 'pending',
+  `processed_at` TIMESTAMP,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `webhooks_events`
@@ -780,29 +928,31 @@ UNLOCK TABLES;
 -- Table structure for table `withdrawals`
 --
 
+-- ========================================
+-- Table: withdrawals
+-- ========================================
+
 DROP TABLE IF EXISTS `withdrawals`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
+
 CREATE TABLE `withdrawals` (
-  `id` varchar(36) NOT NULL DEFAULT (uuid()),
-  `user_id` varchar(36) NOT NULL,
-  `amount` decimal(10,2) NOT NULL,
-  `status` enum('pending','approved','rejected','processed') NOT NULL DEFAULT 'pending',
-  `destination_type` varchar(50) DEFAULT 'pix',
-  `destination_key` varchar(255) DEFAULT NULL,
-  `requested_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `processed_at` timestamp NULL DEFAULT NULL,
-  `processed_by_user_id` varchar(36) DEFAULT NULL,
-  `notes` text,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`),
-  KEY `processed_by_user_id` (`processed_by_user_id`),
-  CONSTRAINT `withdrawals_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `withdrawals_ibfk_2` FOREIGN KEY (`processed_by_user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  `id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `amount` DECIMAL(10,2),
+  `pix_key` VARCHAR(255),
+  `status` ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+  `processed_at` TIMESTAMP,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Índices
+CREATE INDEX `idx_user_id` ON `withdrawals`(`user_id`);
+
+-- Foreign Keys
+ALTER TABLE `withdrawals`
+  ADD CONSTRAINT `fk_withdrawals_user` FOREIGN KEY (`user_id`) 
+  REFERENCES `users`(`id`) ON DELETE CASCADE;
 
 --
 -- Dumping data for table `withdrawals`
@@ -838,16 +988,16 @@ INSERT INTO users (id, email, password, first_name, last_name, role, kyc_status,
 VALUES 
 ('11111111-1111-1111-1111-111111111111', 'instrutor.pendente@habilitfy.test', '88f4f07a00d2ecba3ead4462cddb1c403a7f6a5c5befedfd7375814338e95732cf7399819e67371b3ac0ce1d8bab07c333e57f68e0880de6e1de9830f1fb0526.7f883b97fc7e6866dc144503770ca407', 'Instrutor', 'Pendente', 'instructor', 'pending', '(11) 99999-0001', '111.111.111-11', 'https://randomuser.me/api/portraits/men/50.jpg', 1, NOW());
 
-INSERT INTO instructors (user_id, bio, price_per_hour, vehicle_model, vehicle_year, vehicle_type, vehicle_plate, status, credential_image_url, document_image_url, vehicle_doc_image_url, selfie_image_url, credential_number, neighborhood, city, state, lat, lng, pix_key)
+INSERT INTO instructors (id, user_id, bio, price_per_hour, vehicle_model, vehicle_year, vehicle_type, vehicle_plate, status, credential_image_url, document_image_url, vehicle_doc_image_url, selfie_image_url, credential_number, neighborhood, city, state, lat, lng, pix_key)
 VALUES 
-('11111111-1111-1111-1111-111111111111', 'Instrutor recém-cadastrado aguardando aprovação.', '100.00', 'Fiat Mobi', '2024', 'car', 'TEST-001', 'pending', 'https://placehold.co/600x400/png?text=CNH+Frente', 'https://placehold.co/600x400/png?text=CNH+Verso', 'https://placehold.co/600x400/png?text=Doc+Veiculo', 'https://placehold.co/400x400/png?text=Selfie', '12345678900', 'Centro', 'Rio de Janeiro', 'RJ', '-22.9068', '-43.1729', 'instrutor.pendente@habilitfy.test');
+('d79e82e5-3642-4246-834c-607278292831', '11111111-1111-1111-1111-111111111111', 'Instrutor recém-cadastrado aguardando aprovação.', '100.00', 'Fiat Mobi', '2024', 'car', 'TEST-001', 'pending', 'https://placehold.co/600x400/png?text=CNH+Frente', 'https://placehold.co/600x400/png?text=CNH+Verso', 'https://placehold.co/600x400/png?text=Doc+Veiculo', 'https://placehold.co/400x400/png?text=Selfie', '12345678900', 'Centro', 'Rio de Janeiro', 'RJ', '-22.9068', '-43.1729', 'instrutor.pendente@habilitfy.test');
 
 -- 2. Instrutor Rejeitado
 INSERT INTO users (id, email, password, first_name, last_name, role, kyc_status, phone, cpf, profile_image_url, is_verified, created_at)
 VALUES 
 ('22222222-2222-2222-2222-222222222222', 'instrutor.rejeitado@habilitfy.test', '88f4f07a00d2ecba3ead4462cddb1c403a7f6a5c5befedfd7375814338e95732cf7399819e67371b3ac0ce1d8bab07c333e57f68e0880de6e1de9830f1fb0526.7f883b97fc7e6866dc144503770ca407', 'Instrutor', 'Rejeitado', 'instructor', 'rejected', '(11) 99999-0002', '222.222.222-22', 'https://randomuser.me/api/portraits/men/51.jpg', 1, NOW());
 
-INSERT INTO instructors (user_id, bio, price_per_hour, vehicle_model, vehicle_year, vehicle_type, vehicle_plate, status, credential_image_url, document_image_url, vehicle_doc_image_url, selfie_image_url, credential_number, neighborhood, city, state, lat, lng, pix_key)
+INSERT INTO instructors (id, user_id, bio, price_per_hour, vehicle_model, vehicle_year, vehicle_type, vehicle_plate, status, credential_image_url, document_image_url, vehicle_doc_image_url, selfie_image_url, credential_number, neighborhood, city, state, lat, lng, pix_key)
 VALUES 
-('22222222-2222-2222-2222-222222222222', 'Instrutor com documentação inválida.', '120.00', 'Honda CG 160', '2023', 'motorcycle', 'TEST-002', 'rejected', 'https://placehold.co/600x400/png?text=CNH+Borrada', 'https://placehold.co/600x400/png?text=CNH+Verso', 'https://placehold.co/600x400/png?text=Doc+Vencido', 'https://placehold.co/400x400/png?text=Selfie+Escura', '00000000000', 'Copacabana', 'Rio de Janeiro', 'RJ', '-22.9711', '-43.1823', 'instrutor.rejeitado@habilitfy.test');
+('e307373f-6799-4c07-8857-797705292832', '22222222-2222-2222-2222-222222222222', 'Instrutor com documentação inválida.', '120.00', 'Honda CG 160', '2023', 'motorcycle', 'TEST-002', 'rejected', 'https://placehold.co/600x400/png?text=CNH+Borrada', 'https://placehold.co/600x400/png?text=CNH+Verso', 'https://placehold.co/600x400/png?text=Doc+Vencido', 'https://placehold.co/400x400/png?text=Selfie+Escura', '00000000000', 'Copacabana', 'Rio de Janeiro', 'RJ', '-22.9711', '-43.1823', 'instrutor.rejeitado@habilitfy.test');
   

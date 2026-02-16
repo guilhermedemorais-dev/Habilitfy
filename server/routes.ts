@@ -257,11 +257,9 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       const sessionToken = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      const { captureSessions } = await import("@shared/schema");
-      await db.insert(captureSessions).values({
+      await storage.createCaptureSession({
         sessionToken,
         expiresAt,
-        status: 'pending',
       });
 
       res.status(201).json({ sessionToken, expiresAt });
@@ -273,10 +271,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/capture-session/:token', async (req: Request, res: Response) => {
     try {
-      const { captureSessions } = await import("@shared/schema");
-      const [session] = await db.select()
-        .from(captureSessions)
-        .where(eq(captureSessions.sessionToken, req.params.token));
+      const session = await storage.getCaptureSession(req.params.token);
 
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
@@ -304,10 +299,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ error: "imageData is required" });
       }
 
-      const { captureSessions } = await import("@shared/schema");
-      const [session] = await db.select()
-        .from(captureSessions)
-        .where(eq(captureSessions.sessionToken, req.params.token));
+      const session = await storage.getCaptureSession(req.params.token);
 
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
@@ -317,13 +309,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(410).json({ error: "Session expired" });
       }
 
-      await db.update(captureSessions)
-        .set({
-          imageData,
-          status: 'completed',
-          updatedAt: new Date(),
-        })
-        .where(eq(captureSessions.sessionToken, req.params.token));
+      await storage.updateCaptureSession(req.params.token, {
+        imageData,
+        status: 'completed',
+        updatedAt: new Date(),
+      });
 
       res.json({ success: true });
     } catch (error) {
