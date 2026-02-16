@@ -109,17 +109,15 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  const port = Number(process.env.PORT) || 3000; // fallback só para ambiente local
+  // Suporte a Named Pipes (Passenger/Hostinger) e Portas Numéricas
+  const portEnv = process.env.PORT;
+  const port = isNaN(Number(portEnv)) ? portEnv : (Number(portEnv) || 3000);
   const host = process.env.HOST || "0.0.0.0";
-  const reusePort = process.env.REUSE_PORT === "true";
-  httpServer.listen(
-    {
-      port,
-      host,
-      reusePort,
-    },
-    () => {
-      logger.info(`serving on ${host}:${port}`);
-    },
-  );
+
+  // Se for pipe (string), host é ignorado
+  const listenOptions = typeof port === 'string' ? { path: port } : { port, host };
+
+  httpServer.listen(listenOptions, () => {
+    logger.info(`serving on ${typeof port === 'string' ? 'QPipe: ' + port : host + ':' + port}`);
+  });
 })();

@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Configuração
-const PORT = process.env.PORT || 3000; // Hostinger geralmente injeta a porta
+const PORT = process.env.PORT || 3000; // Hostinger pode injetar um pipe (string) ou porta (número)
 const DIST_PATH = path.resolve(__dirname, 'dist', 'index.cjs');
 
 // Função para iniciar servidor de erro (Fallback)
@@ -74,8 +74,9 @@ function startFallbackServer(errorTitle, errorDetail) {
         res.end(html);
     });
 
-    server.listen(PORT, () => {
-        console.log(`[FALLBACK] Servidor de diagnóstico ouvindo na porta ${PORT}`);
+    const listenArgs = isNaN(Number(PORT)) ? [{ path: PORT }] : [PORT];
+    server.listen(...listenArgs, () => {
+        console.log(`[FALLBACK] Servidor de diagnóstico ouvindo em ${PORT}`);
     });
 }
 
