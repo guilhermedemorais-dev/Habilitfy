@@ -1,16 +1,6 @@
 /**
- * server.cjs - Entry Point para Deploy Automático (Hostinger / hospedagem compartilhada)
- * 
- * Este arquivo age como um "wrapper" que:
- * 1. Define NODE_ENV=production se não estiver definido
- * 2. Resolve o caminho absoluto para dist/index.cjs
- * 3. Carrega dinamicamente o servidor real
- * 4. Trata erros de forma legível
- * 
- * IMPORTANTE: Este arquivo usa require() em vez de import() porque:
- * - Arquivos .cjs sempre são tratados como CommonJS, independente do "type": "module" no package.json
- * - O dist/index.cjs gerado pelo esbuild também é CommonJS
- * - Isso evita problemas de compatibilidade entre ESM e CJS
+ * server.cjs - Entry Point Robusto com Logs em Arquivo
+ * Modificado para diagnosticar erro 503 sem acesso ao console.
  */
 
 'use strict';
@@ -18,56 +8,81 @@
 const path = require('path');
 const fs = require('fs');
 
+// Arquivo de log na raiz do projeto
+const LOG_FILE = path.join(__dirname, 'debug_boot.log');
+
+function log(msg) {
+    const timestamp = new Date().toISOString();
+    const line = `[${timestamp}] ${msg}\n`;
+    try {
+        fs.appendFileSync(LOG_FILE, line);
+        // Também joga no console para caso o painel tenha logs
+        console.log(line.trim());
+    } catch (e) {
+        // Se falhar o log, não tem muito o que fazer
+    }
+}
+
+// Limpa log antigo no restart para não confundir
+try { fs.writeFileSync(LOG_FILE, "=== INICIANDO BOOT ===\n"); } catch (e) { }
+
+log(`Process ID: ${process.pid}`);
+log(`Node Version: ${process.version}`);
+log(`Current Directory: ${process.cwd()}`);
+
 // Carregar variáveis de ambiente
 try {
     const dotenv = require('dotenv');
     const envProductionPath = path.resolve(__dirname, '.env.production');
 
     if (fs.existsSync(envProductionPath)) {
-        console.log('[server.cjs] Carregando .env.production');
-        dotenv.config({ path: envProductionPath });
+        log(`Carregando .env.production de: ${envProductionPath}`);
+        const result = dotenv.config({ path: envProductionPath });
+        if (result.error) throw result.error;
+        log("Variáveis carregadas com sucesso.");
     } else {
-        console.log('[server.cjs] .env.production não encontrado, tentando .env padrão');
+        log("AVISO: .env.production não encontrado. Tentando .env padrão...");
         dotenv.config();
     }
 } catch (e) {
-    console.log('[server.cjs] Nota: dotenv não pôde ser carregado (pode ser nativo no ambiente ou não instalado)');
+    log(`ERRO CRÍTICO ao carregar dotenv: ${e.message}`);
 }
 
-// Garantir que NODE_ENV está definido
+// Configurar Ambiente
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+log(`NODE_ENV definido para: ${process.env.NODE_ENV}`);
+log(`PORT definido para: ${process.env.PORT || 'INDEFINIDO (usará padrão)'}`);
 
-// Resolver caminho absoluto para dist/index.cjs
-// Isso garante que funciona independente do working directory
+// Resolver caminho do build
 const distPath = path.resolve(__dirname, 'dist', 'index.cjs');
+log(`Caminho esperado do build: ${distPath}`);
 
-// Verificar se o arquivo existe antes de tentar carregar
 if (!fs.existsSync(distPath)) {
-    console.error('╔════════════════════════════════════════════════════════════╗');
-    console.error('║  ERRO: Arquivo dist/index.cjs não encontrado!              ║');
-    console.error('╠════════════════════════════════════════════════════════════╣');
-    console.error('║  O build provavelmente não foi executado corretamente.     ║');
-    console.error('║                                                            ║');
-    console.error('║  Execute: npm run build                                    ║');
-    console.error('║                                                            ║');
-    console.error('║  Caminho esperado:                                         ║');
-    console.error(`║  ${distPath.substring(0, 58).padEnd(58)} ║`);
-    console.error('╚════════════════════════════════════════════════════════════╝');
+    log("ERRO FATAL: Arquivo dist/index.cjs NÃO ENCONTRADO.");
+    log("O build falhou ou não foi executado corretamente.");
+    log("Abortando inicialização.");
     process.exit(1);
 }
 
-// Carregar o servidor real
-console.log(`[server.cjs] NODE_ENV=${process.env.NODE_ENV}`);
-console.log(`[server.cjs] Carregando: ${distPath}`);
+// Tentar carregar a aplicação
+log("Tentando fazer require(dist/index.cjs)...");
 
 try {
     require(distPath);
+    log("require() executado. A aplicação deve estar subindo.");
 } catch (err) {
-    console.error('╔════════════════════════════════════════════════════════════╗');
-    console.error('║  ERRO: Falha ao carregar dist/index.cjs                    ║');
-    console.error('╚════════════════════════════════════════════════════════════╝');
-    console.error('');
-    console.error('Detalhes do erro:');
-    console.error(err);
+    log("ERRO FATAL ao carregar a aplicação:");
+    log(err.stack || err.message);
     process.exit(1);
 }
+
+// Captura erros não tratados globais
+process.on('uncaughtException', (err) => {
+    log(`UNCAUGHT EXCEPTION: ${err.message}`);
+    log(err.stack);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    log(`UNHANDLED REJECTION: ${reason}`);
+});
