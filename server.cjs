@@ -1,34 +1,34 @@
 /**
- * server.cjs - Entry Point Robusto com Logs em Arquivo
- * Modificado para diagnosticar erro 503 sem acesso ao console.
+ * server.cjs - Entry Point com Log Automático para stderr.log
+ * Recriando o arquivo de log que o usuário precisa.
  */
 
 'use strict';
 
 const path = require('path');
 const fs = require('fs');
+const util = require('util');
 
-// Arquivo de log na raiz do projeto
-const LOG_FILE = path.join(__dirname, 'debug_boot.log');
+// O ARQUIVO QUE VOCÊ QUERIA ESTÁ DE VOLTA AQUI 👇
+const LOG_FILE = path.join(__dirname, 'stderr.log');
 
-function log(msg) {
-    const timestamp = new Date().toISOString();
-    const line = `[${timestamp}] ${msg}\n`;
-    try {
-        fs.appendFileSync(LOG_FILE, line);
-        // Também joga no console para caso o painel tenha logs
-        console.log(line.trim());
-    } catch (e) {
-        // Se falhar o log, não tem muito o que fazer
-    }
-}
+// Função para garantir que tudo vá para o arquivo
+const logFile = fs.createWriteStream(LOG_FILE, { flags: 'a' });
+const logStdout = process.stdout;
+const logStderr = process.stderr;
 
-// Limpa log antigo no restart para não confundir
-try { fs.writeFileSync(LOG_FILE, "=== INICIANDO BOOT ===\n"); } catch (e) { }
+// Redireciona console.log e console.error para o arquivo
+console.log = function () {
+    logFile.write(util.format.apply(null, arguments) + '\n');
+    logStdout.write(util.format.apply(null, arguments) + '\n');
+};
+console.error = function () {
+    logFile.write(util.format.apply(null, arguments) + '\n');
+    logStderr.write(util.format.apply(null, arguments) + '\n');
+};
 
-log(`Process ID: ${process.pid}`);
-log(`Node Version: ${process.version}`);
-log(`Current Directory: ${process.cwd()}`);
+console.log(`[${new Date().toISOString()}] === INICIANDO SERVIDOR ===`);
+console.log(`[BOOT] Redirecionando logs para ${LOG_FILE}`);
 
 // Carregar variáveis de ambiente
 try {
@@ -36,53 +36,46 @@ try {
     const envProductionPath = path.resolve(__dirname, '.env.production');
 
     if (fs.existsSync(envProductionPath)) {
-        log(`Carregando .env.production de: ${envProductionPath}`);
-        const result = dotenv.config({ path: envProductionPath });
-        if (result.error) throw result.error;
-        log("Variáveis carregadas com sucesso.");
+        console.log(`[BOOT] Carregando .env.production`);
+        dotenv.config({ path: envProductionPath });
     } else {
-        log("AVISO: .env.production não encontrado. Tentando .env padrão...");
+        console.log("[BOOT] .env.production não encontrado. Tentando .env padrão...");
         dotenv.config();
     }
 } catch (e) {
-    log(`ERRO CRÍTICO ao carregar dotenv: ${e.message}`);
+    console.error(`[BOOT] ERRO ao carregar dotenv: ${e.message}`);
 }
 
 // Configurar Ambiente
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
-log(`NODE_ENV definido para: ${process.env.NODE_ENV}`);
-log(`PORT definido para: ${process.env.PORT || 'INDEFINIDO (usará padrão)'}`);
 
 // Resolver caminho do build
 const distPath = path.resolve(__dirname, 'dist', 'index.cjs');
-log(`Caminho esperado do build: ${distPath}`);
 
 if (!fs.existsSync(distPath)) {
-    log("ERRO FATAL: Arquivo dist/index.cjs NÃO ENCONTRADO.");
-    log("O build falhou ou não foi executado corretamente.");
-    log("Abortando inicialização.");
+    console.error("___________________________________________________________");
+    console.error("[ERRO FATAL] Arquivo dist/index.cjs NÃO ENCONTRADO.");
+    console.error("O build falhou ou não existe.");
+    console.error("___________________________________________________________");
     process.exit(1);
 }
 
 // Tentar carregar a aplicação
-log("Tentando fazer require(dist/index.cjs)...");
+console.log("[BOOT] Iniciando aplicação...");
 
 try {
     require(distPath);
-    log("require() executado. A aplicação deve estar subindo.");
 } catch (err) {
-    log("ERRO FATAL ao carregar a aplicação:");
-    log(err.stack || err.message);
+    console.error("___________________________________________________________");
+    console.error("[ERRO FATAL] A aplicação falhou ao iniciar:");
+    console.error(err.stack || err);
+    console.error("___________________________________________________________");
     process.exit(1);
 }
 
-// Captura erros não tratados globais
+// Captura erros que escaparam
 process.on('uncaughtException', (err) => {
-    log(`UNCAUGHT EXCEPTION: ${err.message}`);
-    log(err.stack);
+    console.error(`[UNCAUGHT EXCEPTION] ${err.message}`);
+    console.error(err.stack);
     process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    log(`UNHANDLED REJECTION: ${reason}`);
 });
