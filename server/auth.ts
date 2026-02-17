@@ -10,6 +10,34 @@ import { promisify } from "util";
 import { storage } from "./storage";
 
 const scryptAsync = promisify(scrypt);
+const ownerMasterEmail = (process.env.OWNER_MASTER_EMAIL || "").trim().toLowerCase();
+
+function isOwnerMasterCandidate(email?: string | null) {
+    if (!ownerMasterEmail || !email) return false;
+    return email.trim().toLowerCase() === ownerMasterEmail;
+}
+
+async function ensureOwnerMaster(user: any) {
+    if (!user || !isOwnerMasterCandidate(user.email)) return user;
+
+    const needsPromotion =
+        user.role !== "admin" ||
+        user.adminRole !== "master" ||
+        user.isVerified !== true ||
+        user.kycStatus !== "approved";
+
+    if (!needsPromotion) return user;
+
+    await storage.updateUser(user.id, {
+        role: "admin",
+        adminRole: "master",
+        isVerified: true,
+        kycStatus: "approved",
+    } as any);
+
+    logger.info(`[auth] Owner promoted to admin/master: ${user.email}`);
+    return (await storage.getUser(user.id)) || user;
+}
 
 // =============================================================================
 // Password Hashing Utilities
@@ -170,6 +198,7 @@ export async function setupAuth(app: Express) {
                                 });
                                 user = await storage.getUser(user.id);
                             }
+                            user = await ensureOwnerMaster(user);
                             return done(null, user);
                         }
 
@@ -186,6 +215,7 @@ export async function setupAuth(app: Express) {
                                     ? await hashPassword(defaultGooglePassword)
                                     : undefined;
 
+                            const ownerIsLoggingIn = isOwnerMasterCandidate(email);
                             const autoCreated = await storage.upsertUser({
                                 id: randomUUID(),
                                 googleId: googleId,
@@ -193,13 +223,14 @@ export async function setupAuth(app: Express) {
                                 firstName: profile.name?.givenName || "Usuário",
                                 lastName: profile.name?.familyName || "Google",
                                 profileImageUrl: profile.photos?.[0]?.value,
-                                role: "student",
+                                role: ownerIsLoggingIn ? "admin" : "student",
+                                ...(ownerIsLoggingIn ? { adminRole: "master" } : {}),
                                 kycStatus: "approved",
                                 isVerified: true,
                                 password: autoPasswordHash,
                             });
-
-                            return done(null, autoCreated);
+                            const elevatedAutoCreated = await ensureOwnerMaster(autoCreated);
+                            return done(null, elevatedAutoCreated);
                         }
 
                         logger.info(`[auth] Google Strategy - User NOT found, passing to registration flow`);
@@ -254,7 +285,8 @@ export async function setupAuth(app: Express) {
                     return done(null, false);
                 }
 
-                return done(null, user);
+                const effectiveUser = await ensureOwnerMaster(user);
+                return done(null, effectiveUser);
             } catch (err) {
                 return done(err);
             }
