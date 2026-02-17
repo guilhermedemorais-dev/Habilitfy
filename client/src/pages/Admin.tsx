@@ -32,7 +32,6 @@ import {
   Map as MapIcon,
 } from "lucide-react";
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
-import { AdminMap } from "@/components/admin/AdminMap";
 import { AdminMonitoring } from "@/components/admin/AdminMonitoring";
 import { AdminAIChat } from "@/components/admin/AdminAIChat";
 import { AdminFinancialCharts } from "@/components/admin/AdminFinancialCharts";
@@ -1970,7 +1969,7 @@ export default function Admin() {
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-                  <Card className="border border-slate-200 shadow-sm">
+                  <Card id="mapa" className="border border-slate-200 shadow-sm">
                     <CardContent className="p-0">
                       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-6 py-4">
                         <div>
@@ -3520,18 +3519,6 @@ export default function Admin() {
                   <AdminUsersTable />
                 </section>
               )}
-
-              <section id="mapa" className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Mapa de Usuários</h2>
-                    <p className="text-sm text-slate-500">
-                      Visualização geográfica de instrutores e alunos.
-                    </p>
-                  </div>
-                </div>
-                <AdminMap instructors={instructorsData || []} students={studentsData || []} />
-              </section>
 
               <section id="integracoes" className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
