@@ -1,5 +1,5 @@
 
 PassengerAppType node
 PassengerStartupFile server.cjs
-PassengerAppEnv development
+PassengerAppEnv production
 PassengerFriendlyErrorPage on

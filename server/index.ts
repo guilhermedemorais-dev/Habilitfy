@@ -95,7 +95,7 @@ app.use((req, res, next) => {
 
     logger.error(`Unhandled Error: ${message}`, err);
     res.status(status).json({ message });
-    throw err;
+    return;
   });
 
   if (process.env.NODE_ENV === "production") {
