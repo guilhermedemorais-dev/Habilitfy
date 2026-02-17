@@ -22,10 +22,19 @@ export async function hashPassword(password: string) {
 }
 
 export async function comparePassword(supplied: string, stored: string) {
+    if (!stored || !stored.includes(".")) return false;
+
     const [hashed, salt] = stored.split(".");
-    const hashedBuf = Buffer.from(hashed, "hex");
-    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-    return timingSafeEqual(hashedBuf, suppliedBuf);
+    if (!hashed || !salt) return false;
+
+    try {
+        const hashedBuf = Buffer.from(hashed, "hex");
+        const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+        if (hashedBuf.length !== suppliedBuf.length) return false;
+        return timingSafeEqual(hashedBuf, suppliedBuf);
+    } catch {
+        return false;
+    }
 }
 
 // =============================================================================
@@ -174,14 +183,35 @@ export async function setupAuth(app: Express) {
     // Local Strategy (username/password)
     // -------------------------------------------------------------------------
     passport.use(
-        new LocalStrategy(async (username, password, done) => {
+        new LocalStrategy(
+            {
+                usernameField: "username",
+                passwordField: "password",
+                passReqToCallback: true,
+            },
+            async (req: any, username, password, done) => {
             try {
-                const user = await storage.getUserByUsername(username);
+                const fallbackEmail = typeof req?.body?.email === "string" ? req.body.email : "";
+                const candidate = (username || fallbackEmail || "").trim().toLowerCase();
+                if (!candidate || typeof password !== "string") {
+                    return done(null, false);
+                }
+
+                const user = await storage.getUserByUsername(candidate);
                 if (!user || !user.password) {
                     return done(null, false);
                 }
 
-                const isValid = await comparePassword(password, user.password);
+                let isValid = await comparePassword(password, user.password);
+                if (!isValid && !user.password.includes(".")) {
+                    // Backward compatibility for legacy/plaintext rows: migrate on successful login.
+                    if (user.password === password) {
+                        const migratedHash = await hashPassword(password);
+                        await storage.updateUser(user.id, { password: migratedHash });
+                        isValid = true;
+                    }
+                }
+
                 if (!isValid) {
                     return done(null, false);
                 }
@@ -190,7 +220,8 @@ export async function setupAuth(app: Express) {
             } catch (err) {
                 return done(err);
             }
-        })
+            },
+        )
     );
 
     // -------------------------------------------------------------------------

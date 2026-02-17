@@ -27,11 +27,11 @@ export const sessions = mysqlTable(
 export const userRoleEnum = mysqlEnum('role', ['student', 'instructor', 'admin']);
 export const adminRoleEnum = mysqlEnum('admin_role', ['master', 'manager', 'support']);
 export const kycStatusEnum = mysqlEnum('kyc_status', ['pending', 'approved', 'rejected']);
-export const bookingStatusEnum = mysqlEnum('booking_status', ['pending', 'confirmed', 'paid', 'completed', 'cancelled']);
-export const instructorStatusEnum = mysqlEnum('instructor_status', ['pending', 'approved', 'rejected']);
-export const disputeStatusEnum = mysqlEnum('dispute_status', ['open', 'in_review', 'resolved']);
-export const disputeResolutionEnum = mysqlEnum('dispute_resolution', ['refund_student', 'release_instructor', 'split']);
-export const transactionTypeEnum = mysqlEnum('transaction_type', [
+export const bookingStatusEnum = mysqlEnum('status', ['pending', 'confirmed', 'paid', 'completed', 'cancelled']);
+export const instructorStatusEnum = mysqlEnum('status', ['pending', 'approved', 'rejected']);
+export const disputeStatusEnum = mysqlEnum('status', ['open', 'in_review', 'resolved']);
+export const disputeResolutionEnum = mysqlEnum('resolution', ['refund_student', 'release_instructor', 'split']);
+export const transactionTypeEnum = mysqlEnum('type', [
   'booking',
   'withdrawal',
   'refund',
@@ -39,7 +39,7 @@ export const transactionTypeEnum = mysqlEnum('transaction_type', [
   'affiliate',
   'coupon',
 ]);
-export const transactionStatusEnum = mysqlEnum('transaction_status', [
+export const transactionStatusEnum = mysqlEnum('status', [
   'pending',
   'paid',
   'processing',
@@ -47,42 +47,42 @@ export const transactionStatusEnum = mysqlEnum('transaction_status', [
   'cancelled',
   'failed',
 ]);
-export const withdrawalStatusEnum = mysqlEnum('withdrawal_status', [
+export const withdrawalStatusEnum = mysqlEnum('status', [
   'pending',
   'approved',
   'rejected',
   'processed',
 ]);
-export const walletEntryTypeEnum = mysqlEnum('wallet_entry_type', [
+export const walletEntryTypeEnum = mysqlEnum('type', [
   'credit',
   'debit',
   'refund',
   'withdrawal',
   'adjustment',
 ]);
-export const integrationStatusEnum = mysqlEnum('integration_status', [
+export const integrationStatusEnum = mysqlEnum('status', [
   'active',
   'inactive',
 ]);
-export const integrationEnvironmentEnum = mysqlEnum('integration_environment', [
+export const integrationEnvironmentEnum = mysqlEnum('environment', [
   'development',
   'production',
 ]);
 
-export const vehicleStatusEnum = mysqlEnum('vehicle_status', [
+export const vehicleStatusEnum = mysqlEnum('status', [
   'pending',
   'approved',
   'rejected',
 ]);
 
-export const ticketStatusEnum = mysqlEnum('ticket_status', [
+export const ticketStatusEnum = mysqlEnum('status', [
   'open',
   'in_progress',
   'resolved',
   'closed',
 ]);
 
-export const captureSessionStatusEnum = mysqlEnum('capture_session_status', [
+export const captureSessionStatusEnum = mysqlEnum('status', [
   'pending',
   'completed',
   'expired',
