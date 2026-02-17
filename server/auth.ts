@@ -5,7 +5,7 @@ import type { Express, RequestHandler } from "express";
 import MySQLStore from "express-mysql-session";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as LocalStrategy } from "passport-local";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { scrypt, randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 
@@ -150,7 +150,13 @@ export async function setupAuth(app: Express) {
                         if (user) {
                             logger.info(`[auth] Google Strategy - User found: id=${user.id}, email=${user.email}`);
                             // Update user with Google profile info if needed
-                            if (!user.googleId) {
+                            const defaultGooglePassword = process.env.GOOGLE_AUTO_REGISTER_PASSWORD;
+                            const shouldSetPassword =
+                                typeof defaultGooglePassword === "string" &&
+                                defaultGooglePassword.length > 0 &&
+                                (!user.password || user.password.length === 0);
+
+                            if (!user.googleId || shouldSetPassword) {
                                 await storage.upsertUser({
                                     id: user.id,
                                     googleId: googleId,
@@ -158,10 +164,42 @@ export async function setupAuth(app: Express) {
                                     firstName: profile.name?.givenName || user.firstName,
                                     lastName: profile.name?.familyName || user.lastName,
                                     profileImageUrl: profile.photos?.[0]?.value || user.profileImageUrl,
+                                    ...(shouldSetPassword
+                                        ? { password: await hashPassword(defaultGooglePassword!) }
+                                        : {}),
                                 });
                                 user = await storage.getUser(user.id);
                             }
                             return done(null, user);
+                        }
+
+                        const shouldAutoRegisterGoogle =
+                            process.env.GOOGLE_AUTO_REGISTER === "true" ||
+                            process.env.GOOGLE_AUTO_REGISTER === "1";
+
+                        if (shouldAutoRegisterGoogle && email) {
+                            logger.info(`[auth] Google Strategy - Auto-register enabled for email=${email}`);
+
+                            const defaultGooglePassword = process.env.GOOGLE_AUTO_REGISTER_PASSWORD;
+                            const autoPasswordHash =
+                                typeof defaultGooglePassword === "string" && defaultGooglePassword.length > 0
+                                    ? await hashPassword(defaultGooglePassword)
+                                    : undefined;
+
+                            const autoCreated = await storage.upsertUser({
+                                id: randomUUID(),
+                                googleId: googleId,
+                                email: email.toLowerCase().trim(),
+                                firstName: profile.name?.givenName || "Usuário",
+                                lastName: profile.name?.familyName || "Google",
+                                profileImageUrl: profile.photos?.[0]?.value,
+                                role: "student",
+                                kycStatus: "approved",
+                                isVerified: true,
+                                password: autoPasswordHash,
+                            });
+
+                            return done(null, autoCreated);
                         }
 
                         logger.info(`[auth] Google Strategy - User NOT found, passing to registration flow`);

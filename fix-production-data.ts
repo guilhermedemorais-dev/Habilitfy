@@ -12,6 +12,9 @@ const ADMIN_EMAIL = (process.env.PROD_ADMIN_EMAIL || "admin@habilitfy.com.br").t
 const ADMIN_PASSWORD = process.env.PROD_ADMIN_PASSWORD || "admin123";
 const FAKE_INSTRUCTORS_TARGET = Number(process.env.PROD_FAKE_INSTRUCTORS || 12);
 const FAKE_INSTRUCTORS_PASSWORD = process.env.PROD_FAKE_PASSWORD || "password123";
+const ACCESS_EMAIL = (process.env.PROD_ACCESS_EMAIL || "").trim().toLowerCase();
+const ACCESS_PASSWORD = process.env.PROD_ACCESS_PASSWORD || "";
+const ACCESS_ROLE = (process.env.PROD_ACCESS_ROLE || "student").trim().toLowerCase();
 
 function uniqueHosts(hosts: string[]) {
     return Array.from(new Set(hosts.filter(Boolean)));
@@ -117,6 +120,58 @@ async function ensureAdmin(connection: mysql.Connection) {
     console.log(`   ✅ Admin criado: ${ADMIN_EMAIL}`);
 }
 
+async function ensureAccessUser(connection: mysql.Connection) {
+    if (!ACCESS_EMAIL || !ACCESS_PASSWORD) {
+        console.log("   ℹ️ PROD_ACCESS_EMAIL/PROD_ACCESS_PASSWORD não definidos, pulando provisionamento de acesso.");
+        return;
+    }
+
+    const role = ACCESS_ROLE === "admin" || ACCESS_ROLE === "instructor" ? ACCESS_ROLE : "student";
+    const passwordHash = await hashPassword(ACCESS_PASSWORD);
+
+    const [existingRows] = await connection.query<RowDataPacket[]>(
+        "SELECT id, role FROM users WHERE lower(email) = ? LIMIT 1",
+        [ACCESS_EMAIL],
+    );
+
+    if (existingRows.length > 0) {
+        const currentRole = String(existingRows[0].role || role);
+        await connection.query(
+            `UPDATE users
+             SET password = ?,
+                 role = ?,
+                 is_verified = 1,
+                 kyc_status = 'approved',
+                 updated_at = NOW()
+             WHERE lower(email) = ?`,
+            [passwordHash, currentRole, ACCESS_EMAIL],
+        );
+        console.log(`   ✅ Acesso atualizado para ${ACCESS_EMAIL} (role atual preservada: ${currentRole})`);
+        return;
+    }
+
+    const [firstName, ...rest] = ACCESS_EMAIL.split("@")[0].split(".");
+    await connection.query(
+        `INSERT INTO users (
+            id, email, password, first_name, last_name,
+            role, kyc_status, is_verified, created_at, updated_at
+         ) VALUES (
+            ?, ?, ?, ?, ?,
+            ?, 'approved', 1, NOW(), NOW()
+         )`,
+        [
+            randomUUID(),
+            ACCESS_EMAIL,
+            passwordHash,
+            firstName ? firstName[0].toUpperCase() + firstName.slice(1) : "Usuario",
+            rest.length ? rest.join(" ") : "HabilitFy",
+            role,
+        ],
+    );
+
+    console.log(`   ✅ Usuário de acesso criado: ${ACCESS_EMAIL} (role=${role})`);
+}
+
 async function seedFakeInstructors(
     connection: mysql.Connection,
     instructorStatusColumn: string,
@@ -219,6 +274,9 @@ async function fixData() {
         console.log("\n2) Ajustando autenticação admin");
         await ensureAdmin(connection);
 
+        console.log("\n2.1) Ajustando usuário de acesso (opcional)");
+        await ensureAccessUser(connection);
+
         console.log("\n3) Ajustando status base");
         const [usersResult] = await connection.query<ResultSetHeader>(
             "UPDATE users SET is_verified = 1, kyc_status = 'approved' WHERE is_verified = 0 OR kyc_status != 'approved'",
@@ -241,6 +299,10 @@ async function fixData() {
         console.log("🎉 Correção concluída.");
         console.log(`🔐 Login admin: ${ADMIN_EMAIL}`);
         console.log(`🔐 Senha admin: ${ADMIN_PASSWORD}`);
+        if (ACCESS_EMAIL && ACCESS_PASSWORD) {
+            console.log(`🔐 Login de acesso: ${ACCESS_EMAIL}`);
+            console.log(`🔐 Senha de acesso: ${ACCESS_PASSWORD}`);
+        }
     } catch (error: any) {
         console.error("\n❌ Erro ao corrigir produção:");
         console.error(error?.message || error);
