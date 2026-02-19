@@ -353,6 +353,10 @@ export async function setupAuth(app: Express) {
                 return res.redirect("/signup-student?google_connected=true");
             }
 
+            if (user.isBlocked) {
+                return res.redirect("/login?error=account_blocked");
+            }
+
             req.logIn(user, (loginErr) => {
                 if (loginErr) {
                     console.error("[auth] Login error:", loginErr);
@@ -463,6 +467,12 @@ export async function setupAuth(app: Express) {
                 return res.status(500).json({ message: err?.message || "Erro interno de autenticação" });
             }
             if (!user) return res.status(401).json({ message: "Credenciais inválidas" });
+            if (user.isBlocked) {
+                return res.status(403).json({
+                    message: "Conta bloqueada. Entre em contato com o suporte.",
+                    code: "ACCOUNT_BLOCKED",
+                });
+            }
             req.logIn(user, (loginErr) => {
                 if (loginErr) {
                     logger.error(`[auth] POST /api/login session error: ${loginErr?.message}`);
@@ -496,19 +506,30 @@ export async function setupAuth(app: Express) {
     // -------------------------------------------------------------------------
     // Auth Status Route
     // -------------------------------------------------------------------------
-    app.get("/api/auth/user", (req, res) => {
-        if (req.isAuthenticated() && req.user) {
-            const user = req.user as any;
-            return res.json({
-                id: user.id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                profileImageUrl: user.profileImageUrl,
-                role: user.role,
-            });
+    app.get("/api/auth/user", async (req, res) => {
+        if (!req.isAuthenticated() || !req.user) {
+            return res.status(401).json({ message: "Not authenticated" });
         }
-        return res.status(401).json({ message: "Not authenticated" });
+
+        try {
+            const sessionUser = req.user as any;
+            const userId = sessionUser?.claims?.sub ?? sessionUser?.id;
+            if (!userId) {
+                return res.status(401).json({ message: "Not authenticated" });
+            }
+
+            const user = await storage.getUser(userId);
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            const instructorProfile = await storage.getInstructorByUserId(userId);
+            const { password: _pw, verificationToken: _vt, ...safeUser } = user as any;
+            return res.json({ ...safeUser, instructorProfile });
+        } catch (err: any) {
+            logger.error(`[auth] /api/auth/user failed: ${err?.message || err}`);
+            return res.status(500).json({ message: "Failed to fetch user" });
+        }
     });
 
     logger.info("[auth] Auth Routes Registered.");
@@ -519,6 +540,15 @@ export async function setupAuth(app: Express) {
 // =============================================================================
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+    const requestPath = req.path || req.originalUrl || "";
+    const blockedAllowedPaths = [
+        "/api/auth/user",
+        "/api/logout",
+    ];
+    const canProceedWhenBlocked = blockedAllowedPaths.some((path) =>
+        requestPath.startsWith(path)
+    );
+
     // Local/offline mode
     if (process.env.AUTH_MODE === "local") {
         let user = (req as any).user;
@@ -544,6 +574,22 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
                 user.claims.sub = user.id;
             }
         }
+        const userId = user?.claims?.sub ?? user?.id;
+        if (userId) {
+            const dbUser = await storage.getUser(userId);
+            if (dbUser) {
+                (req as any).user = {
+                    ...dbUser,
+                    claims: { sub: dbUser.id },
+                };
+                if (dbUser.isBlocked && !canProceedWhenBlocked) {
+                    return res.status(403).json({
+                        message: "Conta bloqueada. Entre em contato com o suporte.",
+                        code: "ACCOUNT_BLOCKED",
+                    });
+                }
+            }
+        }
         return next();
     }
 
@@ -556,6 +602,13 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     const user = req.user as any;
     if (!user.claims) {
         user.claims = { sub: user.id };
+    }
+
+    if (user.isBlocked && !canProceedWhenBlocked) {
+        return res.status(403).json({
+            message: "Conta bloqueada. Entre em contato com o suporte.",
+            code: "ACCOUNT_BLOCKED",
+        });
     }
 
     return next();

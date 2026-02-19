@@ -4,10 +4,20 @@ import { walletService } from "./services/wallet";
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { users, kycStatusEnum, instructors, User } from "@shared/schema";
+import {
+  users,
+  kycStatusEnum,
+  instructors,
+  adminLogs,
+  messages,
+  supportTickets,
+  vehicles,
+  userAccessLogs,
+  User,
+} from "@shared/schema";
 import { kycVerifications as kycVerificationsTable } from "@shared/kyc-schema";
 import { saveBase64Image } from "./kyc";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { setupAuth, isAuthenticated, hashPassword, requireAdminRole } from "./auth";
 import { insertInstructorSchema, insertBookingSchema, insertReviewSchema, insertAvailabilitySchema, insertMessageSchema } from "@shared/schema";
 import { z } from "zod";
@@ -211,6 +221,71 @@ const mergeSecretIntegrationFields = (
   });
 };
 
+type AccessDeviceType = "mobile" | "tablet" | "desktop" | "bot" | "unknown";
+
+const parseUserAgentInfo = (userAgentRaw: string) => {
+  const userAgent = (userAgentRaw || "").toLowerCase();
+  const browser = userAgent.includes("edg/")
+    ? "Edge"
+    : userAgent.includes("opr/") || userAgent.includes("opera")
+      ? "Opera"
+      : userAgent.includes("chrome/")
+        ? "Chrome"
+        : userAgent.includes("safari/") && !userAgent.includes("chrome/")
+          ? "Safari"
+          : userAgent.includes("firefox/")
+            ? "Firefox"
+            : userAgent.includes("postmanruntime")
+              ? "Postman"
+              : userAgent.includes("curl/")
+                ? "curl"
+                : "Unknown";
+
+  const os = userAgent.includes("windows")
+    ? "Windows"
+    : userAgent.includes("android")
+      ? "Android"
+      : userAgent.includes("iphone") || userAgent.includes("ipad") || userAgent.includes("ios")
+        ? "iOS"
+        : userAgent.includes("mac os")
+          ? "macOS"
+          : userAgent.includes("linux")
+            ? "Linux"
+            : "Unknown";
+
+  let deviceType: AccessDeviceType = "unknown";
+  if (
+    userAgent.includes("bot") ||
+    userAgent.includes("spider") ||
+    userAgent.includes("crawler")
+  ) {
+    deviceType = "bot";
+  } else if (userAgent.includes("ipad") || userAgent.includes("tablet")) {
+    deviceType = "tablet";
+  } else if (
+    userAgent.includes("iphone") ||
+    userAgent.includes("android") ||
+    userAgent.includes("mobile")
+  ) {
+    deviceType = "mobile";
+  } else if (userAgent.length > 0) {
+    deviceType = "desktop";
+  }
+
+  return { browser, os, deviceType };
+};
+
+const resolveClientIp = (req: Request) => {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.length > 0) {
+    return forwarded.split(",")[0].trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0];
+  }
+  return req.ip || null;
+};
+
 export async function registerRoutes(app: any, httpServer: Server): Promise<Server> {
   // Middleware for real-time monitoring
   app.use((req: any, res: any, next: any) => {
@@ -224,6 +299,42 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   });
 
   await setupAuth(app);
+
+  app.use((req: any, res: any, next: any) => {
+    const startedAt = Date.now();
+
+    res.on("finish", () => {
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      if (!userId) return;
+      if (!req.path?.startsWith("/api")) return;
+      if (req.path === "/api/health" || req.path === "/api/ping") return;
+
+      const userAgent = String(req.headers["user-agent"] || "");
+      const accessInfo = parseUserAgentInfo(userAgent);
+      const durationMs = Date.now() - startedAt;
+
+      void db
+        .insert(userAccessLogs)
+        .values({
+          userId,
+          sessionId: req.sessionID || null,
+          ipAddress: resolveClientIp(req as Request),
+          userAgent,
+          deviceType: accessInfo.deviceType,
+          browser: accessInfo.browser,
+          os: accessInfo.os,
+          requestPath: req.path,
+          requestMethod: req.method,
+          statusCode: res.statusCode,
+          requestDurationMs: durationMs,
+        })
+        .catch((error) => {
+          logger.warn(`[access-log] failed to persist: ${error?.message || error}`);
+        });
+    });
+
+    next();
+  });
 
   app.get('/api/ping', (req: Request, res: Response) => {
     res.json({ message: 'pong', timestamp: new Date().toISOString() });
@@ -663,6 +774,345 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     }
   });
 
+  app.patch('/api/admin/users/:id/notes', isAuthenticated, async (req: any, res: Response) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const adminId = req.user?.claims?.sub ?? req.user?.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const targetUserId = req.params.id;
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const notes =
+        typeof req.body?.notes === "string" ? req.body.notes.trim().slice(0, 5000) : "";
+      const updated = await storage.updateUser(targetUserId, {
+        adminNotes: notes || null,
+        adminNotesUpdatedAt: new Date(),
+        adminNotesUpdatedByAdminId: adminId,
+      } as any);
+      await db.insert(adminLogs).values({
+        adminId,
+        action: "user_notes_updated",
+        targetId: targetUserId,
+        changes: { notesLength: notes.length },
+      });
+
+      res.json({
+        id: updated.id,
+        adminNotes: updated.adminNotes || "",
+        adminNotesUpdatedAt: updated.adminNotesUpdatedAt,
+        adminNotesUpdatedByAdminId: updated.adminNotesUpdatedByAdminId,
+      });
+    } catch (error) {
+      console.error("Error updating user notes:", error);
+      res.status(500).json({ message: "Failed to update notes" });
+    }
+  });
+
+  app.post('/api/admin/users/:id/block', isAuthenticated, async (req: any, res: Response) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const adminId = req.user?.claims?.sub ?? req.user?.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const targetUserId = req.params.id;
+      if (targetUserId === adminId) {
+        return res.status(400).json({ message: "Você não pode bloquear a própria conta." });
+      }
+
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (
+        targetUser.role === "admin" &&
+        targetUser.adminRole === "master" &&
+        req.user.adminRole !== "master"
+      ) {
+        return res.status(403).json({ message: "Não é permitido bloquear o admin master." });
+      }
+
+      const reason =
+        typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : null;
+      const updated = await storage.updateUser(targetUserId, {
+        isBlocked: true,
+        blockedAt: new Date(),
+        blockedReason: reason,
+        blockedByAdminId: adminId,
+      } as any);
+      await db.insert(adminLogs).values({
+        adminId,
+        action: "user_blocked",
+        targetId: targetUserId,
+        changes: { reason },
+      });
+
+      res.json({
+        success: true,
+        userId: updated.id,
+        isBlocked: updated.isBlocked,
+        blockedAt: updated.blockedAt,
+        blockedReason: updated.blockedReason,
+      });
+    } catch (error) {
+      console.error("Error blocking user:", error);
+      res.status(500).json({ message: "Failed to block user" });
+    }
+  });
+
+  app.post('/api/admin/users/:id/unblock', isAuthenticated, async (req: any, res: Response) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const adminId = req.user?.claims?.sub ?? req.user?.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const targetUserId = req.params.id;
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const updated = await storage.updateUser(targetUserId, {
+        isBlocked: false,
+        blockedAt: null,
+        blockedReason: null,
+        blockedByAdminId: null,
+      } as any);
+      await db.insert(adminLogs).values({
+        adminId,
+        action: "user_unblocked",
+        targetId: targetUserId,
+        changes: { restoredAccess: true },
+      });
+
+      res.json({
+        success: true,
+        userId: updated.id,
+        isBlocked: updated.isBlocked,
+      });
+    } catch (error) {
+      console.error("Error unblocking user:", error);
+      res.status(500).json({ message: "Failed to unblock user" });
+    }
+  });
+
+  app.get('/api/admin/users/:id/review', isAuthenticated, async (req: any, res: Response) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const targetUserId = req.params.id;
+      const user = await storage.getUser(targetUserId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const instructor = await storage.getInstructorByUserId(targetUserId);
+      const [latestKyc] = await db
+        .select()
+        .from(kycVerificationsTable)
+        .where(eq(kycVerificationsTable.userId, targetUserId))
+        .orderBy(desc(kycVerificationsTable.createdAt))
+        .limit(1);
+
+      const supportItems = await db
+        .select()
+        .from(supportTickets)
+        .where(eq(supportTickets.userId, targetUserId))
+        .orderBy(desc(supportTickets.createdAt))
+        .limit(50);
+
+      const chatItems = await db
+        .select()
+        .from(messages)
+        .where(
+          or(
+            eq(messages.senderId, targetUserId),
+            eq(messages.receiverId, targetUserId),
+          ),
+        )
+        .orderBy(desc(messages.createdAt))
+        .limit(120);
+
+      const counterpartIds = Array.from(
+        new Set(
+          chatItems
+            .map((item) =>
+              item.senderId === targetUserId ? item.receiverId : item.senderId,
+            )
+            .filter(Boolean),
+        ),
+      );
+      const counterparts = await Promise.all(
+        counterpartIds.map(async (id) => {
+          const counterpart = await storage.getUser(id);
+          return counterpart
+            ? {
+                id: counterpart.id,
+                firstName: counterpart.firstName,
+                lastName: counterpart.lastName,
+                email: counterpart.email,
+                role: counterpart.role,
+              }
+            : null;
+        }),
+      );
+      const counterpartMap = new Map(
+        counterparts.filter(Boolean).map((item: any) => [item.id, item]),
+      );
+
+      const accessLogs = await db
+        .select()
+        .from(userAccessLogs)
+        .where(eq(userAccessLogs.userId, targetUserId))
+        .orderBy(desc(userAccessLogs.createdAt))
+        .limit(500);
+
+      const sortedAccessAsc = [...accessLogs].sort(
+        (a, b) =>
+          new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime(),
+      );
+      let connectedMs = 0;
+      for (let i = 1; i < sortedAccessAsc.length; i++) {
+        const prev = new Date(sortedAccessAsc[i - 1].createdAt || 0).getTime();
+        const curr = new Date(sortedAccessAsc[i].createdAt || 0).getTime();
+        const diff = curr - prev;
+        if (diff > 0 && diff <= 30 * 60 * 1000) {
+          connectedMs += diff;
+        }
+      }
+
+      const heatmapCounter = new Map<string, number>();
+      const browserCounter = new Map<string, number>();
+      const deviceCounter = new Map<string, number>();
+      const pathCounter = new Map<string, number>();
+      const ipSet = new Set<string>();
+
+      for (const log of accessLogs) {
+        const date = new Date(log.createdAt || 0);
+        const dayOfWeek = date.getDay();
+        const hour = date.getHours();
+        const heatKey = `${dayOfWeek}-${hour}`;
+        heatmapCounter.set(heatKey, (heatmapCounter.get(heatKey) || 0) + 1);
+
+        const browser = log.browser || "Unknown";
+        const device = log.deviceType || "unknown";
+        const path = log.requestPath || "unknown";
+        browserCounter.set(browser, (browserCounter.get(browser) || 0) + 1);
+        deviceCounter.set(device, (deviceCounter.get(device) || 0) + 1);
+        pathCounter.set(path, (pathCounter.get(path) || 0) + 1);
+        if (log.ipAddress) ipSet.add(log.ipAddress);
+      }
+
+      let vehiclesSummary: any = null;
+      if (instructor) {
+        const allVehicles = await db
+          .select()
+          .from(vehicles)
+          .where(eq(vehicles.instructorId, instructor.id))
+          .orderBy(desc(vehicles.createdAt));
+
+        vehiclesSummary = {
+          total: allVehicles.length,
+          approved: allVehicles.filter((vehicle) => vehicle.status === "approved")
+            .length,
+          pending: allVehicles.filter((vehicle) => vehicle.status === "pending").length,
+          rejected: allVehicles.filter((vehicle) => vehicle.status === "rejected")
+            .length,
+          items: allVehicles.slice(0, 15),
+        };
+      }
+
+      const safeUser = {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        cpf: user.cpf,
+        cnpj: user.cnpj,
+        phone: user.phone,
+        city: user.city,
+        state: user.state,
+        kycStatus: user.kycStatus,
+        isBlocked: user.isBlocked,
+        blockedAt: user.blockedAt,
+        blockedReason: user.blockedReason,
+        adminNotes: user.adminNotes,
+        adminNotesUpdatedAt: user.adminNotesUpdatedAt,
+        createdAt: user.createdAt,
+      };
+
+      const chatWithCounterpart = chatItems.map((item) => {
+        const counterpartId =
+          item.senderId === targetUserId ? item.receiverId : item.senderId;
+        return {
+          ...item,
+          counterpart: counterpartMap.get(counterpartId || "") || null,
+        };
+      });
+
+      const maxHeatCount = Math.max(
+        1,
+        ...Array.from(heatmapCounter.values()),
+      );
+      const heatmap = Array.from(heatmapCounter.entries()).map(([key, count]) => {
+        const [dayOfWeek, hour] = key.split("-").map(Number);
+        return {
+          dayOfWeek,
+          hour,
+          count,
+          intensity: count / maxHeatCount,
+        };
+      });
+
+      const topPaths = Array.from(pathCounter.entries())
+        .map(([path, count]) => ({ path, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 12);
+
+      const browserDistribution = Array.from(browserCounter.entries())
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count);
+
+      const deviceDistribution = Array.from(deviceCounter.entries())
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count);
+
+      res.json({
+        user: safeUser,
+        instructor,
+        latestKyc: latestKyc || null,
+        vehiclesSummary,
+        supportTickets: supportItems,
+        chatHistory: chatWithCounterpart,
+        supportChatHistory: chatWithCounterpart.filter(
+          (item) => item.counterpart?.role === "admin",
+        ),
+        access: {
+          totalRequests: accessLogs.length,
+          uniqueIps: ipSet.size,
+          firstSeenAt:
+            sortedAccessAsc.length > 0 ? sortedAccessAsc[0].createdAt : null,
+          lastSeenAt: accessLogs.length > 0 ? accessLogs[0].createdAt : null,
+          connectedMinutes: Math.round(connectedMs / 60000),
+          browserDistribution,
+          deviceDistribution,
+          topPaths,
+          heatmap,
+          logs: accessLogs.slice(0, 150),
+        },
+      });
+    } catch (error) {
+      console.error("Error loading review data:", error);
+      res.status(500).json({ message: "Failed to load review data" });
+    }
+  });
+
   // --- End Admin Routes ---
 
   // Register new user (student or instructor)
@@ -698,8 +1148,66 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         }
       }
 
+      const normalizedEmail = String(email || "").toLowerCase().trim();
+      const normalizedCpf =
+        role !== "instructor" && typeof cpf === "string"
+          ? cpf.replace(/\D/g, "")
+          : "";
+      const normalizedCnpj =
+        role === "instructor" && typeof cnpj === "string"
+          ? cnpj.replace(/\D/g, "")
+          : "";
+
+      const [blockedByEmail] = await db
+        .select()
+        .from(users)
+        .where(
+          and(
+            sql`lower(${users.email}) = ${normalizedEmail}`,
+            eq(users.isBlocked, true),
+          ),
+        )
+        .limit(1);
+      if (blockedByEmail) {
+        return res.status(403).json({
+          message:
+            "Cadastro indisponível para este e-mail. Entre em contato com o suporte.",
+          code: "ACCOUNT_BLOCKED",
+        });
+      }
+
+      if (normalizedCpf) {
+        const [blockedByCpf] = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.cpf, normalizedCpf), eq(users.isBlocked, true)))
+          .limit(1);
+        if (blockedByCpf) {
+          return res.status(403).json({
+            message:
+              "Cadastro indisponível para este CPF. Entre em contato com o suporte.",
+            code: "ACCOUNT_BLOCKED",
+          });
+        }
+      }
+
+      if (normalizedCnpj) {
+        const [blockedByCnpj] = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.cnpj, normalizedCnpj), eq(users.isBlocked, true)))
+          .limit(1);
+        if (blockedByCnpj) {
+          return res.status(403).json({
+            message:
+              "Cadastro indisponível para este CNPJ. Entre em contato com o suporte.",
+            code: "ACCOUNT_BLOCKED",
+          });
+        }
+      }
+
       // Check if email already exists
-      const existingUser = await storage.getUserByEmail?.(email);
+      const existingUser = await storage.getUserByEmail?.(normalizedEmail);
       if (existingUser) {
         return res.status(400).json({ message: 'Este e-mail já está cadastrado' });
       }
@@ -718,12 +1226,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       // 1. Create User
       const newUser = await storage.upsertUser({
         id: userId,
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         googleId: googleId || null,
         firstName: finalFirstName,
         lastName: finalLastName,
-        cpf: role !== 'instructor' ? (cpf?.replace(/\D/g, '') || null) : null,
-        cnpj: role === 'instructor' ? (cnpj?.replace(/\D/g, '') || null) : null,
+        cpf: role !== 'instructor' ? (normalizedCpf || null) : null,
+        cnpj: role === 'instructor' ? (normalizedCnpj || null) : null,
         phone: phone?.replace(/\D/g, '') || null,
         addressLine: addressLine?.trim() || null,
         zipCode: zipCode?.replace(/\D/g, '') || null,

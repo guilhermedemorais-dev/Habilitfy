@@ -45,6 +45,13 @@ CREATE TABLE IF NOT EXISTS `users` (
   `state` VARCHAR(50),
   `lat` DECIMAL(10, 7),
   `lng` DECIMAL(10, 7),
+  `is_blocked` TINYINT(1) NOT NULL DEFAULT 0,
+  `blocked_at` TIMESTAMP NULL,
+  `blocked_reason` TEXT,
+  `blocked_by_admin_id` VARCHAR(36),
+  `admin_notes` TEXT,
+  `admin_notes_updated_at` TIMESTAMP NULL,
+  `admin_notes_updated_by_admin_id` VARCHAR(36),
   `password` TEXT,
   `is_verified` TINYINT(1) NOT NULL DEFAULT 0,
   `verification_token` VARCHAR(255),
@@ -322,6 +329,25 @@ CREATE TABLE IF NOT EXISTS `support_tickets` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- User Access Logs table
+CREATE TABLE IF NOT EXISTS `user_access_logs` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `session_id` VARCHAR(128),
+  `ip_address` VARCHAR(80),
+  `user_agent` TEXT,
+  `device_type` VARCHAR(40),
+  `browser` VARCHAR(80),
+  `os` VARCHAR(80),
+  `request_path` VARCHAR(255),
+  `request_method` VARCHAR(10),
+  `status_code` INT,
+  `request_duration_ms` INT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `user_access_logs_user_created_idx` (`user_id`, `created_at`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Integrations table

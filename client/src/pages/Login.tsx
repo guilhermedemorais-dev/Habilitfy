@@ -62,6 +62,8 @@ export default function Login() {
       showAlert("error", "Conta não encontrada", "Você precisa se cadastrar antes de fazer login com o Google.");
     } else if (error === "auth_failed") {
       showAlert("error", "Falha na autenticação", "Não foi possível fazer login com o Google. Tente novamente.");
+    } else if (error === "account_blocked") {
+      showAlert("error", "Conta bloqueada", "Seu acesso foi bloqueado. Entre em contato com o suporte.");
     }
   }, [showAlert]);
 

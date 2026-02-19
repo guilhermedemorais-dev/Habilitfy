@@ -120,6 +120,15 @@ export const users = mysqlTable("users", {
   state: varchar("state", { length: 50 }),
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
+  isBlocked: boolean("is_blocked").default(false).notNull(),
+  blockedAt: timestamp("blocked_at"),
+  blockedReason: text("blocked_reason"),
+  blockedByAdminId: varchar("blocked_by_admin_id", { length: 36 }),
+  adminNotes: text("admin_notes"),
+  adminNotesUpdatedAt: timestamp("admin_notes_updated_at"),
+  adminNotesUpdatedByAdminId: varchar("admin_notes_updated_by_admin_id", {
+    length: 36,
+  }),
   password: text("password"),
   isVerified: boolean("is_verified").default(false).notNull(),
   verificationToken: varchar("verification_token", { length: 255 }),
@@ -328,6 +337,30 @@ export const supportTickets = mysqlTable("support_tickets", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const userAccessLogs = mysqlTable(
+  "user_access_logs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    userId: varchar("user_id", { length: 36 })
+      .references(() => users.id)
+      .notNull(),
+    sessionId: varchar("session_id", { length: 128 }),
+    ipAddress: varchar("ip_address", { length: 80 }),
+    userAgent: text("user_agent"),
+    deviceType: varchar("device_type", { length: 40 }),
+    browser: varchar("browser", { length: 80 }),
+    os: varchar("os", { length: 80 }),
+    requestPath: varchar("request_path", { length: 255 }),
+    requestMethod: varchar("request_method", { length: 10 }),
+    statusCode: int("status_code"),
+    requestDurationMs: int("request_duration_ms"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("user_access_logs_user_created_idx").on(table.userId, table.createdAt),
+  ],
+);
 
 
 export type IntegrationFieldType =
@@ -555,6 +588,13 @@ export const supportTicketsRelations = relations(supportTickets, ({ one }) => ({
   }),
 }));
 
+export const userAccessLogsRelations = relations(userAccessLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [userAccessLogs.userId],
+    references: [users.id],
+  }),
+}));
+
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -630,3 +670,4 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
 });
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
 export type SupportTicket = typeof supportTickets.$inferSelect;
+export type UserAccessLog = typeof userAccessLogs.$inferSelect;

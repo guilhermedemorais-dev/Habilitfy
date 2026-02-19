@@ -5,7 +5,6 @@ import {
   Banknote,
   Calendar,
   CalendarCheck,
-  Check,
   CreditCard,
   DollarSign,
   Eye,
@@ -27,7 +26,6 @@ import {
   Users,
   Wallet,
   WalletCards,
-  X,
   Lock,
   Map as MapIcon,
 } from "lucide-react";
@@ -35,6 +33,7 @@ import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AdminMonitoring } from "@/components/admin/AdminMonitoring";
 import { AdminAIChat } from "@/components/admin/AdminAIChat";
 import { AdminFinancialCharts } from "@/components/admin/AdminFinancialCharts";
+import { UserReviewDialog } from "@/components/admin/UserReviewDialog";
 import {
   MapContainer,
   TileLayer,
@@ -93,6 +92,15 @@ type AdminUser = {
   email?: string | null;
   profileImageUrl?: string | null;
   role?: string | null;
+  kycStatus?: "pending" | "approved" | "rejected" | null;
+  phone?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  city?: string | null;
+  state?: string | null;
+  isBlocked?: boolean;
+  blockedReason?: string | null;
+  adminNotes?: string | null;
   createdAt?: string | null;
 };
 
@@ -564,6 +572,8 @@ export default function Admin() {
   const [editingIntegrationId, setEditingIntegrationId] = useState<string | null>(
     null,
   );
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewUserId, setReviewUserId] = useState<string | null>(null);
 
   const {
     data: instructorsData,
@@ -1142,7 +1152,7 @@ export default function Admin() {
   ]);
 
   const isUnauthorized = instructorsData === null;
-  const hasLoadError =
+  const hasLoadError = Boolean(
     instructorsError ||
     studentsError ||
     dashboardError ||
@@ -1155,7 +1165,8 @@ export default function Admin() {
     walletEntriesError ||
     withdrawalsError ||
     integrationsError ||
-    adminSettingsError;
+    adminSettingsError,
+  );
   const adminName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
     user?.email ||
@@ -1355,35 +1366,11 @@ export default function Admin() {
     ],
   );
 
-
-  const updateStatus = useMutation({
-    mutationFn: async ({
-      userId,
-      status,
-    }: {
-      userId: string;
-      status: "approved" | "rejected";
-    }) => {
-      const endpoint = status === "approved"
-        ? `/api/admin/users/${userId}/approve`
-        : `/api/admin/users/${userId}/reject`;
-
-      const res = await apiRequest("POST", endpoint, {});
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Status atualizado" });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/instructors"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Erro ao atualizar",
-        description: err?.message || "Tente novamente",
-        variant: "destructive",
-      });
-    },
-  });
+  const openUserReviewDialog = (userId?: string | null) => {
+    if (!userId) return;
+    setReviewUserId(userId);
+    setReviewDialogOpen(true);
+  };
 
   const updateWithdrawal = useMutation({
     mutationFn: async ({
@@ -2391,30 +2378,13 @@ export default function Admin() {
                                   <div className="flex justify-end gap-2">
                                     <Button
                                       size="sm"
-                                      className="h-8 w-8 rounded-md bg-green-600 p-0 text-white hover:bg-green-700"
-                                      disabled={updateStatus.isPending}
+                                      variant="outline"
+                                      className="h-8 rounded-md px-3"
                                       onClick={() =>
-                                        updateStatus.mutate({
-                                          userId: instrutor.userId,
-                                          status: "approved",
-                                        })
+                                        openUserReviewDialog(instrutor.userId)
                                       }
                                     >
-                                      <Check className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      className="h-8 w-8 rounded-md p-0"
-                                      disabled={updateStatus.isPending}
-                                      onClick={() =>
-                                        updateStatus.mutate({
-                                          userId: instrutor.userId,
-                                          status: "rejected",
-                                        })
-                                      }
-                                    >
-                                      <X className="h-4 w-4" />
+                                      Revisar
                                     </Button>
                                   </div>
                                 </TableCell>
@@ -2492,6 +2462,7 @@ export default function Admin() {
                             <TableHead>Veículo</TableHead>
                             <TableHead>Credencial</TableHead>
                             <TableHead>Cadastro</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2518,11 +2489,18 @@ export default function Admin() {
                                   {instrutor.user?.email || "—"}
                                 </TableCell>
                                 <TableCell>
-                                  <Badge
-                                    className={`border-none shadow-none ${statusMeta.className}`}
-                                  >
-                                    {statusMeta.label}
-                                  </Badge>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge
+                                      className={`border-none shadow-none ${statusMeta.className}`}
+                                    >
+                                      {statusMeta.label}
+                                    </Badge>
+                                    {instrutor.user?.isBlocked ? (
+                                      <Badge className="border-none shadow-none bg-red-100 text-red-700">
+                                        Banido
+                                      </Badge>
+                                    ) : null}
+                                  </div>
                                 </TableCell>
                                 <TableCell>
                                   <div className="text-sm text-slate-700 dark:text-blue-200">
@@ -2541,6 +2519,18 @@ export default function Admin() {
                                       instrutor.createdAt,
                                     ).toLocaleDateString("pt-BR")
                                     : "—"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 rounded-md px-3"
+                                    onClick={() =>
+                                      openUserReviewDialog(instrutor.userId)
+                                    }
+                                  >
+                                    Revisar
+                                  </Button>
                                 </TableCell>
                               </TableRow>
                             );
@@ -2594,7 +2584,9 @@ export default function Admin() {
                           <TableRow>
                             <TableHead>Aluno</TableHead>
                             <TableHead>Email</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead>Cadastro</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2605,11 +2597,32 @@ export default function Admin() {
                               </TableCell>
                               <TableCell>{aluno.email || "—"}</TableCell>
                               <TableCell>
+                                {aluno.isBlocked ? (
+                                  <Badge className="border-none shadow-none bg-red-100 text-red-700">
+                                    Banido
+                                  </Badge>
+                                ) : (
+                                  <Badge className="border-none shadow-none bg-green-100 text-green-700">
+                                    Ativo
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
                                 {aluno.createdAt
                                   ? new Date(
                                     aluno.createdAt,
                                   ).toLocaleDateString("pt-BR")
                                   : "—"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 rounded-md px-3"
+                                  onClick={() => openUserReviewDialog(aluno.id)}
+                                >
+                                  Revisar
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -4045,6 +4058,11 @@ export default function Admin() {
             </div>
           </main>
           <AdminAIChat />
+          <UserReviewDialog
+            open={reviewDialogOpen}
+            onOpenChange={setReviewDialogOpen}
+            userId={reviewUserId}
+          />
         </div>
       </div>
     </AuthGuard>
