@@ -1,6 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, CheckCircle2, User, Calendar, AlertCircle } from "lucide-react";
+import {
+  Clock,
+  CheckCircle2,
+  User,
+  Calendar,
+  AlertCircle,
+  LogOut,
+} from "lucide-react";
 import { Link } from "wouter";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,7 +25,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { KYCPendingBlock } from "@/components/dashboard/KYCPendingBlock";
 
 export default function StudentDashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { data: bookings, isLoading, error } = useStudentBookings();
   const [reviewOpen, setReviewOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<{
@@ -153,27 +160,38 @@ export default function StudentDashboard() {
                 </h1>
               </div>
             </div>
-            {isKycApproved && (
-              <div className="text-right">
-                <p className="text-green-100 text-xs uppercase tracking-wider">
-                  Saldo
-                </p>
-                <p className="text-white text-2xl font-bold">R$ 0,00</p>
-              </div>
-            )}
-            <Button
-              variant="secondary"
-              size="icon"
-              className="rounded-full bg-white/20 hover:bg-white/30 text-white border-0 ml-4"
-              asChild
-            >
-              <Link href="/chat">
-                <div className="relative">
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-primary" />
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+            <div className="flex items-center gap-2">
+              {isKycApproved && (
+                <div className="text-right mr-2">
+                  <p className="text-green-100 text-xs uppercase tracking-wider">
+                    Saldo
+                  </p>
+                  <p className="text-white text-2xl font-bold">R$ 0,00</p>
                 </div>
-              </Link>
-            </Button>
+              )}
+              <Button
+                variant="secondary"
+                size="icon"
+                className="rounded-full bg-white/20 hover:bg-white/30 text-white border-0"
+                asChild
+              >
+                <Link href="/chat">
+                  <div className="relative">
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-primary" />
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                  </div>
+                </Link>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="rounded-full bg-white/20 hover:bg-white/30 text-white border-0 px-3"
+                onClick={logout}
+              >
+                <LogOut className="w-4 h-4 mr-1" />
+                Sair
+              </Button>
+            </div>
           </div>
         </header>
 
