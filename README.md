@@ -126,9 +126,14 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
    
    Edite o arquivo `.env` com suas configurações:
    ```env
-   DATABASE_URL=postgresql://usuario:senha@localhost:5432/habilitfy
+   DATABASE_URL=mysql://usuario:senha@localhost:3306/habilitfy
    SESSION_SECRET=sua-chave-secreta-aqui
-   AUTH_MODE=local  # ou "oidc" para produção com Google
+   AUTH_MODE=local  # desenvolvimento
+   ```
+
+   Para produção, use um arquivo local **não versionado**:
+   ```bash
+   cp .env.production.example .env.production
    ```
 
 4. **Execute as migrações do banco**
@@ -182,10 +187,10 @@ LOCAL_USER_ROLE=admin
 
 | Variável | Descrição |
 |----------|-----------|
-| `DATABASE_URL` | URL de conexão PostgreSQL |
+| `DATABASE_URL` | URL de conexão MySQL |
 | `SESSION_SECRET` | Chave secreta para sessões |
 | `NODE_ENV` | `production` para deploy |
-| `AUTH_MODE` | `oidc` para usar Google OAuth |
+| `AUTH_MODE` | `oidc` para produção ( `local` é bloqueado em produção ) |
 
 ### Variáveis Opcionais
 

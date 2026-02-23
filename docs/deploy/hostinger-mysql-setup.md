@@ -4,11 +4,8 @@ This document explains how to configure and connect to the Hostinger MySQL datab
 
 ## Current Configuration Status
 
-Your `.env.production` is configured as follows:
-```env
-DATABASE_URL=mysql://u540864618_guimp:***@127.0.0.1:3306/u540864618_hbitfy
-DB_HOST=127.0.0.1
-```
+Use a local-only file (`.env.production`) created from `.env.production.example`.  
+Do not commit production credentials to Git.
 
 ### 1. Production Deployment (On Hostinger)
 **This configuration is likely CORRECT** if:
@@ -43,6 +40,6 @@ This allows you to use `127.0.0.1` locally, matching your production config.
 2.  **Whitelist IP in hPanel**: Go to Databases > Remote MySQL. Add your public IP.
 3.  **Update `.env.production`** (for local use ONLY):
     ```env
-    DB_HOST=147.79.105.92
-    DATABASE_URL=mysql://u540864618_guimp:***@147.79.105.92:3306/u540864618_hbitfy
+    DB_HOST=<hostinger-mysql-host>
+    DATABASE_URL=mysql://<user>:<password>@<hostinger-mysql-host>:3306/<database>
     ```

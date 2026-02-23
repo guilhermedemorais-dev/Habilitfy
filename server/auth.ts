@@ -12,6 +12,40 @@ import { storage } from "./storage";
 const scryptAsync = promisify(scrypt);
 const ownerMasterEmail = (process.env.OWNER_MASTER_EMAIL || "").trim().toLowerCase();
 
+function getAuthMode() {
+    return (process.env.AUTH_MODE || "").trim().toLowerCase();
+}
+
+function isLocalAuthMode() {
+    return getAuthMode() === "local";
+}
+
+function isProductionRuntime() {
+    return (process.env.NODE_ENV || "").trim().toLowerCase() === "production";
+}
+
+function allowInsecureLocalAuthInProduction() {
+    return (
+        process.env.ALLOW_INSECURE_LOCAL_AUTH_IN_PRODUCTION === "true" ||
+        process.env.ALLOW_INSECURE_LOCAL_AUTH_IN_PRODUCTION === "1"
+    );
+}
+
+function assertSafeAuthModeForRuntime() {
+    if (!isProductionRuntime() || !isLocalAuthMode()) return;
+
+    if (allowInsecureLocalAuthInProduction()) {
+        logger.warn(
+            "[auth] SECURITY OVERRIDE ACTIVE: AUTH_MODE=local in production is allowed by ALLOW_INSECURE_LOCAL_AUTH_IN_PRODUCTION=true. Use only for emergency diagnostics."
+        );
+        return;
+    }
+
+    throw new Error(
+        "[auth] Invalid configuration: AUTH_MODE=local is blocked when NODE_ENV=production. Set AUTH_MODE=oidc (or another non-local mode)."
+    );
+}
+
 function isOwnerMasterCandidate(email?: string | null) {
     if (!ownerMasterEmail || !email) return false;
     return email.trim().toLowerCase() === ownerMasterEmail;
@@ -70,10 +104,19 @@ export async function comparePassword(supplied: string, stored: string) {
 // =============================================================================
 
 export function getSession() {
+    assertSafeAuthModeForRuntime();
+
     const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-    if (!process.env.SESSION_SECRET && process.env.AUTH_MODE === "local") {
-        process.env.SESSION_SECRET = "local-dev-secret";
+    if (!process.env.SESSION_SECRET) {
+        if (isLocalAuthMode() && !isProductionRuntime()) {
+            process.env.SESSION_SECRET = "local-dev-secret";
+            logger.warn("[auth] Using dev-only fallback SESSION_SECRET for local auth mode.");
+        } else {
+            throw new Error(
+                "[auth] Missing SESSION_SECRET. Configure SESSION_SECRET before starting the server."
+            );
+        }
     }
 
     const MySQLStoreSession = MySQLStore(session);
@@ -140,6 +183,8 @@ export function getSession() {
 // =============================================================================
 
 export async function setupAuth(app: Express) {
+    assertSafeAuthModeForRuntime();
+
     app.set("trust proxy", 1);
     app.use(getSession());
     app.use(passport.initialize());
@@ -404,7 +449,7 @@ export async function setupAuth(app: Express) {
         logger.info(`[auth] GET /api/login hit (Authenticated: ${req.isAuthenticated()})`, { authenticated: req.isAuthenticated() });
 
         // Local mode for development
-        if (process.env.AUTH_MODE === "local") {
+        if (isLocalAuthMode()) {
             logger.info("[auth] Local mode detected. Performing auto-login...");
             try {
                 const userId = process.env.LOCAL_USER_ID || "local-admin";
@@ -550,7 +595,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     );
 
     // Local/offline mode
-    if (process.env.AUTH_MODE === "local") {
+    if (isLocalAuthMode()) {
         let user = (req as any).user;
         if (!user) {
             const isTestEnv = process.env.NODE_ENV === "test" || process.env.VITEST === "true";

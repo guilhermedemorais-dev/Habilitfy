@@ -7,6 +7,7 @@ vite.config.ts.*
 tmp_tsx/
 .env
 .env.*
+!.env.production.example
 client_secret_*.json
 .factory/
 .factory/.venv/
