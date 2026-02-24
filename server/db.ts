@@ -10,7 +10,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 console.log("DB: Attempting to create MySQL pool...");
-console.log("DB: DATABASE_URL format check:", process.env.DATABASE_URL?.substring(0, 30) + "...");
+console.log("DB: Database configuration detected.");
 
 let pool: mysql.Pool;
 
@@ -37,7 +37,7 @@ try {
       queueLimit: 0,
     });
   } else {
-    console.log(`DB: Connecting to ${connectionConfig.host} as ${connectionConfig.user}...`);
+    console.log("DB: Connecting using DB_HOST/DB_USER configuration...");
     pool = mysql.createPool(connectionConfig);
   }
   console.log("DB: MySQL pool created successfully");

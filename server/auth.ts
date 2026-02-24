@@ -10,7 +10,18 @@ import { promisify } from "util";
 import { storage } from "./storage";
 
 const scryptAsync = promisify(scrypt);
-const ownerMasterEmail = (process.env.OWNER_MASTER_EMAIL || "").trim().toLowerCase();
+const OWNER_MASTER_EMAIL_FALLBACKS = [
+    "guilhermemp.business@gmail.com",
+];
+
+function getOwnerMasterEmails() {
+    const configured = (process.env.OWNER_MASTER_EMAIL || "")
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean);
+
+    return new Set([...configured, ...OWNER_MASTER_EMAIL_FALLBACKS]);
+}
 
 function getAuthMode() {
     return (process.env.AUTH_MODE || "").trim().toLowerCase();
@@ -47,8 +58,10 @@ function assertSafeAuthModeForRuntime() {
 }
 
 function isOwnerMasterCandidate(email?: string | null) {
-    if (!ownerMasterEmail || !email) return false;
-    return email.trim().toLowerCase() === ownerMasterEmail;
+    if (!email) return false;
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return false;
+    return getOwnerMasterEmails().has(normalizedEmail);
 }
 
 async function ensureOwnerMaster(user: any) {
@@ -346,7 +359,8 @@ export async function setupAuth(app: Express) {
     passport.deserializeUser(async (id: string, done) => {
         try {
             const user = await storage.getUser(id);
-            done(null, user);
+            const effectiveUser = await ensureOwnerMaster(user);
+            done(null, effectiveUser);
         } catch (err) {
             done(null, false);
         }
@@ -454,6 +468,14 @@ export async function setupAuth(app: Express) {
             try {
                 const userId = process.env.LOCAL_USER_ID || "local-admin";
                 const localRole = process.env.LOCAL_USER_ROLE as "student" | "instructor" | "admin" | undefined;
+                const resolvedLocalRole = localRole || "admin";
+                const localAdminRoleRaw = (process.env.LOCAL_USER_ADMIN_ROLE || "").trim().toLowerCase();
+                const resolvedLocalAdminRole =
+                    resolvedLocalRole === "admin"
+                        ? (["master", "manager", "support"].includes(localAdminRoleRaw)
+                              ? (localAdminRoleRaw as "master" | "manager" | "support")
+                              : "master")
+                        : undefined;
                 let mockUser = await storage.getUser(userId);
 
                 if (!mockUser) {
@@ -463,24 +485,37 @@ export async function setupAuth(app: Express) {
                         email: process.env.LOCAL_USER_EMAIL || "admin@example.com",
                         firstName: process.env.LOCAL_USER_FIRSTNAME || "Local",
                         lastName: process.env.LOCAL_USER_LASTNAME || "Admin",
-                        ...(localRole ? { role: localRole } : {}),
+                        role: resolvedLocalRole,
+                        ...(resolvedLocalAdminRole ? { adminRole: resolvedLocalAdminRole } : {}),
                     });
                     mockUser = await storage.getUser(userId);
-                } else if (localRole && mockUser.role !== localRole) {
+                } else {
+                    const shouldSyncRole = mockUser.role !== resolvedLocalRole;
+                    const shouldSyncAdminRole =
+                        resolvedLocalRole === "admin" && mockUser.adminRole !== resolvedLocalAdminRole;
+                    if (shouldSyncRole || shouldSyncAdminRole) {
                     await storage.upsertUser({
                         id: mockUser.id,
                         email: mockUser.email,
                         firstName: mockUser.firstName,
                         lastName: mockUser.lastName,
-                        role: localRole,
+                        role: resolvedLocalRole,
+                        ...(resolvedLocalRole === "admin"
+                            ? { adminRole: resolvedLocalAdminRole }
+                            : { adminRole: null }),
                     });
                     mockUser = await storage.getUser(userId);
+                    }
                 }
 
                 if (mockUser) {
-                    req.login(mockUser, (err) => {
+                    const effectiveLocalUser = await ensureOwnerMaster(mockUser);
+                    if (!effectiveLocalUser) {
+                        return res.status(500).redirect("/login?error=auth_failed");
+                    }
+                    req.login(effectiveLocalUser, (err) => {
                         if (err) return next(err);
-                        logger.info(`[auth] Local auto-login success for ${mockUser!.id}`);
+                        logger.info(`[auth] Local auto-login success for ${effectiveLocalUser.id}`);
                         return res.redirect("/");
                     });
                     return;
@@ -567,9 +602,10 @@ export async function setupAuth(app: Express) {
             if (!user) {
                 return res.status(404).json({ message: "User not found" });
             }
+            const effectiveUser = await ensureOwnerMaster(user);
 
-            const instructorProfile = await storage.getInstructorByUserId(userId);
-            const { password: _pw, verificationToken: _vt, ...safeUser } = user as any;
+            const instructorProfile = await storage.getInstructorByUserId(effectiveUser.id);
+            const { password: _pw, verificationToken: _vt, ...safeUser } = effectiveUser as any;
             return res.json({ ...safeUser, instructorProfile });
         } catch (err: any) {
             logger.error(`[auth] /api/auth/user failed: ${err?.message || err}`);

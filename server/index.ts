@@ -31,23 +31,38 @@ import rateLimit from "express-rate-limit";
 // server/auth.ts already sets 'trust proxy' to 1, but we should probably set it here too if widely used.
 app.set("trust proxy", 1);
 
+const isOAuthFlowRequest = (req: Request) => {
+  const url = req.originalUrl || req.url || "";
+  return (
+    url.startsWith("/api/auth/google") ||
+    (req.method === "GET" && url.startsWith("/api/login"))
+  );
+};
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isOAuthFlowRequest,
   message: { message: "Too many requests, please try again later." },
 });
 
 const authLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // Limit each IP to 10 requests per windowMs
+  max: 20, // Limit each IP to 20 auth attempts per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: isOAuthFlowRequest,
   message: { message: "Too many requests, please try again later." },
 });
 
-app.use("/api/auth", authLimiter);
+// Apply stricter rate limits only to sensitive write endpoints.
+// Do not rate-limit OAuth redirect endpoints (/api/auth/google, callback),
+// otherwise valid login attempts can be blocked.
 app.use("/api/login", authLimiter);
 app.use("/api/users/register", authLimiter);
+app.use("/api/auth/verify-email", authLimiter);
 app.use("/api", apiLimiter);
 
 

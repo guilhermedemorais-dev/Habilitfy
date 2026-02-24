@@ -146,6 +146,25 @@ const parseLimit = (value: unknown, fallback: number, max = 200) => {
   return Math.min(Math.max(parsed, 1), max);
 };
 
+const SENSITIVE_RESPONSE_KEYS = new Set(["password", "verificationToken"]);
+
+const sanitizeSensitiveData = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSensitiveData(item)) as T;
+  }
+
+  if (!value || typeof value !== "object" || value instanceof Date) {
+    return value;
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    if (SENSITIVE_RESPONSE_KEYS.has(key)) continue;
+    sanitized[key] = sanitizeSensitiveData(nestedValue);
+  }
+  return sanitized as T;
+};
+
 const generateSecurityCode = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -446,8 +465,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
       const instructorProfile = await storage.getInstructorByUserId(userId);
 
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password: _pw, ...safeUser } = user as any;
+      const safeUser = sanitizeSensitiveData(user as any);
       res.json({ ...safeUser, instructorProfile });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -466,7 +484,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
           const user = await storage.getUser(instructor.userId);
           return {
             ...instructor,
-            user: user ? user : null,
+            user: user ? sanitizeSensitiveData(user) : null,
             status: instructor.status, // Ensure status is explicitly returned
             credentialImageUrl: instructor.credentialImageUrl,
             selfieImageUrl: instructor.selfieImageUrl,
@@ -486,7 +504,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     try {
       const role = req.query.role as string | undefined;
       const users = await storage.getUsers(role);
-      res.json(users);
+      res.json(sanitizeSensitiveData(users));
     } catch (error) {
       console.error("Error fetching admin users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
@@ -620,7 +638,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     try {
       // Fetch users where role is 'admin'
       const admins = await storage.getUsers('admin');
-      res.json(admins);
+      res.json(sanitizeSensitiveData(admins));
     } catch (error) {
       console.error("Error fetching admins:", error);
       res.status(500).json({ message: "Failed to fetch admins" });
@@ -655,7 +673,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         isVerified: true
       });
 
-      res.status(201).json(newAdmin);
+      res.status(201).json(sanitizeSensitiveData(newAdmin));
     } catch (error) {
       console.error("Error creating admin:", error);
       res.status(500).json({ message: "Failed to create admin" });
@@ -719,7 +737,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
           console.error("Impersonate login error:", err);
           return res.status(500).json({ message: "Failed to impersonate" });
         }
-        return res.json({ success: true, user: targetUser });
+        return res.json({ success: true, user: sanitizeSensitiveData(targetUser) });
       });
     } catch (error) {
       console.error("Error impersonating:", error);
@@ -1434,7 +1452,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       };
 
       const updated = await storage.updateUser(userId, payload);
-      res.json(updated);
+      res.json(sanitizeSensitiveData(updated));
     } catch (error) {
       console.error("Error updating user:", error);
       res.status(500).json({ message: "Failed to update user" });
@@ -2386,7 +2404,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
       const status = req.query.status as string | undefined;
       const instructors = await storage.getInstructorsWithUser(status);
-      res.json(instructors);
+      res.json(sanitizeSensitiveData(instructors));
     } catch (error) {
       console.error("Error fetching instructors:", error);
       res.status(500).json({ message: "Failed to fetch instructors" });
@@ -2512,7 +2530,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         : 20;
 
       const bookings = await storage.getAdminBookings(limit);
-      res.json(bookings);
+      res.json(sanitizeSensitiveData(bookings));
     } catch (error) {
       console.error("Error fetching admin bookings:", error);
       res.status(500).json({ message: "Failed to fetch bookings" });
@@ -2563,7 +2581,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
       const role = req.query.role as string | undefined;
       const users = await storage.getUsers(role);
-      res.json(users);
+      res.json(sanitizeSensitiveData(users));
     } catch (error) {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
@@ -2660,7 +2678,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         gateway,
         limit,
       });
-      res.json(transactions);
+      res.json(sanitizeSensitiveData(transactions));
     } catch (error) {
       console.error("Error fetching admin transactions:", error);
       res.status(500).json({ message: "Failed to fetch transactions" });
@@ -2676,7 +2694,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
       const role = req.query.role as string | undefined;
       const wallets = await storage.getWalletsWithUser(role);
-      res.json(wallets);
+      res.json(sanitizeSensitiveData(wallets));
     } catch (error) {
       console.error("Error fetching admin wallets:", error);
       res.status(500).json({ message: "Failed to fetch wallets" });
@@ -2699,7 +2717,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         userId,
         limit,
       });
-      res.json(entries);
+      res.json(sanitizeSensitiveData(entries));
     } catch (error) {
       console.error("Error fetching admin wallet entries:", error);
       res.status(500).json({ message: "Failed to fetch wallet entries" });
@@ -2724,7 +2742,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         status,
         limit,
       });
-      res.json(withdrawals);
+      res.json(sanitizeSensitiveData(withdrawals));
     } catch (error) {
       console.error("Error fetching admin withdrawals:", error);
       res.status(500).json({ message: "Failed to fetch withdrawals" });
