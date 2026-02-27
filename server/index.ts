@@ -72,13 +72,6 @@ app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
   console.log(`[DEPLOY CHECK ${new Date().toISOString()}] Incoming request: ${req.method} ${path}`);
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
@@ -88,7 +81,6 @@ app.use((req, res, next) => {
         path,
         statusCode: res.statusCode,
         duration,
-        response: capturedJsonResponse
       });
     }
   });

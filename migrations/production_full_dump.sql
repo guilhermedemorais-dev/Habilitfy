@@ -951,6 +951,7 @@ DROP TABLE IF EXISTS `webhooks_events`;
 
 CREATE TABLE `webhooks_events` (
   `id` VARCHAR(36) NOT NULL,
+  `event_id` VARCHAR(255) NOT NULL,
   `event_type` VARCHAR(100),
   `provider` VARCHAR(100),
   `payload` JSON,
@@ -959,6 +960,8 @@ CREATE TABLE `webhooks_events` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE UNIQUE INDEX `webhooks_events_provider_event_idx` ON `webhooks_events`(`provider`, `event_id`);
 
 --
 -- Dumping data for table `webhooks_events`
@@ -1023,18 +1026,6 @@ UNLOCK TABLES;
 
 -- Dump completed on 2026-02-11 19:11:03
 
--- 
--- Inserindo Usuários de Teste (Pendente e Rejeitado)
--- Adicionado via script auxiliar
---
-
--- 1. Instrutor Pendente
-INSERT INTO users (id, email, password, first_name, last_name, role, kyc_status, phone, cpf, profile_image_url, is_verified, created_at)
-
-INSERT INTO instructors (id, user_id, bio, price_per_hour, vehicle_model, vehicle_year, vehicle_type, vehicle_plate, status, credential_image_url, document_image_url, vehicle_doc_image_url, selfie_image_url, credential_number, neighborhood, city, state, lat, lng, pix_key)
-
--- 2. Instrutor Rejeitado
-INSERT INTO users (id, email, password, first_name, last_name, role, kyc_status, phone, cpf, profile_image_url, is_verified, created_at)
-
-INSERT INTO instructors (id, user_id, bio, price_per_hour, vehicle_model, vehicle_year, vehicle_type, vehicle_plate, status, credential_image_url, document_image_url, vehicle_doc_image_url, selfie_image_url, credential_number, neighborhood, city, state, lat, lng, pix_key)
+-- Data rows intentionally omitted in this repository copy.
+-- Keep this dump schema-only to avoid PII and secret leakage.
   

@@ -1,0 +1,14 @@
+
+> rest-express@1.0.0 test:smoke:access:api
+> vitest run server/access-control.smoke.test.ts
+
+
+ RUN  v4.0.18 /home/guimp/Documentos/HabilitFy - antgravity
+
+ ✓ server/access-control.smoke.test.ts (4 tests) 21ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  14:22:22
+   Duration  2.43s (transform 717ms, setup 603ms, import 987ms, tests 21ms, environment 0ms)
+

@@ -68,6 +68,11 @@ export const integrationEnvironmentEnum = mysqlEnum('environment', [
   'development',
   'production',
 ]);
+export const webhookEventStatusEnum = mysqlEnum('status', [
+  'pending',
+  'processed',
+  'failed',
+]);
 
 export const vehicleStatusEnum = mysqlEnum('status', [
   'pending',
@@ -362,6 +367,44 @@ export const userAccessLogs = mysqlTable(
   ],
 );
 
+export const notifications = mysqlTable("notifications", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  userId: varchar("user_id", { length: 36 })
+    .references(() => users.id)
+    .notNull(),
+  type: varchar("type", { length: 100 }),
+  title: varchar("title", { length: 255 }),
+  message: text("message"),
+  data: json("data"),
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const seedMetadata = mysqlTable("seed_metadata", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  executedAt: timestamp("executed_at").defaultNow(),
+  version: varchar("version", { length: 50 }),
+  durationMs: int("duration_ms"),
+  rowsAffected: int("rows_affected"),
+  status: varchar("status", { length: 20 }),
+});
+
+export const webhooksEvents = mysqlTable(
+  "webhooks_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    eventId: varchar("event_id", { length: 255 }).notNull(),
+    eventType: varchar("event_type", { length: 100 }),
+    provider: varchar("provider", { length: 100 }).notNull(),
+    payload: json("payload"),
+    status: webhookEventStatusEnum.default("pending"),
+    processedAt: timestamp("processed_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("webhooks_events_provider_event_idx").on(table.provider, table.eventId)],
+);
+
 
 export type IntegrationFieldType =
   | "text"
@@ -595,6 +638,13 @@ export const userAccessLogsRelations = relations(userAccessLogs, ({ one }) => ({
   }),
 }));
 
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -671,3 +721,6 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
 export type SupportTicket = typeof supportTickets.$inferSelect;
 export type UserAccessLog = typeof userAccessLogs.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
+export type SeedMetadata = typeof seedMetadata.$inferSelect;
+export type WebhookEvent = typeof webhooksEvents.$inferSelect;

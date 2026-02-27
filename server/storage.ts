@@ -350,13 +350,32 @@ export class DatabaseStorage implements IStorage {
 
   async createInstructor(instructorData: InsertInstructor): Promise<Instructor> {
     const id = crypto.randomUUID();
-    await db.insert(instructors).values({ ...instructorData, id });
+    const normalizedPricePerHour =
+      typeof instructorData.pricePerHour === "number"
+        ? instructorData.pricePerHour.toFixed(2)
+        : String(instructorData.pricePerHour);
+    const payload: Record<string, unknown> = {
+      ...instructorData,
+      id,
+      pricePerHour: normalizedPricePerHour,
+    };
+    if (typeof instructorData.lat === "number") payload.lat = instructorData.lat.toFixed(7);
+    if (typeof instructorData.lng === "number") payload.lng = instructorData.lng.toFixed(7);
+
+    await db.insert(instructors).values(payload as any);
     const [instructor] = await db.select().from(instructors).where(eq(instructors.id, id));
     return instructor;
   }
 
   async updateInstructor(id: string, data: Partial<InsertInstructor>): Promise<Instructor> {
-    await db.update(instructors).set({ ...data, updatedAt: new Date() }).where(eq(instructors.id, id));
+    const payload: Record<string, unknown> = { ...data, updatedAt: new Date() };
+    if (typeof data.pricePerHour === "number") {
+      payload.pricePerHour = data.pricePerHour.toFixed(2);
+    }
+    if (typeof data.lat === "number") payload.lat = data.lat.toFixed(7);
+    if (typeof data.lng === "number") payload.lng = data.lng.toFixed(7);
+
+    await db.update(instructors).set(payload as any).where(eq(instructors.id, id));
     const [instructor] = await db.select().from(instructors).where(eq(instructors.id, id));
     return instructor;
   }

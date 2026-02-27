@@ -366,6 +366,44 @@ CREATE TABLE IF NOT EXISTS `integrations` (
   INDEX `integrations_category_env_idx` (`category`, `integration_environment`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Notifications table
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `type` VARCHAR(100),
+  `title` VARCHAR(255),
+  `message` TEXT,
+  `data` JSON,
+  `is_read` BOOLEAN DEFAULT FALSE,
+  `read_at` TIMESTAMP NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `notifications_user_idx` (`user_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seed Metadata table
+CREATE TABLE IF NOT EXISTS `seed_metadata` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `executed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `version` VARCHAR(50),
+  `duration_ms` INT,
+  `rows_affected` INT,
+  `status` VARCHAR(20)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Webhook Events table
+CREATE TABLE IF NOT EXISTS `webhooks_events` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `event_id` VARCHAR(255) NOT NULL,
+  `event_type` VARCHAR(100),
+  `provider` VARCHAR(100) NOT NULL,
+  `payload` JSON,
+  `status` ENUM('pending', 'processed', 'failed') DEFAULT 'pending',
+  `processed_at` TIMESTAMP NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `webhooks_events_provider_event_idx` (`provider`, `event_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- KYC Verifications table
 CREATE TABLE IF NOT EXISTS `kyc_verifications` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),

@@ -66,10 +66,10 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 ## 🛠️ Tecnologias
 
 ### Frontend
-- **React 19** - Biblioteca UI moderna
+- **React 18** - Biblioteca UI moderna
 - **TypeScript** - Tipagem estática
-- **Tailwind CSS 4** - Estilização utility-first
-- **Vite 7** - Build tool ultrarrápida
+- **Tailwind CSS 3** - Estilização utility-first
+- **Vite 5** - Build tool ultrarrápida
 - **React Query** - Gerenciamento de estado assíncrono
 - **Wouter** - Roteamento leve
 - **Framer Motion** - Animações fluidas
@@ -80,7 +80,7 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 ### Backend
 - **Node.js 22** - Runtime JavaScript
 - **Express 4** - Framework web
-- **PostgreSQL** - Banco de dados relacional
+- **MySQL 8+** - Banco de dados relacional
 - **Drizzle ORM** - ORM type-safe
 - **Passport.js** - Autenticação (Google OAuth, Local)
 - **WebSocket** - Comunicação em tempo real
@@ -103,7 +103,7 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 ### Pré-requisitos
 
 - Node.js >= 22.x
-- PostgreSQL >= 14
+- MySQL >= 8
 - npm ou yarn
 
 ### Passo a Passo
@@ -167,6 +167,9 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 | `npm run test` | Executa todos os testes |
 | `npm run test:unit` | Executa apenas testes unitários |
 | `npm run test:e2e` | Executa testes end-to-end |
+| `npm run test:smoke:access:api` | Smoke de controle de acesso da API admin |
+| `npm run test:smoke:access:ui` | Smoke de acesso da UI admin |
+| `npm run verify` | Gate local: `check + test:unit + smokes de acesso` |
 
 ### Modo de Desenvolvimento Local
 
@@ -191,6 +194,15 @@ LOCAL_USER_ROLE=admin
 | `SESSION_SECRET` | Chave secreta para sessões |
 | `NODE_ENV` | `production` para deploy |
 | `AUTH_MODE` | `oidc` para produção ( `local` é bloqueado em produção ) |
+
+### QA remoto (espelho)
+
+Para auditoria de schema/DB em espelho remoto:
+
+```bash
+cp .env.qa-remote.example .env.qa-remote
+npm run audit:schema:parity
+```
 
 ### Variáveis Opcionais
 

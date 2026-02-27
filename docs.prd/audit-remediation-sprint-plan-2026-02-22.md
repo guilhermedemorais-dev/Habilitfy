@@ -167,14 +167,14 @@ Meta: reduzir complexidade acoplada e custo de manutenção.
 ## Checklist Atômico (Execução)
 
 [ ] Fechar Sprint 0 com evidências de rotação e sanitização.  
-[ ] Restaurar `npm run check` para verde.  
-[ ] Restaurar `npm run test:unit` para verde.  
-[ ] Remover rotas duplicadas e congelar contrato de API.  
-[ ] Aplicar redaction de logs e idempotência de webhook.  
+[x] Restaurar `npm run check` para verde.  
+[x] Restaurar `npm run test:unit` para verde.  
+[x] Remover rotas duplicadas e congelar contrato de API.  
+[x] Aplicar redaction de logs e idempotência de webhook.  
 [ ] Modularizar backend por domínio.  
 [ ] Modularizar `Admin.tsx` por contexto.  
-[ ] Atualizar README para stack real.  
-[ ] Criar comando `npm run verify` e adotar como gate local.  
+[x] Atualizar README para stack real.  
+[x] Criar comando `npm run verify` e adotar como gate local.  
 [ ] Publicar status final contra Definition of Done global.
 
 ## Questões em Aberto

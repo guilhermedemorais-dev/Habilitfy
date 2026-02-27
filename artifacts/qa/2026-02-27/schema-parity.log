@@ -1,0 +1,5 @@
+
+> rest-express@1.0.0 audit:schema:parity
+> node --import tsx/esm --env-file=.env.qa-remote scripts/schema-parity-audit.ts
+
+Schema parity audit failed: Missing DB config. Set DATABASE_URL or DB_HOST/DB_USER/DB_NAME (and password/port when required).

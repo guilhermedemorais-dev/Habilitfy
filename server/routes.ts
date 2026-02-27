@@ -12,19 +12,25 @@ import {
   messages,
   supportTickets,
   vehicles,
+  webhooksEvents,
   userAccessLogs,
   User,
 } from "@shared/schema";
 import { kycVerifications as kycVerificationsTable } from "@shared/kyc-schema";
 import { saveBase64Image } from "./kyc";
 import { and, desc, eq, or, sql } from "drizzle-orm";
-import { setupAuth, isAuthenticated, hashPassword, requireAdminRole } from "./auth";
+import { setupAuth, isAuthenticated, hashPassword, requireAdmin, requireAdminRole } from "./auth";
 import { insertInstructorSchema, insertBookingSchema, insertReviewSchema, insertAvailabilitySchema, insertMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } from "./abacatepay";
 import { createStripeCheckoutSession, constructStripeWebhookEvent } from "./stripe";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
+import {
+  mergeSecretIntegrationFields,
+  maskIntegrationFields,
+  normalizeIntegrationFields,
+} from "./integrations.helpers";
 import { cacheMiddleware } from "./cache";
 import { invalidateCache } from "./redis";
 import { insertVehicleSchema, insertSupportTicketSchema } from "@shared/schema";
@@ -182,64 +188,6 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-const normalizeIntegrationFields = (
-  fields: Array<z.infer<typeof integrationFieldSchema>> | undefined | null,
-) => {
-  if (!Array.isArray(fields)) return [];
-  return fields
-    .map((field) => ({
-      key: String(field.key || "").trim(),
-      label: field.label ? String(field.label).trim() : null,
-      type: field.type || "text",
-      value:
-        typeof field.value === "string"
-          ? field.value
-          : field.value == null
-            ? null
-            : String(field.value),
-      required: Boolean(field.required),
-      placeholder: field.placeholder ? String(field.placeholder).trim() : null,
-    }))
-    .filter((field) => field.key.length > 0);
-};
-
-const maskIntegrationFields = (
-  fields: Array<z.infer<typeof integrationFieldSchema>> | null | undefined,
-) => {
-  if (!Array.isArray(fields)) return [];
-  return fields.map((field) => {
-    if (field.type !== "secret") return field;
-    const hasValue = Boolean(field.value && String(field.value).trim().length > 0);
-    return {
-      ...field,
-      value: hasValue ? "****" : "",
-      hasValue,
-    };
-  });
-};
-
-const mergeSecretIntegrationFields = (
-  incoming: Array<z.infer<typeof integrationFieldSchema>>,
-  existing: Array<z.infer<typeof integrationFieldSchema>> | null | undefined,
-) => {
-  if (!Array.isArray(incoming)) return incoming;
-  const existingMap = new Map(
-    (existing || []).map((field) => [field.key, field]),
-  );
-  return incoming.map((field) => {
-    if (field.type !== "secret") return field;
-    const value = typeof field.value === "string" ? field.value.trim() : "";
-    if (!value || value === "****") {
-      const stored = existingMap.get(field.key);
-      return {
-        ...field,
-        value: stored?.value ?? null,
-      };
-    }
-    return field;
-  });
-};
-
 type AccessDeviceType = "mobile" | "tablet" | "desktop" | "bot" | "unknown";
 
 const parseUserAgentInfo = (userAgentRaw: string) => {
@@ -318,6 +266,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   });
 
   await setupAuth(app);
+  app.use("/api/admin", requireAdmin);
 
   app.use((req: any, res: any, next: any) => {
     const startedAt = Date.now();
@@ -452,66 +401,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     }
   });
 
-  app.get('/api/auth/user', isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const userId = (req.user as any)?.claims?.sub ?? (req.user as any)?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const instructorProfile = await storage.getInstructorByUserId(userId);
-
-      const safeUser = sanitizeSensitiveData(user as any);
-      res.json({ ...safeUser, instructorProfile });
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
-
   // --- Admin Routes ---
-
-  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res: Response) => {
-    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-    try {
-      const instructors = await storage.getAllInstructors();
-      const enriched = await Promise.all(
-        instructors.map(async (instructor) => {
-          const user = await storage.getUser(instructor.userId);
-          return {
-            ...instructor,
-            user: user ? sanitizeSensitiveData(user) : null,
-            status: instructor.status, // Ensure status is explicitly returned
-            credentialImageUrl: instructor.credentialImageUrl,
-            selfieImageUrl: instructor.selfieImageUrl,
-            documentImageUrl: instructor.documentImageUrl,
-          };
-        })
-      );
-      res.json(enriched);
-    } catch (error) {
-      console.error("Error fetching admin instructors:", error);
-      res.status(500).json({ message: "Failed to fetch instructors" });
-    }
-  });
-
-  app.get('/api/admin/users', isAuthenticated, async (req: any, res: Response) => {
-    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-    try {
-      const role = req.query.role as string | undefined;
-      const users = await storage.getUsers(role);
-      res.json(sanitizeSensitiveData(users));
-    } catch (error) {
-      console.error("Error fetching admin users:", error);
-      res.status(500).json({ message: "Failed to fetch users" });
-    }
-  });
-
-
 
   // --- AI Assistant Route (Real) ---
   // Helper function to resolve OpenAI configuration
@@ -3598,6 +3488,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     const sig = req.headers["stripe-signature"];
     if (!sig) return res.status(400).send("Missing Stripe Signature");
 
+    let webhookEventId: string | undefined;
     try {
       const environment = process.env.NODE_ENV === "production" ? "production" : "development";
       const integration = await storage.getIntegrationBySlug("stripe", environment);
@@ -3614,6 +3505,35 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       const event = constructStripeWebhookEvent(rawBody, sig as string, config);
+      webhookEventId = event.id;
+      if (!webhookEventId) {
+        return res.status(400).send("Webhook Error: event.id ausente");
+      }
+
+      const [existingEvent] = await db
+        .select()
+        .from(webhooksEvents)
+        .where(
+          and(
+            eq(webhooksEvents.provider, "stripe"),
+            eq(webhooksEvents.eventId, webhookEventId),
+          ),
+        )
+        .limit(1);
+
+      if (existingEvent?.status === "processed") {
+        return res.json({ received: true, idempotent: true });
+      }
+
+      if (!existingEvent) {
+        await db.insert(webhooksEvents).values({
+          eventId: webhookEventId,
+          eventType: event.type,
+          provider: "stripe",
+          payload: event as any,
+          status: "pending",
+        });
+      }
 
       if (event.type === "checkout.session.completed") {
         const session = event.data.object as any;
@@ -3626,7 +3546,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
           const startCode = Math.floor(1000 + Math.random() * 9000).toString();
           const endCode = Math.floor(1000 + Math.random() * 9000).toString();
 
-          await storage.updateBooking(bookingId, {
+          const updated = await storage.updateBooking(bookingId, {
             paymentId: session.id,
             paymentStatus: "paid",
             paymentProvider: "stripe",
@@ -3635,22 +3555,41 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
             endCode
           });
 
-          await storage.createTransaction({
-            type: "booking",
-            amount: session.amount_total ? (session.amount_total / 100).toString() : "0",
-            currency: "BRL",
-            status: "paid",
-            referenceId: bookingId,
-            referenceType: "booking",
-            metadata: { stripeSessionId: session.id },
-            instructorId: session.metadata?.instructorId || "",
-            studentId: session.metadata?.studentId || "",
-          });
+          await storage.upsertBookingTransaction(updated);
         }
       }
 
+      await db
+        .update(webhooksEvents)
+        .set({
+          status: "processed",
+          processedAt: new Date(),
+          eventType: event.type,
+        })
+        .where(
+          and(
+            eq(webhooksEvents.provider, "stripe"),
+            eq(webhooksEvents.eventId, webhookEventId),
+          ),
+        );
+
       res.json({ received: true });
     } catch (error: any) {
+      if (webhookEventId) {
+        await db
+          .update(webhooksEvents)
+          .set({
+            status: "failed",
+            processedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(webhooksEvents.provider, "stripe"),
+              eq(webhooksEvents.eventId, webhookEventId),
+            ),
+          )
+          .catch(() => undefined);
+      }
       console.error("Stripe Webhook Error:", error.message);
       res.status(400).send(`Webhook Error: ${error.message}`);
     }

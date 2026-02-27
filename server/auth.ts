@@ -35,22 +35,8 @@ function isProductionRuntime() {
     return (process.env.NODE_ENV || "").trim().toLowerCase() === "production";
 }
 
-function allowInsecureLocalAuthInProduction() {
-    return (
-        process.env.ALLOW_INSECURE_LOCAL_AUTH_IN_PRODUCTION === "true" ||
-        process.env.ALLOW_INSECURE_LOCAL_AUTH_IN_PRODUCTION === "1"
-    );
-}
-
 function assertSafeAuthModeForRuntime() {
     if (!isProductionRuntime() || !isLocalAuthMode()) return;
-
-    if (allowInsecureLocalAuthInProduction()) {
-        logger.warn(
-            "[auth] SECURITY OVERRIDE ACTIVE: AUTH_MODE=local in production is allowed by ALLOW_INSECURE_LOCAL_AUTH_IN_PRODUCTION=true. Use only for emergency diagnostics."
-        );
-        return;
-    }
 
     throw new Error(
         "[auth] Invalid configuration: AUTH_MODE=local is blocked when NODE_ENV=production. Set AUTH_MODE=oidc (or another non-local mode)."
@@ -693,6 +679,33 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     }
 
     return next();
+};
+
+export const requireAdmin: RequestHandler = async (req, res, next) => {
+    return isAuthenticated(req, res, async (err?: any) => {
+        if (err) return next(err);
+
+        const requestUser = (req.user as any) || (req as any).user;
+        const userId = requestUser?.claims?.sub ?? requestUser?.id;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const dbUser = await storage.getUser(userId);
+        const effectiveUser = dbUser || requestUser;
+        if (!effectiveUser || effectiveUser.role !== "admin") {
+            return res.status(403).json({ message: "Forbidden: Admin access required" });
+        }
+
+        if (dbUser) {
+            (req as any).user = {
+                ...dbUser,
+                claims: { sub: dbUser.id },
+            };
+        }
+
+        return next();
+    });
 };
 
 export function requireAdminRole(requiredRole: 'master' | 'manager' | 'support' = 'support') {

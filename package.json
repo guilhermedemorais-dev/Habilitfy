@@ -15,9 +15,13 @@
     "seed:auth": "tsx --env-file=.env script/seed-auth-users.ts",
     "seed:full": "tsx --env-file=.env script/reset_and_seed_comprehensive.ts",
     "audit:prod": "node --import tsx/esm diagnose-data.ts",
+    "audit:schema:parity": "node --import tsx/esm --env-file=.env.qa-remote scripts/schema-parity-audit.ts",
     "fix:prod": "node --import tsx/esm fix-production-data.ts",
     "test": "vitest run && playwright test",
     "test:unit": "vitest run",
+    "test:smoke:access:api": "vitest run server/access-control.smoke.test.ts",
+    "test:smoke:access:ui": "vitest run client/src/components/auth/AuthGuard.smoke.test.tsx",
+    "verify": "npm run check && npm run test:unit && npm run test:smoke:access:api && npm run test:smoke:access:ui",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "start:prod": "NODE_ENV=production tsx --env-file=.env.production server/index.ts"

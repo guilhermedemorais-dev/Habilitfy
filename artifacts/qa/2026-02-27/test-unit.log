@@ -1,0 +1,19 @@
+
+> rest-express@1.0.0 test:unit
+> vitest run
+
+
+ RUN  v4.0.18 /home/guimp/Documentos/HabilitFy - antgravity
+
+ ✓ server/integrations.routes.test.ts (3 tests) 14ms
+ ✓ server/access-control.smoke.test.ts (4 tests) 25ms
+ ✓ client/src/components/ui/button.test.tsx (1 test) 553ms
+     ✓ renders the default variant  547ms
+ ✓ server/abacatepay.test.ts (6 tests) 12ms
+ ✓ client/src/components/auth/AuthGuard.smoke.test.tsx (3 tests) 74ms
+
+ Test Files  5 passed (5)
+      Tests  17 passed (17)
+   Start at  14:22:10
+   Duration  4.49s (transform 1.27s, setup 2.53s, import 1.87s, tests 679ms, environment 3.48s)
+
