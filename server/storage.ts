@@ -262,6 +262,33 @@ export interface IStorage {
 
 
 export class DatabaseStorage implements IStorage {
+  private normalizeInstructorPayload(
+    data: Partial<InsertInstructor>,
+  ): Partial<typeof instructors.$inferInsert> {
+    const normalized = {
+      ...(data as Partial<typeof instructors.$inferInsert>),
+    };
+
+    if (data.pricePerHour !== undefined) {
+      normalized.pricePerHour =
+        typeof data.pricePerHour === "number"
+          ? data.pricePerHour.toFixed(2)
+          : String(data.pricePerHour);
+    }
+
+    if (data.lat !== undefined) {
+      normalized.lat =
+        typeof data.lat === "number" ? data.lat.toString() : String(data.lat);
+    }
+
+    if (data.lng !== undefined) {
+      normalized.lng =
+        typeof data.lng === "number" ? data.lng.toString() : String(data.lng);
+    }
+
+    return normalized;
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -349,14 +376,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createInstructor(instructorData: InsertInstructor): Promise<Instructor> {
-    const id = crypto.randomUUID();
-    await db.insert(instructors).values({ ...instructorData, id });
-    const [instructor] = await db.select().from(instructors).where(eq(instructors.id, id));
+    const normalized = this.normalizeInstructorPayload(instructorData);
+    await db.insert(instructors).values(normalized as typeof instructors.$inferInsert);
+    const [instructor] = await db
+      .select()
+      .from(instructors)
+      .where(eq(instructors.userId, instructorData.userId))
+      .orderBy(desc(instructors.createdAt))
+      .limit(1);
     return instructor;
   }
 
   async updateInstructor(id: string, data: Partial<InsertInstructor>): Promise<Instructor> {
-    await db.update(instructors).set({ ...data, updatedAt: new Date() }).where(eq(instructors.id, id));
+    const normalized = this.normalizeInstructorPayload(data);
+    await db
+      .update(instructors)
+      .set({ ...normalized, updatedAt: new Date() })
+      .where(eq(instructors.id, id));
     const [instructor] = await db.select().from(instructors).where(eq(instructors.id, id));
     return instructor;
   }

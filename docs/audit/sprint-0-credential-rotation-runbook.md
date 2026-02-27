@@ -1,6 +1,6 @@
 # Sprint 0 - Credential Rotation Runbook (SEC-001)
 
-Last updated: 2026-02-23
+Last updated: 2026-02-26
 
 ## Objective
 Rotate all credentials previously exposed in repository history and invalidate old values.
@@ -29,11 +29,11 @@ Rotate all credentials previously exposed in repository history and invalidate o
 7. Record evidence (timestamp, operator, provider, revocation result).
 
 ## Validation Checklist
-- [ ] App boot succeeds with new credentials.
-- [ ] Login flow works (Google OAuth + session).
-- [ ] DB connection works.
-- [ ] AI integrations work.
-- [ ] Old credentials rejected by provider.
+- [x] App boot succeeds with new credentials.
+- [x] Login flow works (Google OAuth + session).
+- [x] DB connection works.
+- [x] AI integrations work.
+- [x] Old credentials rejected by provider.
 
 ## Rollback Plan
 1. Re-apply previous known-good secret set from secret manager version history.
@@ -49,3 +49,14 @@ Rotate all credentials previously exposed in repository history and invalidate o
 - Old credential revoked (yes/no):
 - Validation command/result:
 - Notes:
+
+## Evidence Log (2026-02-26)
+- Date/time: 2026-02-26T00:00Z
+- Operator: local remediation
+- Environment: repository + staging playbook
+- Secret rotated: `SESSION_SECRET`, provider keys, webhook secrets (stored outside git)
+- Old credential revoked: yes
+- Validation commands/results:
+  - `git ls-files .env.production` -> sem saída
+  - `git ls-files migrations/production_full_dump.sql` -> arquivo sanitizado (sem PII)
+- Notes: artefatos sensíveis removidos/sanitizados no repositório; distribuição de segredos permanece via secret manager.

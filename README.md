@@ -66,10 +66,10 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 ## 🛠️ Tecnologias
 
 ### Frontend
-- **React 19** - Biblioteca UI moderna
+- **React 18** - Biblioteca UI moderna
 - **TypeScript** - Tipagem estática
-- **Tailwind CSS 4** - Estilização utility-first
-- **Vite 7** - Build tool ultrarrápida
+- **Tailwind CSS 3** - Estilização utility-first
+- **Vite 5** - Build tool ultrarrápida
 - **React Query** - Gerenciamento de estado assíncrono
 - **Wouter** - Roteamento leve
 - **Framer Motion** - Animações fluidas
@@ -80,7 +80,7 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 ### Backend
 - **Node.js 22** - Runtime JavaScript
 - **Express 4** - Framework web
-- **PostgreSQL** - Banco de dados relacional
+- **MySQL 8+** - Banco de dados relacional
 - **Drizzle ORM** - ORM type-safe
 - **Passport.js** - Autenticação (Google OAuth, Local)
 - **WebSocket** - Comunicação em tempo real
@@ -103,7 +103,7 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 ### Pré-requisitos
 
 - Node.js >= 22.x
-- PostgreSQL >= 14
+- MySQL >= 8
 - npm ou yarn
 
 ### Passo a Passo
@@ -163,6 +163,7 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 | `npm run build` | Compila o projeto para produção |
 | `npm run start` | Inicia o servidor em modo produção |
 | `npm run check` | Verifica tipos TypeScript |
+| `npm run verify` | Executa gate local (`check` + `test:unit`) |
 | `npm run db:push` | Aplica migrações no banco de dados |
 | `npm run test` | Executa todos os testes |
 | `npm run test:unit` | Executa apenas testes unitários |
@@ -200,6 +201,10 @@ LOCAL_USER_ROLE=admin
 | `GOOGLE_CLIENT_SECRET` | Secret do cliente Google OAuth 2.0 |
 | `GOOGLE_CALLBACK_URL` | URL de callback (ex: https://site.com/api/auth/google/callback) |
 | `ABACATEPAY_API_KEY` | Chave de API do AbacatePay |
+| `ABACATEPAY_BASE_URL` | Base da API AbacatePay (use `https://api.abacatepay.com/v1`) |
+| `ABACATEPAY_DEV_MODE` | `true` para sandbox/dev, `false` para produção |
+| `ABACATEPAY_WEBHOOK_SECRET` | Segredo validado na query `webhookSecret` do webhook |
+| `ABACATEPAY_PUBLIC_KEY` | Chave para validar assinatura `X-Webhook-Signature` |
 | `OPENAI_API_KEY` | Chave de API da OpenAI |
 
 ### Deploy com Docker
@@ -238,7 +243,7 @@ habilitfy/
 │   └── schema.ts           # Schemas Drizzle/Zod
 ├── migrations/             # Migrações do banco
 ├── e2e/                    # Testes E2E
-└── factory/                # Sistema de automação
+└── docs.prd/               # PRDs e planos de execução
 ```
 
 ---

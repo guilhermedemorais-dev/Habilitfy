@@ -1,7 +1,8 @@
 import type { Booking } from "@shared/schema";
+import crypto from "node:crypto";
 
 const ABACATEPAY_BASE_URL =
-  process.env.ABACATEPAY_BASE_URL || "https://api.abacatepay.com";
+  process.env.ABACATEPAY_BASE_URL || "https://api.abacatepay.com/v1";
 const ABACATEPAY_API_KEY = process.env.ABACATEPAY_API_KEY;
 const ABACATEPAY_DEV_MODE = process.env.ABACATEPAY_DEV_MODE !== "false"; // default true
 
@@ -26,9 +27,18 @@ type AbacateConfigOverrides = {
   devMode?: boolean | null;
 };
 
+const normalizeAbacateBaseUrl = (input?: string | null) => {
+  const raw = String(input || "").trim();
+  if (!raw) return "https://api.abacatepay.com/v1";
+  const withoutSlash = raw.replace(/\/+$/, "");
+  return /\/v1$/i.test(withoutSlash) ? withoutSlash : `${withoutSlash}/v1`;
+};
+
 const resolveAbacateConfig = (overrides?: AbacateConfigOverrides) => {
   const apiKey = overrides?.apiKey ?? ABACATEPAY_API_KEY;
-  const baseUrl = overrides?.baseUrl ?? ABACATEPAY_BASE_URL;
+  const baseUrl = normalizeAbacateBaseUrl(
+    overrides?.baseUrl ?? ABACATEPAY_BASE_URL,
+  );
   const devMode =
     typeof overrides?.devMode === "boolean"
       ? overrides.devMode
@@ -54,10 +64,21 @@ export async function createAbacateBilling(
   const amountInCents = Math.round(Number(booking.totalPrice) * 100);
 
   const payload = {
+    // Legacy field still accepted by older integrations.
     amount: amountInCents,
     methods: ["PIX", "CARD"],
     frequency: "ONE_TIME",
     devMode,
+    // Current API contract uses products.
+    products: [
+      {
+        externalId: booking.id,
+        name: "Aula de direção",
+        description: `Agendamento ${booking.id}`,
+        quantity: 1,
+        price: amountInCents,
+      },
+    ],
     metadata: {
       bookingId: booking.id,
       studentId: booking.studentId,
@@ -129,17 +150,22 @@ export async function getAbacateBilling(
 export function verifyAbacateWebhookSignature(
   rawBody: Buffer | string,
   signature: string,
-  secret: string
+  key: string,
 ): boolean {
-  const crypto = require("crypto");
-  const hmac = crypto.createHmac("sha256", secret);
-  const digest = hmac.update(rawBody).digest("hex");
-  const signatureBuffer = Buffer.from(signature);
-  const digestBuffer = Buffer.from(digest);
+  const cleanSignature = String(signature).trim().replace(/^sha256=/i, "");
+  const source =
+    typeof rawBody === "string" ? Buffer.from(rawBody) : Buffer.from(rawBody);
 
-  if (signatureBuffer.length !== digestBuffer.length) {
-    return false;
-  }
+  // Supports both historical hex signatures and the current Base64 format.
+  const candidates = [
+    crypto.createHmac("sha256", key).update(source).digest("hex"),
+    crypto.createHmac("sha256", key).update(source).digest("base64"),
+  ];
 
-  return crypto.timingSafeEqual(signatureBuffer, digestBuffer);
+  return candidates.some((candidate) => {
+    const a = Buffer.from(cleanSignature);
+    const b = Buffer.from(candidate);
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  });
 }
