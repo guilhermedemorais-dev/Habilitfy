@@ -3,18 +3,34 @@ import mysql from "mysql2/promise";
 import * as schema from "@shared/schema";
 
 console.log("DB: Attempting to create MySQL pool...");
-console.log("DB: Database configuration detected.");
 
 let pool: mysql.Pool;
 
 try {
+  const readEnv = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = process.env[key];
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return undefined;
+  };
+
+  const dbHost = readEnv("DB_HOST", "MYSQL_HOST", "MYSQLHOST") || "localhost";
+  const dbPort = Number(readEnv("DB_PORT", "MYSQL_PORT", "MYSQLPORT")) || 3306;
+  const dbUser = readEnv("DB_USER", "MYSQL_USER", "MYSQLUSER");
+  const dbPassword =
+    readEnv("DB_PASSWORD", "MYSQL_PASSWORD", "MYSQLPASSWORD") ?? "";
+  const dbName = readEnv("DB_NAME", "MYSQL_DATABASE", "MYSQLDATABASE");
+  const databaseUrl = readEnv("DATABASE_URL", "MYSQL_URL", "JAWSDB_URL");
+
   // Prefer discrete DB_* vars (safer with special chars in password).
   const hasDiscreteConfig = Boolean(
-    process.env.DB_USER &&
-      process.env.DB_PASSWORD &&
-      process.env.DB_NAME,
+    dbUser &&
+      dbName,
   );
-  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+  const hasDatabaseUrl = Boolean(databaseUrl);
 
   if (!hasDiscreteConfig && !hasDatabaseUrl) {
     const message =
@@ -24,11 +40,11 @@ try {
   }
 
   const connectionConfig = {
-    host: process.env.DB_HOST || "localhost",
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    host: dbHost,
+    port: dbPort,
+    user: dbUser,
+    password: dbPassword,
+    database: dbName,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
@@ -37,13 +53,13 @@ try {
   if (!hasDiscreteConfig) {
     console.log("DB: Using DATABASE_URL fallback for connection.");
     pool = mysql.createPool({
-      uri: process.env.DATABASE_URL,
+      uri: databaseUrl,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
     });
   } else {
-    console.log("DB: Connecting using DB_HOST/DB_USER configuration...");
+    console.log(`DB: Connecting using discrete configuration (host=${dbHost}, port=${dbPort}).`);
     pool = mysql.createPool(connectionConfig);
   }
   console.log("DB: MySQL pool created successfully");
