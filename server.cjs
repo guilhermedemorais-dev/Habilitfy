@@ -22,6 +22,42 @@ const http = require('http');
 const PORT = process.env.PORT || 3000; // Hostinger pode injetar um pipe (string) ou porta (número)
 const DIST_PATH = path.resolve(__dirname, 'dist', 'index.cjs');
 
+function envExists(key) {
+    return typeof process.env[key] === 'string' && process.env[key].trim().length > 0;
+}
+
+function loadEnvFiles() {
+    try {
+        const dotenv = require('dotenv');
+        const candidates = [
+            path.resolve(__dirname, '.env.production'),
+            path.resolve(__dirname, '.env'),
+            path.resolve(process.cwd(), '.env.production'),
+            path.resolve(process.cwd(), '.env'),
+            path.resolve(__dirname, '..', '.env.production'),
+            path.resolve(__dirname, '..', '.env'),
+            process.env.HOME ? path.resolve(process.env.HOME, '.env.production') : null,
+            process.env.HOME ? path.resolve(process.env.HOME, '.env') : null,
+        ].filter(Boolean);
+
+        const loaded = [];
+        for (const candidate of candidates) {
+            if (!fs.existsSync(candidate)) continue;
+            dotenv.config({ path: candidate, override: false });
+            loaded.push(candidate);
+        }
+
+        if (loaded.length > 0) {
+            console.log('[BOOT] dotenv loaded from:', loaded.join(', '));
+        } else {
+            dotenv.config({ override: false });
+            console.log('[BOOT] dotenv fallback to default resolution');
+        }
+    } catch (e) {
+        console.error("Erro no dotenv:", e);
+    }
+}
+
 // Função para iniciar servidor de erro (Fallback)
 function startFallbackServer(errorTitle, errorDetail) {
     console.error(`[FALLBACK] Iniciando servidor de diagnóstico devido a: ${errorTitle}`);
@@ -68,6 +104,7 @@ function startFallbackServer(errorTitle, errorDetail) {
                 <li><strong>Arquivo Build:</strong> ${DIST_PATH}</li>
                 <li><strong>Status do Build:</strong> ${fs.existsSync(DIST_PATH) ? '<span class="success">ENCONTRADO</span>' : '❌ NÃO ENCONTRADO (Você precisa rodar npm run build)'}</li>
                 <li><strong>Env File:</strong> ${envStatus}</li>
+                <li><strong>DB vars presentes:</strong> ${envExists('DATABASE_URL') || (envExists('DB_USER') && envExists('DB_NAME')) ? '<span class="success">SIM</span>' : 'NÃO'}</li>
             </ul>
         </div>
     </body>
@@ -86,14 +123,7 @@ function startFallbackServer(errorTitle, errorDetail) {
 }
 
 // 1. Tentar carregar variáveis de ambiente
-try {
-    const dotenv = require('dotenv');
-    const envPath = path.resolve(__dirname, '.env.production');
-    if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
-    else dotenv.config();
-} catch (e) {
-    console.error("Erro no dotenv:", e);
-}
+loadEnvFiles();
 
 // 2. Validação Prévia
 if (!fs.existsSync(DIST_PATH)) {
