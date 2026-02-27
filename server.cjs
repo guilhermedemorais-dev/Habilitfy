@@ -29,29 +29,13 @@ function envExists(key) {
 function loadEnvFiles() {
     try {
         const dotenv = require('dotenv');
-        const candidates = [
-            path.resolve(__dirname, '.env.production'),
-            path.resolve(__dirname, '.env'),
-            path.resolve(process.cwd(), '.env.production'),
-            path.resolve(process.cwd(), '.env'),
-            path.resolve(__dirname, '..', '.env.production'),
-            path.resolve(__dirname, '..', '.env'),
-            process.env.HOME ? path.resolve(process.env.HOME, '.env.production') : null,
-            process.env.HOME ? path.resolve(process.env.HOME, '.env') : null,
-        ].filter(Boolean);
-
-        const loaded = [];
-        for (const candidate of candidates) {
-            if (!fs.existsSync(candidate)) continue;
-            dotenv.config({ path: candidate, override: false });
-            loaded.push(candidate);
-        }
-
-        if (loaded.length > 0) {
-            console.log('[BOOT] dotenv loaded from:', loaded.join(', '));
+        const envPath = path.resolve(__dirname, '.env.production');
+        if (fs.existsSync(envPath)) {
+            // Production must read only the colocated .env.production file.
+            dotenv.config({ path: envPath, override: true });
+            console.log('[BOOT] dotenv loaded from:', envPath);
         } else {
-            dotenv.config({ override: false });
-            console.log('[BOOT] dotenv fallback to default resolution');
+            console.log('[BOOT] .env.production not found next to server.cjs; using system env only');
         }
     } catch (e) {
         console.error("Erro no dotenv:", e);
