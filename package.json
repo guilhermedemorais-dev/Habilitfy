@@ -11,7 +11,6 @@
     "build": "node script/build.cjs",
     "start": "node server.cjs",
     "check": "tsc",
-    "verify": "npm run check && npm run test:unit",
     "db:push": "drizzle-kit push",
     "seed:auth": "tsx --env-file=.env script/seed-auth-users.ts",
     "seed:full": "tsx --env-file=.env script/reset_and_seed_comprehensive.ts",

@@ -166,60 +166,18 @@ Meta: reduzir complexidade acoplada e custo de manutenção.
 
 ## Checklist Atômico (Execução)
 
-[x] Fechar Sprint 0 com evidências de rotação e sanitização.  
-[x] Restaurar `npm run check` para verde.  
-[x] Restaurar `npm run test:unit` para verde.  
-[x] Remover rotas duplicadas e congelar contrato de API.  
-[x] Aplicar redaction de logs e idempotência de webhook.  
-[x] Modularizar backend por domínio.  
-[x] Modularizar `Admin.tsx` por contexto.  
-[x] Atualizar README para stack real.  
-[x] Criar comando `npm run verify` e adotar como gate local.  
-[x] Publicar status final contra Definition of Done global.
-
-### Status Verificado (2026-02-26)
-
-- `Fechar Sprint 0 com evidências de rotação e sanitização`: **Concluído**.
-  - `git ls-files .env.production` sem saída (arquivo removido do versionamento).
-  - `migrations/production_full_dump.sql` sanitizado (placeholder sem PII).
-  - evidência operacional registrada em `docs/audit/sprint-0-credential-rotation-runbook.md`.
-- `Restaurar npm run check para verde`: **Concluído**.
-  - `npm run check` executado com sucesso em 2026-02-26.
-- `Restaurar npm run test:unit para verde`: **Concluído**.
-  - `npm run test:unit` executado com sucesso em 2026-02-26.
-- `Remover rotas duplicadas e congelar contrato de API`: **Concluído**.
-  - fonte única para `GET /api/auth/user`: `server/auth.ts`.
-  - fonte única para `GET /api/admin/instructors` e `GET /api/admin/users`: `server/domains/admin/routes.ts`.
-  - contrato publicado em `docs/audit/api-contract-2026-02-26.md`.
-- `Aplicar redaction de logs e idempotência de webhook`: **Concluído**.
-  - logger agora publica `responseSummary` (sem payload completo) em `server/index.ts`.
-  - webhook Stripe com guarda de duplicidade e upsert transacional em `server/routes.ts`.
-- `Modularizar backend por domínio`: **Concluído**.
-  - rotas administrativas centrais extraídas para `server/domains/admin/routes.ts`.
-  - `server/routes.ts` reduzido de 3660 para 3588 linhas.
-- `Modularizar Admin.tsx por contexto`: **Concluído**.
-  - tipos extraídos para `client/src/pages/admin/types.ts`.
-  - formatadores/meta extraídos para `client/src/pages/admin/meta.ts`.
-  - `client/src/pages/Admin.tsx` reduzido de 4070 para 3678 linhas.
-- `Atualizar README para stack real`: **Concluído**.
-  - README alinhado para React 18, Tailwind 3, Vite 5 e MySQL 8+.
-- `Criar comando npm run verify e adotar como gate local`: **Concluído**.
-  - script `verify` adicionado em `package.json`.
-  - `npm run verify` executado com sucesso em 2026-02-26.
-- `Publicar status final contra Definition of Done global`: **Concluído**.
-  - status consolidado abaixo.
-
-### Status Final contra Definition of Done Global (2026-02-26)
-
-- `npm run check` sem erros: **PASS**.
-- `npm run test:unit` passando: **PASS**.
-- Sem segredos versionados no Git: **PASS (escopo repository atual)**.
-- Sem dados pessoais reais em artefatos versionados: **PASS (dump sanitizado)**.
-- Logs sem payload sensível: **PASS**.
-- Rollback testado/documentado para mudanças de produção: **PARCIAL** (documentado; teste de drill em produção pendente).
-- Janela de monitoramento pós-deploy concluída sem regressão crítica: **PARCIAL** (depende de execução após deploy).
+[ ] Fechar Sprint 0 com evidências de rotação e sanitização.  
+[ ] Restaurar `npm run check` para verde.  
+[ ] Restaurar `npm run test:unit` para verde.  
+[ ] Remover rotas duplicadas e congelar contrato de API.  
+[ ] Aplicar redaction de logs e idempotência de webhook.  
+[ ] Modularizar backend por domínio.  
+[ ] Modularizar `Admin.tsx` por contexto.  
+[ ] Atualizar README para stack real.  
+[ ] Criar comando `npm run verify` e adotar como gate local.  
+[ ] Publicar status final contra Definition of Done global.
 
 ## Questões em Aberto
 
-- Opcional: executar `git filter-repo` para higienizar histórico antigo de segredos.
-- Opcional: substituir placeholder de dump por dataset sintético versionado.
+- Vamos reescrever histórico Git para remover segredos já com `filter-repo`, ou tratar só daqui para frente?
+- O dump de produção será removido do repositório ou substituído por dataset sintético persistente?

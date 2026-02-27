@@ -31,7 +31,6 @@ import { insertVehicleSchema, insertSupportTicketSchema } from "@shared/schema";
 import * as crypto from "crypto";
 import { sendVerificationEmail } from "./email";
 import OpenAI from "openai";
-import { registerAdminCoreRoutes } from "./domains/admin/routes";
 
 
 // Trigger server restart for stability check
@@ -453,12 +452,63 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     }
   });
 
+  app.get('/api/auth/user', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub ?? (req.user as any)?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const instructorProfile = await storage.getInstructorByUserId(userId);
+
+      const safeUser = sanitizeSensitiveData(user as any);
+      res.json({ ...safeUser, instructorProfile });
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
   // --- Admin Routes ---
-  registerAdminCoreRoutes({
-    app,
-    isAuthenticated,
-    storage,
-    sanitizeSensitiveData,
+
+  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res: Response) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const instructors = await storage.getAllInstructors();
+      const enriched = await Promise.all(
+        instructors.map(async (instructor) => {
+          const user = await storage.getUser(instructor.userId);
+          return {
+            ...instructor,
+            user: user ? sanitizeSensitiveData(user) : null,
+            status: instructor.status, // Ensure status is explicitly returned
+            credentialImageUrl: instructor.credentialImageUrl,
+            selfieImageUrl: instructor.selfieImageUrl,
+            documentImageUrl: instructor.documentImageUrl,
+          };
+        })
+      );
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching admin instructors:", error);
+      res.status(500).json({ message: "Failed to fetch instructors" });
+    }
+  });
+
+  app.get('/api/admin/users', isAuthenticated, async (req: any, res: Response) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    try {
+      const role = req.query.role as string | undefined;
+      const users = await storage.getUsers(role);
+      res.json(sanitizeSensitiveData(users));
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
   });
 
 
@@ -2346,6 +2396,21 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     }
   });
 
+  app.get('/api/admin/instructors', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const status = req.query.status as string | undefined;
+      const instructors = await storage.getInstructorsWithUser(status);
+      res.json(sanitizeSensitiveData(instructors));
+    } catch (error) {
+      console.error("Error fetching instructors:", error);
+      res.status(500).json({ message: "Failed to fetch instructors" });
+    }
+  });
+
   app.get('/api/admin/settings', isAuthenticated, async (req: any, res: Response) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
@@ -2505,6 +2570,21 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     } catch (error) {
       console.error("Error fetching admin geo summary:", error);
       res.status(500).json({ message: "Failed to fetch geo summary" });
+    }
+  });
+
+  app.get('/api/admin/users', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const role = req.query.role as string | undefined;
+      const users = await storage.getUsers(role);
+      res.json(sanitizeSensitiveData(users));
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
     }
   });
 
@@ -2969,20 +3049,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     const apiKey = readField("apiKey") || readField("api_key");
     const baseUrl = readField("baseUrl") || readField("base_url");
     const devModeRaw = readField("devMode") || readField("dev_mode");
-    const webhookSecret =
-      readField("webhookSecret") ||
-      readField("webhook_secret");
-    const publicKey =
-      readField("publicKey") ||
-      readField("public_key") ||
-      readField("hmacPublicKey");
 
     return {
       apiKey: apiKey?.trim() || undefined,
       baseUrl: baseUrl?.trim() || undefined,
       devMode: parseBooleanField(devModeRaw),
-      webhookSecret: webhookSecret?.trim() || undefined,
-      publicKey: publicKey?.trim() || undefined,
     };
   };
 
@@ -3352,50 +3423,19 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   app.post('/api/webhooks/abacatepay', async (req: Request, res: Response) => {
     try {
       const { verifyAbacateWebhookSignature, getAbacateBilling } = await import("./abacatepay");
-      const integrationConfig = await resolveAbacateIntegrationConfig();
+      const raw = req.rawBody;
       const signature = req.headers["x-webhook-signature"] || req.headers["abacate-signature"];
+      const secret = process.env.ABACATEPAY_WEBHOOK_SECRET;
 
-      const expectedWebhookSecret =
-        integrationConfig.webhookSecret ||
-        process.env.ABACATEPAY_WEBHOOK_SECRET;
-      const requestWebhookSecret =
-        typeof req.query?.webhookSecret === "string"
-          ? req.query.webhookSecret
-          : undefined;
-
-      if (expectedWebhookSecret) {
-        if (!requestWebhookSecret || requestWebhookSecret !== expectedWebhookSecret) {
-          logger.warn("Invalid AbacatePay webhookSecret query parameter");
-          return res.status(401).json({ message: "Invalid webhook secret" });
+      if (!secret) {
+        logger.error("ABACATEPAY_WEBHOOK_SECRET not configured, skipping validation (DANGEROUS)");
+        // In production this should be an error
+        if (process.env.NODE_ENV === "production") {
+          return res.status(500).json({ message: "Webhook secret not configured" });
         }
-      } else if (process.env.NODE_ENV === "production") {
-        logger.error("AbacatePay webhookSecret not configured");
-        return res.status(500).json({ message: "Webhook secret not configured" });
-      }
-
-      const signatureKey =
-        integrationConfig.publicKey ||
-        process.env.ABACATEPAY_PUBLIC_KEY ||
-        expectedWebhookSecret;
-
-      if (signatureKey) {
-        const rawBody =
-          Buffer.isBuffer(req.rawBody)
-            ? req.rawBody
-            : typeof req.rawBody === "string"
-              ? Buffer.from(req.rawBody)
-              : Buffer.from(JSON.stringify(req.body ?? {}));
-
-        if (
-          !signature ||
-          !verifyAbacateWebhookSignature(rawBody, String(signature), signatureKey)
-        ) {
-          logger.warn("Invalid AbacatePay webhook signature");
-          return res.status(401).json({ message: "Invalid signature" });
-        }
-      } else if (process.env.NODE_ENV === "production") {
-        logger.error("AbacatePay signature key not configured");
-        return res.status(500).json({ message: "Webhook signature key not configured" });
+      } else if (!signature || !verifyAbacateWebhookSignature(raw as string | Buffer, signature as string, secret)) {
+        logger.warn("Invalid AbacatePay webhook signature");
+        return res.status(401).json({ message: "Invalid signature" });
       }
 
       const payload = req.body as any;
@@ -3406,6 +3446,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         return res.status(400).json({ message: "paymentId ausente" });
       }
 
+      const integrationConfig = await resolveAbacateIntegrationConfig();
       const billing = await getAbacateBilling(paymentId, integrationConfig).catch(
         () => undefined,
       );
@@ -3579,40 +3620,32 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         const bookingId = session.metadata?.bookingId;
 
         if (bookingId) {
-          const booking = await storage.getBooking(bookingId);
-          if (!booking) {
-            logger.warn(`[Stripe] Ignoring webhook: booking not found (${bookingId})`);
-            return res.json({ received: true, ignored: "booking_not_found" });
-          }
+          console.log(`[Stripe] Payment confirmed for booking ${bookingId}`);
 
-          const isDuplicateEvent =
-            booking.paymentProvider === "stripe" &&
-            booking.paymentStatus === "paid" &&
-            booking.paymentId === session.id;
+          // Generate security codes
+          const startCode = Math.floor(1000 + Math.random() * 9000).toString();
+          const endCode = Math.floor(1000 + Math.random() * 9000).toString();
 
-          if (isDuplicateEvent) {
-            logger.info(
-              `[Stripe] Duplicate checkout.session.completed ignored for booking ${bookingId} and session ${session.id}`,
-            );
-            return res.json({ received: true, idempotent: true });
-          }
-
-          logger.info(`[Stripe] Payment confirmed for booking ${bookingId}`);
-
-          const startCode = booking.startCode || generateSecurityCode();
-          const endCode = booking.endCode || generateSecurityCode();
-
-          const updatedBooking = await storage.updateBooking(bookingId, {
+          await storage.updateBooking(bookingId, {
             paymentId: session.id,
             paymentStatus: "paid",
             paymentProvider: "stripe",
             status: "paid",
             startCode,
-            endCode,
+            endCode
           });
 
-          // Uses bookingId-based upsert to keep webhook processing idempotent.
-          await storage.upsertBookingTransaction(updatedBooking);
+          await storage.createTransaction({
+            type: "booking",
+            amount: session.amount_total ? (session.amount_total / 100).toString() : "0",
+            currency: "BRL",
+            status: "paid",
+            referenceId: bookingId,
+            referenceType: "booking",
+            metadata: { stripeSessionId: session.id },
+            instructorId: session.metadata?.instructorId || "",
+            studentId: session.metadata?.studentId || "",
+          });
         }
       }
 

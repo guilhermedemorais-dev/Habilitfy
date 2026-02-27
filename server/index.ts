@@ -68,37 +68,6 @@ app.use("/api", apiLimiter);
 
 import { logger } from "./utils/logger";
 
-const summarizeResponsePayload = (payload: unknown) => {
-  if (payload === undefined) return undefined;
-  if (payload === null) return null;
-
-  if (Array.isArray(payload)) {
-    return {
-      type: "array",
-      length: payload.length,
-      sampleShape:
-        payload.length > 0 && payload[0] && typeof payload[0] === "object"
-          ? Object.keys(payload[0] as Record<string, unknown>).slice(0, 10)
-          : undefined,
-    };
-  }
-
-  if (typeof payload === "object") {
-    const keys = Object.keys(payload as Record<string, unknown>);
-    return {
-      type: "object",
-      keyCount: keys.length,
-      keys: keys.slice(0, 20),
-    };
-  }
-
-  if (typeof payload === "string") {
-    return { type: "string", length: payload.length };
-  }
-
-  return { type: typeof payload };
-};
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -119,7 +88,7 @@ app.use((req, res, next) => {
         path,
         statusCode: res.statusCode,
         duration,
-        responseSummary: summarizeResponsePayload(capturedJsonResponse),
+        response: capturedJsonResponse
       });
     }
   });

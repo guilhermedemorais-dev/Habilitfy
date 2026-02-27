@@ -1,10 +1,6 @@
 import express from "express";
+import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.hoisted(() => {
-  process.env.DATABASE_URL =
-    process.env.DATABASE_URL || "mysql://root:root@localhost:3306/habilitfy_test";
-});
 
 type IntegrationField = {
   key: string;
@@ -102,130 +98,6 @@ const buildApp = async () => {
   return app;
 };
 
-type TestResponse = {
-  status: number;
-  body: any;
-};
-
-const extractParams = (routePath: string, actualPath: string): Record<string, string> => {
-  const routeParts = routePath.split("/");
-  const actualParts = actualPath.split("/");
-  const params: Record<string, string> = {};
-
-  routeParts.forEach((part, index) => {
-    if (!part.startsWith(":")) return;
-    const key = part.slice(1);
-    params[key] = actualParts[index] || "";
-  });
-
-  return params;
-};
-
-const findRouteLayer = (app: express.Express, method: string, path: string): any => {
-  const stack = (app as any)?._router?.stack || [];
-  return stack.find((layer: any) => {
-    if (!layer.route) return false;
-    if (!layer.route.methods?.[method.toLowerCase()]) return false;
-    if (layer.route.path === path) return true;
-    if (typeof layer.route.path === "string" && layer.route.path.includes(":")) {
-      const routeParts = layer.route.path.split("/");
-      const pathParts = path.split("/");
-      if (routeParts.length !== pathParts.length) return false;
-      return routeParts.every((part, index) =>
-        part.startsWith(":") ? true : part === pathParts[index]
-      );
-    }
-    return false;
-  });
-};
-
-const invokeRoute = async (
-  app: express.Express,
-  method: "GET" | "POST" | "PATCH",
-  path: string,
-  payload?: unknown,
-): Promise<TestResponse> => {
-  const layer = findRouteLayer(app, method, path);
-  if (!layer) {
-    throw new Error(`Route not found: ${method} ${path}`);
-  }
-
-  const handlers = layer.route.stack.map((entry: any) => entry.handle);
-  const req: any = {
-    method,
-    path,
-    originalUrl: path,
-    url: path,
-    query: {},
-    body: payload ?? {},
-    params:
-      typeof layer.route.path === "string" && layer.route.path.includes(":")
-        ? extractParams(layer.route.path, path)
-        : {},
-    headers: {},
-    isAuthenticated: () => true,
-  };
-
-  return await new Promise<TestResponse>((resolve, reject) => {
-    let statusCode = 200;
-    let responseBody: any = null;
-    let done = false;
-    let index = 0;
-
-    const finalize = () => {
-      if (done) return;
-      done = true;
-      resolve({ status: statusCode, body: responseBody });
-    };
-
-    const res: any = {
-      locals: {},
-      status(code: number) {
-        statusCode = code;
-        return this;
-      },
-      json(body: any) {
-        responseBody = body;
-        finalize();
-        return this;
-      },
-      send(body: any) {
-        responseBody = body;
-        finalize();
-        return this;
-      },
-      end(body?: any) {
-        if (body !== undefined) responseBody = body;
-        finalize();
-        return this;
-      },
-      setHeader() {
-        return this;
-      },
-      getHeader() {
-        return undefined;
-      },
-    };
-
-    const next = (err?: unknown) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      const handler = handlers[index++];
-      if (!handler) {
-        finalize();
-        return;
-      }
-
-      Promise.resolve(handler(req, res, next)).catch(reject);
-    };
-
-    next();
-  });
-};
-
 beforeEach(() => {
   integrations.splice(0, integrations.length);
   storageMock.getIntegrations.mockClear();
@@ -239,13 +111,15 @@ describe("admin integrations routes", () => {
   it("blocks non-admin users", async () => {
     process.env.LOCAL_USER_ROLE = "student";
     const app = await buildApp();
-    const res = await invokeRoute(app, "GET", "/api/admin/integrations");
+
+    const res = await request(app).get("/api/admin/integrations");
     expect(res.status).toBe(403);
   });
 
   it("lists integrations with masked secrets", async () => {
     process.env.LOCAL_USER_ROLE = "admin";
     const app = await buildApp();
+
     integrations.push({
       id: "int-1",
       name: "AbacatePay",
@@ -265,7 +139,7 @@ describe("admin integrations routes", () => {
       updatedAt: new Date(),
     });
 
-    const res = await invokeRoute(app, "GET", "/api/admin/integrations");
+    const res = await request(app).get("/api/admin/integrations");
     expect(res.status).toBe(200);
     expect(res.body[0].fields[0].value).toBe("****");
     expect(res.body[0].fields[0].hasValue).toBe(true);
@@ -274,18 +148,21 @@ describe("admin integrations routes", () => {
   it("creates integrations and masks secret fields", async () => {
     process.env.LOCAL_USER_ROLE = "admin";
     const app = await buildApp();
-    const res = await invokeRoute(app, "POST", "/api/admin/integrations", {
-      name: "AbacatePay",
-      slug: "abacatepay",
-      category: "payment",
-      status: "active",
-      environment: "production",
-      isDefault: true,
-      fields: [
-        { key: "apiKey", type: "secret", value: "secret-123" },
-        { key: "baseUrl", type: "url", value: "https://api.example.com" },
-      ],
-    });
+
+    const res = await request(app)
+      .post("/api/admin/integrations")
+      .send({
+        name: "AbacatePay",
+        slug: "abacatepay",
+        category: "payment",
+        status: "active",
+        environment: "production",
+        isDefault: true,
+        fields: [
+          { key: "apiKey", type: "secret", value: "secret-123" },
+          { key: "baseUrl", type: "url", value: "https://api.example.com" },
+        ],
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.fields[0].value).toBe("****");
@@ -296,6 +173,7 @@ describe("admin integrations routes", () => {
   it("prevents duplicate slug per environment", async () => {
     process.env.LOCAL_USER_ROLE = "admin";
     const app = await buildApp();
+
     integrations.push({
       id: "int-1",
       name: "AbacatePay",
@@ -309,15 +187,17 @@ describe("admin integrations routes", () => {
       updatedAt: new Date(),
     });
 
-    const res = await invokeRoute(app, "POST", "/api/admin/integrations", {
-      name: "AbacatePay",
-      slug: "abacatepay",
-      category: "payment",
-      status: "active",
-      environment: "production",
-      isDefault: false,
-      fields: [],
-    });
+    const res = await request(app)
+      .post("/api/admin/integrations")
+      .send({
+        name: "AbacatePay",
+        slug: "abacatepay",
+        category: "payment",
+        status: "active",
+        environment: "production",
+        isDefault: false,
+        fields: [],
+      });
 
     expect(res.status).toBe(409);
   });
@@ -325,6 +205,7 @@ describe("admin integrations routes", () => {
   it("keeps secret values when patching with mask", async () => {
     process.env.LOCAL_USER_ROLE = "admin";
     const app = await buildApp();
+
     integrations.push({
       id: "int-1",
       name: "AbacatePay",
@@ -344,9 +225,11 @@ describe("admin integrations routes", () => {
       updatedAt: new Date(),
     });
 
-    const res = await invokeRoute(app, "PATCH", "/api/admin/integrations/int-1", {
-      fields: [{ key: "apiKey", type: "secret", value: "****" }],
-    });
+    const res = await request(app)
+      .patch("/api/admin/integrations/int-1")
+      .send({
+        fields: [{ key: "apiKey", type: "secret", value: "****" }],
+      });
 
     expect(res.status).toBe(200);
     expect(integrations[0].fields[0].value).toBe("secret-123");
