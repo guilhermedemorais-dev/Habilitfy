@@ -2,20 +2,27 @@ import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import * as schema from "@shared/schema";
 
-if (!process.env.DATABASE_URL) {
-  console.error("FATAL: DATABASE_URL must be set. Did you forget to provision a database?");
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
-
 console.log("DB: Attempting to create MySQL pool...");
 console.log("DB: Database configuration detected.");
 
 let pool: mysql.Pool;
 
 try {
-  // Prioritize individual env vars to avoid URL parsing issues with special chars in password
+  // Prefer discrete DB_* vars (safer with special chars in password).
+  const hasDiscreteConfig = Boolean(
+    process.env.DB_USER &&
+      process.env.DB_PASSWORD &&
+      process.env.DB_NAME,
+  );
+  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+
+  if (!hasDiscreteConfig && !hasDatabaseUrl) {
+    const message =
+      "Database config missing. Set DATABASE_URL or DB_USER/DB_PASSWORD/DB_NAME (DB_HOST optional).";
+    console.error(`FATAL: ${message}`);
+    throw new Error(message);
+  }
+
   const connectionConfig = {
     host: process.env.DB_HOST || "localhost",
     port: Number(process.env.DB_PORT) || 3306,
@@ -27,8 +34,7 @@ try {
     queueLimit: 0,
   };
 
-  // Fallback to URI if individual vars are missing (though we expect them in prod)
-  if (!connectionConfig.host || !connectionConfig.user || !connectionConfig.password) {
+  if (!hasDiscreteConfig) {
     console.log("DB: Using DATABASE_URL fallback for connection.");
     pool = mysql.createPool({
       uri: process.env.DATABASE_URL,
