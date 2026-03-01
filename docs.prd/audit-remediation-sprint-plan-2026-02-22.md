@@ -171,11 +171,34 @@ Meta: reduzir complexidade acoplada e custo de manutenção.
 [x] Restaurar `npm run test:unit` para verde.  
 [x] Remover rotas duplicadas e congelar contrato de API.  
 [x] Aplicar redaction de logs e idempotência de webhook.  
-[ ] Modularizar backend por domínio.  
-[ ] Modularizar `Admin.tsx` por contexto.  
+[x] Modularizar backend por domínio.  
+[x] Modularizar `Admin.tsx` por contexto.  
 [x] Atualizar README para stack real.  
 [x] Criar comando `npm run verify` e adotar como gate local.  
-[ ] Publicar status final contra Definition of Done global.
+[x] Publicar status final contra Definition of Done global.
+
+## Status Final (2026-03-01)
+
+Entregue neste ciclo:
+- Bugfixes críticos do admin concluídos antes da expansão estrutural.
+- `UserManagementSheet` implantado com lazy-load obrigatório para `finance` e `history`.
+- `withdrawals` alinhado com migration corretiva e backup pré-migration.
+- `server/routes.ts` modularizado por domínios administrativos (`admin-control`, `admin-config`, `admin-finance`, `admin-operations`, `admin-user-management`).
+- `client/src/pages/Admin.tsx` fatiado por contexto (`dashboard`, `instructors`, `students`, `bookings`, `finance`, `settings`, `integrations`).
+- Gate local `npm run verify` mantido verde durante os batches.
+
+Status contra a Definition of Done Global:
+- `npm run check` sem erros: `OK`
+- `npm run test:unit` passando: `OK`
+- Sem segredos versionados no Git: `PENDENTE` (depende de fechamento completo da Sprint 0)
+- Sem dados pessoais reais em artefatos versionados: `PENDENTE` (depende de evidência final de sanitização)
+- Logs sem payload sensível: `OK`
+- Rollback testado/documentado para mudanças de produção: `PENDENTE`
+- Janela de monitoramento pós-deploy concluída sem regressão crítica: `PENDENTE`
+
+Conclusão:
+- O plano técnico de estabilização e modularização foi executado.
+- O bloqueio remanescente para fechamento integral da DoD global está concentrado em evidências operacionais da Sprint 0 e em validação/monitoramento de produção.
 
 ## Questões em Aberto
 
