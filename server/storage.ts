@@ -294,9 +294,13 @@ export class DatabaseStorage implements IStorage {
 
   async getUsers(role?: string): Promise<User[]> {
     if (role) {
-      return db.select().from(users).where(eq(users.role, role as any));
+      return db
+        .select()
+        .from(users)
+        .where(eq(users.role, role as any))
+        .orderBy(desc(users.createdAt));
     }
-    return db.select().from(users);
+    return db.select().from(users).orderBy(desc(users.createdAt));
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -329,16 +333,21 @@ export class DatabaseStorage implements IStorage {
 
   async getAllInstructors(status?: string): Promise<Instructor[]> {
     if (status) {
-      return db.select().from(instructors).where(eq(instructors.status, status as any));
+      return db
+        .select()
+        .from(instructors)
+        .where(eq(instructors.status, status as any))
+        .orderBy(desc(instructors.createdAt));
     }
-    return db.select().from(instructors);
+    return db.select().from(instructors).orderBy(desc(instructors.createdAt));
   }
 
   async getInstructorsWithUser(status?: string): Promise<(Instructor & { user: User | null })[]> {
     const baseQuery = db
       .select({ instructor: instructors, user: users })
       .from(instructors)
-      .leftJoin(users, eq(users.id, instructors.userId));
+      .leftJoin(users, eq(users.id, instructors.userId))
+      .orderBy(desc(instructors.createdAt));
 
     if (status) {
       const rows = await baseQuery.where(eq(instructors.status, status as any));

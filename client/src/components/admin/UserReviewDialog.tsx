@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   Ban,
   Check,
   Clock3,
@@ -154,6 +155,7 @@ type ReviewPayload = {
       createdAt?: string | null;
     }>;
   };
+  sectionErrors?: Partial<Record<string, string>>;
 };
 
 type UserReviewDialogProps = {
@@ -243,6 +245,23 @@ function MediaItem({ label, url }: { label: string; url?: string | null }) {
           Arquivo não-imagem
         </div>
       )}
+    </div>
+  );
+}
+
+function SectionWarning({ messages }: { messages: string[] }) {
+  if (messages.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="space-y-1">
+          {messages.map((message, index) => (
+            <p key={`${message}-${index}`}>{message}</p>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -378,22 +397,61 @@ export function UserReviewDialog({
   const reviewData = reviewQuery.data;
   const user = reviewData?.user;
   const instructor = reviewData?.instructor;
+  const sectionErrors = reviewData?.sectionErrors || {};
+  const access = reviewData?.access || {
+    totalRequests: 0,
+    uniqueIps: 0,
+    firstSeenAt: null,
+    lastSeenAt: null,
+    connectedMinutes: 0,
+    browserDistribution: [],
+    deviceDistribution: [],
+    topPaths: [],
+    heatmap: [],
+    logs: [],
+  };
   const isBusy =
     saveNotes.isPending ||
     updateKyc.isPending ||
     blockUser.isPending ||
     unblockUser.isPending;
+  const reviewWarnings = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            sectionErrors.instructor,
+            sectionErrors.kyc,
+            sectionErrors.vehicles,
+          ].filter(Boolean) as string[],
+        ),
+      ),
+    [sectionErrors.instructor, sectionErrors.kyc, sectionErrors.vehicles],
+  );
+  const historyWarnings = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            sectionErrors.supportTickets,
+            sectionErrors.chatHistory,
+            sectionErrors.access,
+          ].filter(Boolean) as string[],
+        ),
+      ),
+    [sectionErrors.access, sectionErrors.chatHistory, sectionErrors.supportTickets],
+  );
 
   const heatmapMap = useMemo(() => {
     const map = new Map<string, { count: number; intensity: number }>();
-    for (const point of reviewData?.access.heatmap || []) {
+    for (const point of access.heatmap) {
       map.set(`${point.dayOfWeek}-${point.hour}`, {
         count: point.count,
         intensity: point.intensity,
       });
     }
     return map;
-  }, [reviewData?.access.heatmap]);
+  }, [access.heatmap]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -445,6 +503,7 @@ export function UserReviewDialog({
             <TabsContent value="review" className="mt-0 flex-1 overflow-hidden">
               <ScrollArea className="h-full px-6 py-5">
                 <div className="space-y-6">
+                  <SectionWarning messages={reviewWarnings} />
                   <div className="grid gap-4 lg:grid-cols-[1.2fr,1fr]">
                     <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
@@ -649,29 +708,30 @@ export function UserReviewDialog({
             <TabsContent value="history" className="mt-0 flex-1 overflow-hidden">
               <ScrollArea className="h-full px-6 py-5">
                 <div className="space-y-6">
+                  <SectionWarning messages={historyWarnings} />
                   <div className="grid gap-3 md:grid-cols-4">
                     <div className="rounded-lg border border-slate-200 bg-white p-3">
                       <p className="text-xs text-slate-500">Requisições</p>
                       <p className="text-lg font-bold text-slate-900">
-                        {reviewData.access.totalRequests}
+                        {access.totalRequests}
                       </p>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-white p-3">
                       <p className="text-xs text-slate-500">IPs únicos</p>
                       <p className="text-lg font-bold text-slate-900">
-                        {reviewData.access.uniqueIps}
+                        {access.uniqueIps}
                       </p>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-white p-3">
                       <p className="text-xs text-slate-500">Tempo conectado</p>
                       <p className="text-lg font-bold text-slate-900">
-                        {reviewData.access.connectedMinutes} min
+                        {access.connectedMinutes} min
                       </p>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-white p-3">
                       <p className="text-xs text-slate-500">Último acesso</p>
                       <p className="text-sm font-semibold text-slate-900">
-                        {formatDateTime(reviewData.access.lastSeenAt)}
+                        {formatDateTime(access.lastSeenAt)}
                       </p>
                     </div>
                   </div>
@@ -682,7 +742,7 @@ export function UserReviewDialog({
                         Browsers
                       </p>
                       <div className="space-y-1">
-                        {reviewData.access.browserDistribution.slice(0, 5).map((item) => (
+                        {access.browserDistribution.slice(0, 5).map((item) => (
                           <div
                             key={item.label}
                             className="flex items-center justify-between text-xs"
@@ -691,7 +751,7 @@ export function UserReviewDialog({
                             <span className="font-semibold text-slate-800">{item.count}</span>
                           </div>
                         ))}
-                        {reviewData.access.browserDistribution.length === 0 ? (
+                        {access.browserDistribution.length === 0 ? (
                           <p className="text-xs text-slate-500">Sem dados.</p>
                         ) : null}
                       </div>
@@ -702,7 +762,7 @@ export function UserReviewDialog({
                         Dispositivos
                       </p>
                       <div className="space-y-1">
-                        {reviewData.access.deviceDistribution.slice(0, 5).map((item) => (
+                        {access.deviceDistribution.slice(0, 5).map((item) => (
                           <div
                             key={item.label}
                             className="flex items-center justify-between text-xs"
@@ -711,7 +771,7 @@ export function UserReviewDialog({
                             <span className="font-semibold text-slate-800">{item.count}</span>
                           </div>
                         ))}
-                        {reviewData.access.deviceDistribution.length === 0 ? (
+                        {access.deviceDistribution.length === 0 ? (
                           <p className="text-xs text-slate-500">Sem dados.</p>
                         ) : null}
                       </div>
@@ -722,7 +782,7 @@ export function UserReviewDialog({
                         Rotas mais usadas
                       </p>
                       <div className="space-y-1">
-                        {reviewData.access.topPaths.slice(0, 5).map((item) => (
+                        {access.topPaths.slice(0, 5).map((item) => (
                           <div
                             key={item.path}
                             className="flex items-center justify-between gap-2 text-xs"
@@ -731,7 +791,7 @@ export function UserReviewDialog({
                             <span className="font-semibold text-slate-800">{item.count}</span>
                           </div>
                         ))}
-                        {reviewData.access.topPaths.length === 0 ? (
+                        {access.topPaths.length === 0 ? (
                           <p className="text-xs text-slate-500">Sem dados.</p>
                         ) : null}
                       </div>
@@ -881,7 +941,7 @@ export function UserReviewDialog({
                       Logs recentes de acesso
                     </p>
                     <div className="space-y-2">
-                      {reviewData.access.logs.slice(0, 20).map((log) => (
+                      {access.logs.slice(0, 20).map((log) => (
                         <div
                           key={log.id}
                           className="grid gap-2 rounded border border-slate-200 bg-slate-50 p-2 text-[11px] text-slate-700 md:grid-cols-[1.3fr,1fr,1fr,2fr]"
@@ -910,7 +970,7 @@ export function UserReviewDialog({
                           </div>
                         </div>
                       ))}
-                      {reviewData.access.logs.length === 0 ? (
+                      {access.logs.length === 0 ? (
                         <p className="text-xs text-slate-500">
                           Não há logs de acesso para este usuário.
                         </p>

@@ -553,19 +553,53 @@ export async function setupAuth(app: Express) {
     // -------------------------------------------------------------------------
     // Logout Routes
     // -------------------------------------------------------------------------
+    const completeLogout = (
+        req: any,
+        res: any,
+        next: any,
+        onSuccess: () => void,
+    ) => {
+        req.logout((logoutErr: any) => {
+            if (logoutErr) return next(logoutErr);
+
+            const clearSessionCookie = () => {
+                res.clearCookie("connect.sid", {
+                    httpOnly: true,
+                    secure:
+                        process.env.SESSION_COOKIE_SECURE === "true" ||
+                        (process.env.SESSION_COOKIE_SECURE !== "false" &&
+                            process.env.NODE_ENV === "production"),
+                });
+            };
+
+            if (!req.session?.destroy) {
+                clearSessionCookie();
+                return onSuccess();
+            }
+
+            req.session.destroy((sessionErr: any) => {
+                if (sessionErr) {
+                    logger.error(`[auth] logout session destroy error: ${sessionErr?.message || sessionErr}`);
+                    return next(sessionErr);
+                }
+
+                clearSessionCookie();
+                return onSuccess();
+            });
+        });
+    };
+
     app.get("/api/logout", (req, res, next) => {
         logger.info("GET /api/logout hit");
-        req.logout((err) => {
-            if (err) return next(err);
+        completeLogout(req, res, next, () => {
             res.redirect("/");
         });
     });
 
     app.post("/api/logout", (req, res, next) => {
         logger.info("POST /api/logout hit");
-        req.logout((err) => {
-            if (err) return next(err);
-            res.sendStatus(200);
+        completeLogout(req, res, next, () => {
+            res.sendStatus(204);
         });
     });
 

@@ -1103,45 +1103,68 @@ export default function Admin() {
         integration.isDefault &&
         integration.status === "active",
     );
+    const instructorsUnavailable = Boolean(instructorsError);
+    const financeUnavailable = Boolean(financeSummaryError);
+    const integrationsUnavailable = Boolean(integrationsError);
 
     return [
       {
         label: "Instrutores pendentes de KYC",
         value: counts.pending,
-        valueLabel: counts.pending.toLocaleString("pt-BR"),
+        valueLabel: instructorsUnavailable
+          ? "—"
+          : counts.pending.toLocaleString("pt-BR"),
         tone: "text-yellow-700",
         bg: "bg-yellow-100/70",
         icon: AlertTriangle,
-        helper: "Documentacao aguardando aprovacao.",
+        helper: instructorsUnavailable
+          ? "Dados de instrutores indisponíveis."
+          : "Documentacao aguardando aprovacao.",
       },
       {
         label: "Pagamentos falhos",
         value: financeSummary.failedTransactionsCount,
-        valueLabel: financeSummary.failedTransactionsCount.toLocaleString("pt-BR"),
+        valueLabel: financeUnavailable
+          ? "—"
+          : financeSummary.failedTransactionsCount.toLocaleString("pt-BR"),
         tone: "text-red-700",
         bg: "bg-red-100/70",
         icon: Receipt,
-        helper: "Falhas ou cancelamentos recentes.",
+        helper: financeUnavailable
+          ? "Resumo financeiro indisponível."
+          : "Falhas ou cancelamentos recentes.",
       },
       {
         label: "Saques pendentes",
         value: financeSummary.pendingWithdrawalsCount,
-        valueLabel: financeSummary.pendingWithdrawalsCount.toLocaleString("pt-BR"),
+        valueLabel: financeUnavailable
+          ? "—"
+          : financeSummary.pendingWithdrawalsCount.toLocaleString("pt-BR"),
         tone: "text-blue-700",
         bg: "bg-blue-100/70",
         icon: Banknote,
-        helper: "Aguardando aprovacao manual.",
+        helper: financeUnavailable
+          ? "Resumo financeiro indisponível."
+          : "Aguardando aprovacao manual.",
       },
       {
         label: "Integração de pagamento default",
         value: paymentIntegrationActive ? 1 : 0,
-        valueLabel: paymentIntegrationActive ? "OK" : "Ajustar",
-        tone: paymentIntegrationActive ? "text-green-700" : "text-red-700",
-        bg: paymentIntegrationActive ? "bg-green-100/70" : "bg-red-100/70",
+        valueLabel: integrationsUnavailable
+          ? "—"
+          : paymentIntegrationActive ? "OK" : "Ajustar",
+        tone: integrationsUnavailable
+          ? "text-amber-700"
+          : paymentIntegrationActive ? "text-green-700" : "text-red-700",
+        bg: integrationsUnavailable
+          ? "bg-amber-100/70"
+          : paymentIntegrationActive ? "bg-green-100/70" : "bg-red-100/70",
         icon: Plug,
-        helper: paymentIntegrationActive
-          ? "Integração principal configurada."
-          : "Nenhuma integração default ativa.",
+        helper: integrationsUnavailable
+          ? "Integrações indisponíveis."
+          : paymentIntegrationActive
+            ? "Integração principal configurada."
+            : "Nenhuma integração default ativa.",
       },
     ];
   }, [
@@ -1149,6 +1172,9 @@ export default function Admin() {
     financeSummary.failedTransactionsCount,
     financeSummary.pendingWithdrawalsCount,
     integrations,
+    financeSummaryError,
+    instructorsError,
+    integrationsError,
   ]);
 
   const isUnauthorized = instructorsData === null;
@@ -1219,6 +1245,7 @@ export default function Admin() {
         label: "Instrutores pendentes",
         value: counts.pending,
         loading: instructorsLoading,
+        error: Boolean(instructorsError),
         helper: "Aguardando validação",
         icon: AlertTriangle,
         tone: "text-yellow-700 dark:text-yellow-400",
@@ -1228,6 +1255,7 @@ export default function Admin() {
         label: "Instrutores aprovados",
         value: counts.approved,
         loading: instructorsLoading,
+        error: Boolean(instructorsError),
         helper: "Ativos na plataforma",
         icon: UserCheck,
         tone: "text-green-700 dark:text-green-400",
@@ -1237,6 +1265,7 @@ export default function Admin() {
         label: "Total de instrutores",
         value: counts.total,
         loading: instructorsLoading,
+        error: Boolean(instructorsError),
         helper: "Base cadastrada",
         icon: Users,
         tone: "text-slate-700 dark:text-slate-300",
@@ -1246,6 +1275,7 @@ export default function Admin() {
         label: "Total de alunos",
         value: students.length,
         loading: studentsLoading,
+        error: Boolean(studentsError),
         helper: "Cadastros ativos",
         icon: GraduationCap,
         tone: "text-blue-700 dark:text-blue-400",
@@ -1255,6 +1285,7 @@ export default function Admin() {
         label: "Agendamentos",
         value: dashboardStats.totalBookings,
         loading: dashboardLoading,
+        error: Boolean(dashboardError),
         helper: "Total registrados",
         icon: Calendar,
         tone: "text-indigo-700 dark:text-indigo-400",
@@ -1264,6 +1295,7 @@ export default function Admin() {
         label: "Aulas concluídas",
         value: dashboardStats.completedBookings,
         loading: dashboardLoading,
+        error: Boolean(dashboardError),
         helper: "Finalizadas",
         icon: CalendarCheck,
         tone: "text-emerald-700 dark:text-emerald-400",
@@ -1273,6 +1305,7 @@ export default function Admin() {
         label: "Volume financeiro",
         value: dashboardStats.totalRevenue,
         loading: dashboardLoading,
+        error: Boolean(dashboardError),
         helper: "Pagas + concluídas",
         icon: Wallet,
         tone: "text-slate-700 dark:text-slate-300",
@@ -1283,6 +1316,7 @@ export default function Admin() {
         label: "Saldo em carteiras",
         value: dashboardStats.walletBalance,
         loading: dashboardLoading,
+        error: Boolean(dashboardError),
         helper: "Retido em contas",
         icon: WalletCards,
         tone: "text-teal-700 dark:text-teal-400",
@@ -1296,10 +1330,13 @@ export default function Admin() {
       students.length,
       studentsLoading,
       dashboardLoading,
+      dashboardError,
       dashboardStats.totalBookings,
       dashboardStats.completedBookings,
       dashboardStats.totalRevenue,
       dashboardStats.walletBalance,
+      instructorsError,
+      studentsError,
     ],
   );
 
@@ -1309,6 +1346,7 @@ export default function Admin() {
         label: "Total transacionado",
         value: financeSummary.totalTransacted,
         loading: financeSummaryLoading,
+        error: Boolean(financeSummaryError),
         helper: "Pagos no gateway",
         icon: DollarSign,
         tone: "text-emerald-700 dark:text-emerald-400",
@@ -1319,6 +1357,7 @@ export default function Admin() {
         label: "Em processamento",
         value: financeSummary.totalProcessing,
         loading: financeSummaryLoading,
+        error: Boolean(financeSummaryError),
         helper: "Aguardando confirmacao",
         icon: RefreshCcw,
         tone: "text-blue-700 dark:text-blue-400",
@@ -1329,6 +1368,7 @@ export default function Admin() {
         label: "Em carteiras",
         value: financeSummary.totalWalletBalance,
         loading: financeSummaryLoading,
+        error: Boolean(financeSummaryError),
         helper: "Disponivel para saque",
         icon: WalletCards,
         tone: "text-teal-700 dark:text-teal-400",
@@ -1339,6 +1379,7 @@ export default function Admin() {
         label: "Saques pendentes",
         value: financeSummary.pendingWithdrawals,
         loading: financeSummaryLoading,
+        error: Boolean(financeSummaryError),
         helper: "Em analise",
         icon: Banknote,
         tone: "text-yellow-700 dark:text-yellow-400",
@@ -1349,6 +1390,7 @@ export default function Admin() {
         label: "Reembolsado",
         value: financeSummary.totalRefunded,
         loading: financeSummaryLoading,
+        error: Boolean(financeSummaryError),
         helper: "Ultimos pagamentos",
         icon: Receipt,
         tone: "text-orange-700 dark:text-orange-400",
@@ -1363,6 +1405,7 @@ export default function Admin() {
       financeSummary.pendingWithdrawals,
       financeSummary.totalRefunded,
       financeSummaryLoading,
+      financeSummaryError,
     ],
   );
 
@@ -1923,6 +1966,8 @@ export default function Admin() {
                     const Icon = stat.icon;
                     const value = stat.loading
                       ? "..."
+                      : stat.error
+                        ? "—"
                       : stat.format
                         ? stat.format(stat.value)
                         : stat.value.toLocaleString("pt-BR");
@@ -1941,7 +1986,9 @@ export default function Admin() {
                               {value}
                             </p>
                             <p className="text-xs text-slate-400 dark:text-blue-300/70">
-                              {stat.helper}
+                              {stat.error
+                                ? "Dados temporariamente indisponíveis."
+                                : stat.helper}
                             </p>
                           </div>
                           <div
@@ -2032,6 +2079,11 @@ export default function Admin() {
                           <div className="flex h-full items-center justify-center gap-2 text-slate-500">
                             <Loader2 className="h-4 w-4 animate-spin" />
                             Carregando mapa...
+                          </div>
+                        ) : geoSummaryError ? (
+                          <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-amber-600">
+                            <AlertTriangle className="h-4 w-4" />
+                            Dados de geolocalização indisponíveis no momento.
                           </div>
                         ) : mapPoints.length === 0 ? (
                           <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-slate-500">
@@ -2753,6 +2805,8 @@ export default function Admin() {
                     const Icon = card.icon;
                     const value = card.loading
                       ? "..."
+                      : card.error
+                        ? "—"
                       : card.format
                         ? card.format(card.value)
                         : card.value.toLocaleString("pt-BR");
@@ -2771,7 +2825,9 @@ export default function Admin() {
                               {value}
                             </p>
                             <p className="text-xs text-slate-400 dark:text-blue-300/70">
-                              {card.helper}
+                              {card.error
+                                ? "Dados temporariamente indisponíveis."
+                                : card.helper}
                             </p>
                           </div>
                           <div

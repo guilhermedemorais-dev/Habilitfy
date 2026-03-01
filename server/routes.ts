@@ -811,40 +811,79 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   });
 
   app.get('/api/admin/users/:id/review', isAuthenticated, async (req: any, res: Response) => {
-    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    const adminUserId = req.user?.claims?.sub ?? req.user?.id;
     try {
+      const adminUser = adminUserId ? await storage.getUser(adminUserId) : null;
+      if (adminUser?.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+
       const targetUserId = req.params.id;
       const user = await storage.getUser(targetUserId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      const instructor = await storage.getInstructorByUserId(targetUserId);
-      const [latestKyc] = await db
-        .select()
-        .from(kycVerificationsTable)
-        .where(eq(kycVerificationsTable.userId, targetUserId))
-        .orderBy(desc(kycVerificationsTable.createdAt))
-        .limit(1);
+      const sectionErrors: Record<string, string> = {};
+      const loadSection = async <T,>(
+        key: string,
+        fallback: T,
+        loader: () => Promise<T>,
+      ): Promise<T> => {
+        try {
+          return await loader();
+        } catch (sectionError) {
+          console.error(`Error loading review section ${key}:`, sectionError);
+          sectionErrors[key] = "Dados parcialmente indisponíveis.";
+          return fallback;
+        }
+      };
 
-      const supportItems = await db
-        .select()
-        .from(supportTickets)
-        .where(eq(supportTickets.userId, targetUserId))
-        .orderBy(desc(supportTickets.createdAt))
-        .limit(50);
+      const instructor = await loadSection(
+        "instructor",
+        null as Awaited<ReturnType<typeof storage.getInstructorByUserId>> | null,
+        async () => (await storage.getInstructorByUserId(targetUserId)) || null,
+      );
+      const latestKyc = await loadSection(
+        "kyc",
+        null as any,
+        async () => {
+          const [record] = await db
+            .select()
+            .from(kycVerificationsTable)
+            .where(eq(kycVerificationsTable.userId, targetUserId))
+            .orderBy(desc(kycVerificationsTable.createdAt))
+            .limit(1);
+          return record || null;
+        },
+      );
 
-      const chatItems = await db
-        .select()
-        .from(messages)
-        .where(
-          or(
-            eq(messages.senderId, targetUserId),
-            eq(messages.receiverId, targetUserId),
-          ),
-        )
-        .orderBy(desc(messages.createdAt))
-        .limit(120);
+      const supportItems = await loadSection(
+        "supportTickets",
+        [] as any[],
+        async () =>
+          await db
+            .select()
+            .from(supportTickets)
+            .where(eq(supportTickets.userId, targetUserId))
+            .orderBy(desc(supportTickets.createdAt))
+            .limit(50),
+      );
+
+      const chatItems = await loadSection(
+        "chatHistory",
+        [] as any[],
+        async () =>
+          await db
+            .select()
+            .from(messages)
+            .where(
+              or(
+                eq(messages.senderId, targetUserId),
+                eq(messages.receiverId, targetUserId),
+              ),
+            )
+            .orderBy(desc(messages.createdAt))
+            .limit(120),
+      );
 
       const counterpartIds = Array.from(
         new Set(
@@ -857,28 +896,39 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       );
       const counterparts = await Promise.all(
         counterpartIds.map(async (id) => {
-          const counterpart = await storage.getUser(id);
-          return counterpart
-            ? {
-                id: counterpart.id,
-                firstName: counterpart.firstName,
-                lastName: counterpart.lastName,
-                email: counterpart.email,
-                role: counterpart.role,
-              }
-            : null;
+          try {
+            const counterpart = await storage.getUser(id);
+            return counterpart
+              ? {
+                  id: counterpart.id,
+                  firstName: counterpart.firstName,
+                  lastName: counterpart.lastName,
+                  email: counterpart.email,
+                  role: counterpart.role,
+                }
+              : null;
+          } catch (counterpartError) {
+            console.error("Error loading review counterpart:", counterpartError);
+            sectionErrors.chatHistory = "Dados parcialmente indisponíveis.";
+            return null;
+          }
         }),
       );
       const counterpartMap = new Map(
         counterparts.filter(Boolean).map((item: any) => [item.id, item]),
       );
 
-      const accessLogs = await db
-        .select()
-        .from(userAccessLogs)
-        .where(eq(userAccessLogs.userId, targetUserId))
-        .orderBy(desc(userAccessLogs.createdAt))
-        .limit(500);
+      const accessLogs = await loadSection(
+        "access",
+        [] as any[],
+        async () =>
+          await db
+            .select()
+            .from(userAccessLogs)
+            .where(eq(userAccessLogs.userId, targetUserId))
+            .orderBy(desc(userAccessLogs.createdAt))
+            .limit(500),
+      );
 
       const sortedAccessAsc = [...accessLogs].sort(
         (a, b) =>
@@ -918,21 +968,27 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
       let vehiclesSummary: any = null;
       if (instructor) {
-        const allVehicles = await db
-          .select()
-          .from(vehicles)
-          .where(eq(vehicles.instructorId, instructor.id))
-          .orderBy(desc(vehicles.createdAt));
+        vehiclesSummary = await loadSection(
+          "vehicles",
+          null,
+          async () => {
+            const allVehicles = await db
+              .select()
+              .from(vehicles)
+              .where(eq(vehicles.instructorId, instructor.id))
+              .orderBy(desc(vehicles.createdAt));
 
-        vehiclesSummary = {
-          total: allVehicles.length,
-          approved: allVehicles.filter((vehicle) => vehicle.status === "approved")
-            .length,
-          pending: allVehicles.filter((vehicle) => vehicle.status === "pending").length,
-          rejected: allVehicles.filter((vehicle) => vehicle.status === "rejected")
-            .length,
-          items: allVehicles.slice(0, 15),
-        };
+            return {
+              total: allVehicles.length,
+              approved: allVehicles.filter((vehicle) => vehicle.status === "approved")
+                .length,
+              pending: allVehicles.filter((vehicle) => vehicle.status === "pending").length,
+              rejected: allVehicles.filter((vehicle) => vehicle.status === "rejected")
+                .length,
+              items: allVehicles.slice(0, 15),
+            };
+          },
+        );
       }
 
       const safeUser = {
@@ -1001,6 +1057,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         supportChatHistory: chatWithCounterpart.filter(
           (item) => item.counterpart?.role === "admin",
         ),
+        sectionErrors,
         access: {
           totalRequests: accessLogs.length,
           uniqueIps: ipSet.size,
@@ -1114,10 +1171,52 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         }
       }
 
+      if (normalizedCpf) {
+        const [existingByCpf] = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.cpf, normalizedCpf), eq(users.isBlocked, false)))
+          .limit(1);
+        if (existingByCpf) {
+          return res.status(409).json({
+            message: "Já existe uma conta ativa vinculada a este CPF.",
+            code: "CPF_ALREADY_REGISTERED",
+          });
+        }
+      }
+
+      if (normalizedCnpj) {
+        const [existingByCnpj] = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.cnpj, normalizedCnpj), eq(users.isBlocked, false)))
+          .limit(1);
+        if (existingByCnpj) {
+          return res.status(409).json({
+            message: "Já existe uma conta ativa vinculada a este CNPJ.",
+            code: "CNPJ_ALREADY_REGISTERED",
+          });
+        }
+      }
+
       // Check if email already exists
       const existingUser = await storage.getUserByEmail?.(normalizedEmail);
       if (existingUser) {
-        return res.status(400).json({ message: 'Este e-mail já está cadastrado' });
+        if (role === "instructor") {
+          const existingInstructor = await storage.getInstructorByUserId(existingUser.id);
+          if (!existingInstructor) {
+            return res.status(409).json({
+              message:
+                "Este e-mail já possui uma conta base cadastrada, mas o perfil de instrutor está incompleto. Entre em contato com o suporte para concluir a ativação.",
+              code: "INSTRUCTOR_PROFILE_INCOMPLETE",
+            });
+          }
+        }
+
+        return res.status(409).json({
+          message: "Este e-mail já está cadastrado em uma conta ativa.",
+          code: "USER_ALREADY_EXISTS",
+        });
       }
 
       // Generate a unique ID
@@ -1151,6 +1250,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         password: hashedPassword,
         isVerified: isVerified,
         verificationToken: verificationToken,
+      });
+      logger.info("[register] User persisted", {
+        userId: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+        kycStatus: newUser.kycStatus,
       });
 
       // Clear pending session if successful
@@ -1223,7 +1328,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
           credentialNumber, documentNumber
         } = req.body;
 
-        await storage.createInstructor({
+        const instructorProfile = await storage.createInstructor({
           userId: userId,
           bio: bio || "",
           pricePerHour: pricePerHour ? Number(pricePerHour) : 0,
@@ -1244,6 +1349,11 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
           vehiclePlateImageUrl: savedVehiclePlateImageUrl,
           status: "pending",
           maxBookingsPerStudent: 0
+        });
+        logger.info("[register] Instructor profile persisted", {
+          userId,
+          instructorId: instructorProfile.id,
+          instructorStatus: instructorProfile.status,
         });
       }
 
