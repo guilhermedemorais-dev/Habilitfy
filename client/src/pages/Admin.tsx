@@ -35,6 +35,7 @@ import { AdminAIChat } from "@/components/admin/AdminAIChat";
 import { AdminFinanceSection } from "@/components/admin/AdminFinanceSection";
 import { AdminFinancialCharts } from "@/components/admin/AdminFinancialCharts";
 import { AdminInstructorSection } from "@/components/admin/AdminInstructorSection";
+import { AdminStudentsSection } from "@/components/admin/AdminStudentsSection";
 import {
   AdminIntegrationsSection,
   type AdminIntegration,
@@ -593,23 +594,6 @@ export default function Admin() {
   };
 
   const normalizedSearch = globalSearch.trim().toLowerCase();
-
-  const filteredStudents = useMemo(() => {
-    if (!normalizedSearch) return students;
-
-    return students.filter((student) => {
-      const fields = [
-        student.firstName,
-        student.lastName,
-        student.email,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return fields.includes(normalizedSearch);
-    });
-  }, [students, normalizedSearch]);
 
   const filteredBookings = useMemo(() => {
     if (!normalizedSearch) return bookings;
@@ -1674,96 +1658,15 @@ export default function Admin() {
                 onReview={openUserReviewDialog}
               />
 
-              <section id="alunos" className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-blue-100">
-                      Lista de alunos
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-blue-400">
-                      Alunos cadastrados e ativos na plataforma.
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-slate-500">
-                    {filteredStudents.length} de {students.length}
-                  </Badge>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <div className="min-h-[120px]">
-                    {isUnauthorized ? (
-                      <div className="flex items-center gap-2 p-4 text-sm text-slate-500">
-                        <AlertTriangle className="h-4 w-4" />
-                        Acesso restrito. Faça login como admin.
-                      </div>
-                    ) : studentsLoading ? (
-                      <div className="flex items-center gap-2 p-4 text-slate-500">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Carregando
-                        alunos...
-                      </div>
-                    ) : studentsError ? (
-                      <div className="flex items-center gap-2 p-4 text-sm text-red-600">
-                        <AlertTriangle className="h-4 w-4" />
-                        Erro ao carregar alunos:{" "}
-                        {(studentsError as Error).message}
-                      </div>
-                    ) : filteredStudents.length === 0 ? (
-                      <div className="p-4 text-sm text-slate-500">
-                        Nenhum aluno encontrado.
-                      </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Aluno</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Cadastro</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredStudents.map((aluno) => (
-                            <TableRow key={aluno.id}>
-                              <TableCell className="font-medium">
-                                {formatPersonName(aluno)}
-                              </TableCell>
-                              <TableCell>{aluno.email || "—"}</TableCell>
-                              <TableCell>
-                                {aluno.isBlocked ? (
-                                  <Badge className="border-none shadow-none bg-red-100 text-red-700">
-                                    Banido
-                                  </Badge>
-                                ) : (
-                                  <Badge className="border-none shadow-none bg-green-100 text-green-700">
-                                    Ativo
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {aluno.createdAt
-                                  ? new Date(
-                                    aluno.createdAt,
-                                  ).toLocaleDateString("pt-BR")
-                                  : "—"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 rounded-md px-3"
-                                  onClick={() => openUserReviewDialog(aluno.id)}
-                                >
-                                  Revisar
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </div>
-                </div>
-              </section>
+              <AdminStudentsSection
+                students={students}
+                isUnauthorized={isUnauthorized}
+                studentsLoading={studentsLoading}
+                studentsError={studentsError}
+                searchTerm={globalSearch}
+                formatPersonName={formatPersonName}
+                onReview={openUserReviewDialog}
+              />
 
               <section id="agendamentos" className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
