@@ -1,4 +1,8 @@
+import { useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Plus, RefreshCcw, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type AdminIntegrationField = {
+export type AdminIntegrationField = {
   key: string;
   label?: string | null;
   type: "text" | "secret" | "url" | "number" | "boolean";
@@ -29,7 +33,7 @@ type AdminIntegrationField = {
   hasValue?: boolean;
 };
 
-type AdminIntegration = {
+export type AdminIntegration = {
   id: string;
   name: string;
   slug: string;
@@ -53,36 +57,55 @@ type IntegrationFormState = {
 };
 
 type AdminIntegrationsSectionProps = {
-  integrationStatusFilter: string;
-  setIntegrationStatusFilter: (value: string) => void;
-  integrationEnvironmentFilter: string;
-  setIntegrationEnvironmentFilter: (value: string) => void;
-  filteredIntegrations: AdminIntegration[];
-  editingIntegrationId: string | null;
-  resetIntegrationForm: () => void;
-  integrationForm: IntegrationFormState;
-  setIntegrationForm: React.Dispatch<React.SetStateAction<IntegrationFormState>>;
-  addTemplateFields: () => void;
-  addIntegrationField: () => void;
-  updateIntegrationField: (
-    index: number,
-    updates: Partial<AdminIntegrationField>,
-  ) => void;
-  removeIntegrationField: (index: number) => void;
-  handleIntegrationSubmit: () => void;
-  createPending: boolean;
-  updatePending: boolean;
+  integrations: AdminIntegration[];
   isUnauthorized: boolean;
+  searchTerm: string;
   integrationsLoading: boolean;
   integrationsError: unknown;
-  onRefresh: () => void;
-  handleIntegrationEdit: (integration: AdminIntegration) => void;
-  quickUpdateIntegration: (payload: {
-    id: string;
-    isDefault?: boolean;
-    status?: string;
-  }) => void;
 };
+
+const integrationFieldTemplates: AdminIntegrationField[] = [
+  {
+    key: "apiKey",
+    label: "API Key",
+    type: "secret",
+    required: true,
+    placeholder: "Chave principal da integracao",
+  },
+  {
+    key: "baseUrl",
+    label: "Base URL",
+    type: "url",
+    required: false,
+    placeholder: "https://api.exemplo.com",
+  },
+  {
+    key: "devMode",
+    label: "Dev Mode",
+    type: "boolean",
+    required: false,
+    placeholder: "true/false",
+  },
+  {
+    key: "webhookSecret",
+    label: "Webhook Secret",
+    type: "secret",
+    required: false,
+    placeholder: "Segredo do webhook",
+  },
+];
+
+const createIntegrationField = (
+  overrides?: Partial<AdminIntegrationField>,
+): AdminIntegrationField => ({
+  key: "",
+  label: "",
+  type: "text",
+  value: "",
+  required: false,
+  placeholder: "",
+  ...overrides,
+});
 
 const getIntegrationStatusMeta = (status?: string | null) => {
   const classNames: Record<string, string> = {
@@ -106,29 +129,250 @@ const getIntegrationStatusMeta = (status?: string | null) => {
 };
 
 export function AdminIntegrationsSection({
-  integrationStatusFilter,
-  setIntegrationStatusFilter,
-  integrationEnvironmentFilter,
-  setIntegrationEnvironmentFilter,
-  filteredIntegrations,
-  editingIntegrationId,
-  resetIntegrationForm,
-  integrationForm,
-  setIntegrationForm,
-  addTemplateFields,
-  addIntegrationField,
-  updateIntegrationField,
-  removeIntegrationField,
-  handleIntegrationSubmit,
-  createPending,
-  updatePending,
+  integrations,
   isUnauthorized,
+  searchTerm,
   integrationsLoading,
   integrationsError,
-  onRefresh,
-  handleIntegrationEdit,
-  quickUpdateIntegration,
 }: AdminIntegrationsSectionProps) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [integrationStatusFilter, setIntegrationStatusFilter] = useState("all");
+  const [integrationEnvironmentFilter, setIntegrationEnvironmentFilter] =
+    useState("all");
+  const [integrationForm, setIntegrationForm] = useState<IntegrationFormState>({
+    name: "",
+    slug: "",
+    category: "payment",
+    environment: "production",
+    status: "active",
+    isDefault: true,
+    fields: [],
+  });
+  const [editingIntegrationId, setEditingIntegrationId] = useState<string | null>(
+    null,
+  );
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const resetIntegrationForm = () => {
+    setIntegrationForm({
+      name: "",
+      slug: "",
+      category: "payment",
+      environment: "production",
+      status: "active",
+      isDefault: true,
+      fields: [],
+    });
+    setEditingIntegrationId(null);
+  };
+
+  const createIntegration = useMutation({
+    mutationFn: async (payload: {
+      name: string;
+      slug?: string | null;
+      category: string;
+      status: string;
+      environment: string;
+      isDefault: boolean;
+      fields: AdminIntegrationField[];
+    }) => {
+      const res = await apiRequest("POST", "/api/admin/integrations", payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Integração salva" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/integrations"] });
+      resetIntegrationForm();
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao salvar integração",
+        description: err?.message || "Tente novamente",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateIntegration = useMutation({
+    mutationFn: async ({
+      id,
+      ...payload
+    }: {
+      id: string;
+      name?: string;
+      slug?: string | null;
+      category?: string;
+      status?: string;
+      environment?: string;
+      isDefault?: boolean;
+      fields?: AdminIntegrationField[];
+    }) => {
+      const res = await apiRequest(
+        "PATCH",
+        `/api/admin/integrations/${id}`,
+        payload,
+      );
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Integração atualizada" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/integrations"] });
+      resetIntegrationForm();
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao atualizar integração",
+        description: err?.message || "Tente novamente",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const filteredIntegrations = useMemo(() => {
+    return integrations.filter((integration) => {
+      if (
+        integrationStatusFilter !== "all" &&
+        integration.status !== integrationStatusFilter
+      ) {
+        return false;
+      }
+      if (
+        integrationEnvironmentFilter !== "all" &&
+        integration.environment !== integrationEnvironmentFilter
+      ) {
+        return false;
+      }
+
+      if (!normalizedSearch) return true;
+
+      const fields = [
+        integration.name,
+        integration.slug,
+        integration.category,
+        integration.status,
+        integration.environment,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return fields.includes(normalizedSearch);
+    });
+  }, [
+    integrations,
+    integrationEnvironmentFilter,
+    integrationStatusFilter,
+    normalizedSearch,
+  ]);
+
+  const addIntegrationField = (preset?: Partial<AdminIntegrationField>) => {
+    setIntegrationForm((prev) => ({
+      ...prev,
+      fields: [...prev.fields, createIntegrationField(preset)],
+    }));
+  };
+
+  const addTemplateFields = () => {
+    setIntegrationForm((prev) => {
+      const existingKeys = new Set(prev.fields.map((field) => field.key));
+      const additions = integrationFieldTemplates
+        .filter((field) => !existingKeys.has(field.key))
+        .map((field) => createIntegrationField(field));
+
+      return {
+        ...prev,
+        fields: [...prev.fields, ...additions],
+      };
+    });
+  };
+
+  const updateIntegrationField = (
+    index: number,
+    updates: Partial<AdminIntegrationField>,
+  ) => {
+    setIntegrationForm((prev) => {
+      const fields = [...prev.fields];
+      fields[index] = { ...fields[index], ...updates };
+      return { ...prev, fields };
+    });
+  };
+
+  const removeIntegrationField = (index: number) => {
+    setIntegrationForm((prev) => ({
+      ...prev,
+      fields: prev.fields.filter((_, fieldIndex) => fieldIndex !== index),
+    }));
+  };
+
+  const handleIntegrationEdit = (integration: AdminIntegration) => {
+    setEditingIntegrationId(integration.id);
+    setIntegrationForm({
+      name: integration.name || "",
+      slug: integration.slug || "",
+      category: integration.category || "payment",
+      environment:
+        (integration.environment as "development" | "production") ||
+        "production",
+      status: (integration.status as "active" | "inactive") || "inactive",
+      isDefault: Boolean(integration.isDefault),
+      fields: (integration.fields || []).map((field) =>
+        createIntegrationField({
+          ...field,
+          type: field.type || "text",
+          value: field.value ?? "",
+          label: field.label ?? "",
+          placeholder: field.placeholder ?? "",
+          required: Boolean(field.required),
+        }),
+      ),
+    });
+  };
+
+  const normalizeIntegrationFields = (fields: AdminIntegrationField[]) =>
+    fields
+      .map((field) => ({
+        key: field.key.trim(),
+        label: field.label?.trim() || "",
+        type: field.type || "text",
+        value: typeof field.value === "string" ? field.value : "",
+        required: Boolean(field.required),
+        placeholder: field.placeholder?.trim() || "",
+      }))
+      .filter((field) => field.key.length > 0);
+
+  const handleIntegrationSubmit = () => {
+    if (!integrationForm.name.trim()) {
+      toast({
+        title: "Informe o nome",
+        description: "A integração precisa de um nome para cadastro.",
+      });
+      return;
+    }
+
+    const fields = normalizeIntegrationFields(integrationForm.fields);
+    const basePayload = {
+      name: integrationForm.name.trim(),
+      slug: integrationForm.slug.trim() || null,
+      category: integrationForm.category.trim() || "payment",
+      status: integrationForm.status,
+      environment: integrationForm.environment,
+      isDefault: integrationForm.isDefault,
+      fields,
+    };
+
+    if (editingIntegrationId) {
+      updateIntegration.mutate({ id: editingIntegrationId, ...basePayload });
+      return;
+    }
+
+    createIntegration.mutate({
+      ...basePayload,
+      slug: basePayload.slug || undefined,
+    });
+  };
+
   return (
     <section id="integracoes" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -297,7 +541,11 @@ export function AdminIntegrationsSection({
                     <Plus className="mr-2 h-4 w-4" />
                     Campos padrão
                   </Button>
-                  <Button size="sm" variant="outline" onClick={addIntegrationField}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addIntegrationField()}
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Novo campo
                   </Button>
@@ -468,7 +716,7 @@ export function AdminIntegrationsSection({
               </Button>
               <Button
                 onClick={handleIntegrationSubmit}
-                disabled={createPending || updatePending}
+                disabled={createIntegration.isPending || updateIntegration.isPending}
               >
                 {editingIntegrationId ? "Atualizar integração" : "Salvar integração"}
               </Button>
@@ -485,7 +733,11 @@ export function AdminIntegrationsSection({
               variant="ghost"
               size="icon"
               title="Recarregar"
-              onClick={onRefresh}
+              onClick={() =>
+                queryClient.invalidateQueries({
+                  queryKey: ["/api/admin/integrations"],
+                })
+              }
             >
               <RefreshCcw className="h-4 w-4" />
             </Button>
@@ -581,9 +833,9 @@ export function AdminIntegrationsSection({
                                 size="sm"
                                 variant="outline"
                                 className="h-8 rounded-md px-3"
-                                disabled={updatePending}
+                                disabled={updateIntegration.isPending}
                                 onClick={() =>
-                                  quickUpdateIntegration({
+                                  updateIntegration.mutate({
                                     id: integration.id,
                                     isDefault: true,
                                   })
@@ -596,9 +848,9 @@ export function AdminIntegrationsSection({
                               size="sm"
                               variant="outline"
                               className="h-8 rounded-md px-3"
-                              disabled={updatePending}
+                              disabled={updateIntegration.isPending}
                               onClick={() =>
-                                quickUpdateIntegration({
+                                updateIntegration.mutate({
                                   id: integration.id,
                                   status:
                                     integration.status === "active"

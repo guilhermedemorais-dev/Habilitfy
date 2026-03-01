@@ -33,7 +33,10 @@ import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AdminMonitoring } from "@/components/admin/AdminMonitoring";
 import { AdminAIChat } from "@/components/admin/AdminAIChat";
 import { AdminFinancialCharts } from "@/components/admin/AdminFinancialCharts";
-import { AdminIntegrationsSection } from "@/components/admin/AdminIntegrationsSection";
+import {
+  AdminIntegrationsSection,
+  type AdminIntegration,
+} from "@/components/admin/AdminIntegrationsSection";
 import { UserManagementSheet } from "@/components/admin/UserManagementSheet";
 import {
   MapContainer,
@@ -211,29 +214,6 @@ type AdminWithdrawalRow = {
   };
   user: AdminUser | null;
   processedBy: AdminUser | null;
-};
-
-type AdminIntegrationField = {
-  key: string;
-  label?: string | null;
-  type: "text" | "secret" | "url" | "number" | "boolean";
-  value?: string | null;
-  required?: boolean;
-  placeholder?: string | null;
-  hasValue?: boolean;
-};
-
-type AdminIntegration = {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  status?: "active" | "inactive" | null;
-  environment?: "development" | "production" | null;
-  isDefault?: boolean | null;
-  fields?: AdminIntegrationField[] | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
 };
 
 type AdminSettings = {
@@ -460,70 +440,6 @@ const getWalletEntryTypeMeta = (type?: string | null) => {
   };
 };
 
-const getIntegrationStatusMeta = (status?: string | null) => {
-  const classNames: Record<string, string> = {
-    active: "bg-green-100 text-green-700",
-    inactive: "bg-slate-100 text-slate-600",
-  };
-
-  const labels: Record<string, string> = {
-    active: "Ativo",
-    inactive: "Inativo",
-  };
-
-  if (!status) {
-    return { label: "—", className: "bg-slate-100 text-slate-600" };
-  }
-
-  return {
-    label: labels[status] || status,
-    className: classNames[status] || "bg-slate-100 text-slate-600",
-  };
-};
-
-const integrationFieldTemplates: AdminIntegrationField[] = [
-  {
-    key: "apiKey",
-    label: "API Key",
-    type: "secret",
-    required: true,
-    placeholder: "Chave principal da integracao",
-  },
-  {
-    key: "baseUrl",
-    label: "Base URL",
-    type: "url",
-    required: false,
-    placeholder: "https://api.exemplo.com",
-  },
-  {
-    key: "devMode",
-    label: "Dev Mode",
-    type: "boolean",
-    required: false,
-    placeholder: "true/false",
-  },
-  {
-    key: "webhookSecret",
-    label: "Webhook Secret",
-    type: "secret",
-    required: false,
-    placeholder: "Segredo do webhook",
-  },
-];
-
-const createIntegrationField = (
-  overrides?: Partial<AdminIntegrationField>,
-): AdminIntegrationField => ({
-  key: "",
-  label: "",
-  type: "text",
-  value: "",
-  required: false,
-  placeholder: "",
-  ...overrides,
-});
-
 export default function Admin() {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
@@ -543,9 +459,6 @@ export default function Admin() {
   const [financePeriodFilter, setFinancePeriodFilter] = useState<
     "day" | "week" | "month"
   >("day");
-  const [integrationStatusFilter, setIntegrationStatusFilter] = useState("all");
-  const [integrationEnvironmentFilter, setIntegrationEnvironmentFilter] =
-    useState("all");
   const initialTheme = useRef<boolean | null>(null);
   const [isDark, setIsDark] = useState(false);
   const [platformFeePercent, setPlatformFeePercent] = useState("0");
@@ -553,26 +466,6 @@ export default function Admin() {
   const [cancellationFeePercent, setCancellationFeePercent] = useState("0");
   const [cancellationInstructorSharePercent, setCancellationInstructorSharePercent] =
     useState("0");
-  const [integrationForm, setIntegrationForm] = useState<{
-    name: string;
-    slug: string;
-    category: string;
-    environment: "development" | "production";
-    status: "active" | "inactive";
-    isDefault: boolean;
-    fields: AdminIntegrationField[];
-  }>({
-    name: "",
-    slug: "",
-    category: "payment",
-    environment: "production",
-    status: "active",
-    isDefault: true,
-    fields: [],
-  });
-  const [editingIntegrationId, setEditingIntegrationId] = useState<string | null>(
-    null,
-  );
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewUserId, setReviewUserId] = useState<string | null>(null);
 
@@ -1028,43 +921,6 @@ export default function Admin() {
     });
   }, [withdrawals, withdrawalStatusFilter, normalizedSearch]);
 
-  const filteredIntegrations = useMemo(() => {
-    return integrations.filter((integration) => {
-      if (
-        integrationStatusFilter !== "all" &&
-        integration.status !== integrationStatusFilter
-      ) {
-        return false;
-      }
-      if (
-        integrationEnvironmentFilter !== "all" &&
-        integration.environment !== integrationEnvironmentFilter
-      ) {
-        return false;
-      }
-
-      if (!normalizedSearch) return true;
-
-      const fields = [
-        integration.name,
-        integration.slug,
-        integration.category,
-        integration.status,
-        integration.environment,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return fields.includes(normalizedSearch);
-    });
-  }, [
-    integrations,
-    integrationEnvironmentFilter,
-    integrationStatusFilter,
-    normalizedSearch,
-  ]);
-
   const counts = useMemo(() => {
     let pending = 0;
     let approved = 0;
@@ -1447,125 +1303,6 @@ export default function Admin() {
     },
   });
 
-  const resetIntegrationForm = () => {
-    setIntegrationForm({
-      name: "",
-      slug: "",
-      category: "payment",
-      environment: "production",
-      status: "active",
-      isDefault: true,
-      fields: [],
-    });
-    setEditingIntegrationId(null);
-  };
-
-  const addIntegrationField = (preset?: Partial<AdminIntegrationField>) => {
-    setIntegrationForm((prev) => ({
-      ...prev,
-      fields: [...prev.fields, createIntegrationField(preset)],
-    }));
-  };
-
-  const addTemplateFields = () => {
-    setIntegrationForm((prev) => {
-      const existingKeys = new Set(prev.fields.map((field) => field.key));
-      const additions = integrationFieldTemplates
-        .filter((field) => !existingKeys.has(field.key))
-        .map((field) => createIntegrationField(field));
-      return {
-        ...prev,
-        fields: [...prev.fields, ...additions],
-      };
-    });
-  };
-
-  const updateIntegrationField = (
-    index: number,
-    updates: Partial<AdminIntegrationField>,
-  ) => {
-    setIntegrationForm((prev) => {
-      const fields = [...prev.fields];
-      fields[index] = { ...fields[index], ...updates };
-      return { ...prev, fields };
-    });
-  };
-
-  const removeIntegrationField = (index: number) => {
-    setIntegrationForm((prev) => ({
-      ...prev,
-      fields: prev.fields.filter((_, fieldIndex) => fieldIndex !== index),
-    }));
-  };
-
-  const handleIntegrationEdit = (integration: AdminIntegration) => {
-    setEditingIntegrationId(integration.id);
-    setIntegrationForm({
-      name: integration.name || "",
-      slug: integration.slug || "",
-      category: integration.category || "payment",
-      environment:
-        (integration.environment as "development" | "production") ||
-        "production",
-      status: (integration.status as "active" | "inactive") || "inactive",
-      isDefault: Boolean(integration.isDefault),
-      fields: (integration.fields || []).map((field) =>
-        createIntegrationField({
-          ...field,
-          type: field.type || "text",
-          value: field.value ?? "",
-          label: field.label ?? "",
-          placeholder: field.placeholder ?? "",
-          required: Boolean(field.required),
-        }),
-      ),
-    });
-  };
-
-  const normalizeIntegrationFields = (fields: AdminIntegrationField[]) =>
-    fields
-      .map((field) => ({
-        key: field.key.trim(),
-        label: field.label?.trim() || "",
-        type: field.type || "text",
-        value: typeof field.value === "string" ? field.value : "",
-        required: Boolean(field.required),
-        placeholder: field.placeholder?.trim() || "",
-      }))
-      .filter((field) => field.key.length > 0);
-
-  const handleIntegrationSubmit = () => {
-    if (!integrationForm.name.trim()) {
-      toast({
-        title: "Informe o nome",
-        description: "A integração precisa de um nome para cadastro.",
-      });
-      return;
-    }
-
-    const fields = normalizeIntegrationFields(integrationForm.fields);
-    const basePayload = {
-      name: integrationForm.name.trim(),
-      slug: integrationForm.slug.trim() || null,
-      category: integrationForm.category.trim() || "payment",
-      status: integrationForm.status,
-      environment: integrationForm.environment,
-      isDefault: integrationForm.isDefault,
-      fields,
-    };
-
-    if (editingIntegrationId) {
-      updateIntegration.mutate({ id: editingIntegrationId, ...basePayload });
-      return;
-    }
-
-    const createPayload = {
-      ...basePayload,
-      slug: basePayload.slug || undefined,
-    };
-    createIntegration.mutate(createPayload);
-  };
-
   const updateAdminSettings = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -1584,64 +1321,6 @@ export default function Admin() {
     onError: (err: any) => {
       toast({
         title: "Erro ao salvar configuracoes",
-        description: err?.message || "Tente novamente",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createIntegration = useMutation({
-    mutationFn: async (payload: {
-      name: string;
-      slug?: string | null;
-      category: string;
-      status: string;
-      environment: string;
-      isDefault: boolean;
-      fields: AdminIntegrationField[];
-    }) => {
-      const res = await apiRequest("POST", "/api/admin/integrations", payload);
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Integração salva" });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/integrations"] });
-      resetIntegrationForm();
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Erro ao salvar integração",
-        description: err?.message || "Tente novamente",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateIntegration = useMutation({
-    mutationFn: async ({
-      id,
-      ...payload
-    }: {
-      id: string;
-      name?: string;
-      slug?: string | null;
-      category?: string;
-      status?: string;
-      environment?: string;
-      isDefault?: boolean;
-      fields?: AdminIntegrationField[];
-    }) => {
-      const res = await apiRequest("PATCH", `/api/admin/integrations/${id}`, payload);
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Integração atualizada" });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/integrations"] });
-      resetIntegrationForm();
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Erro ao atualizar integração",
         description: err?.message || "Tente novamente",
         variant: "destructive",
       });
@@ -3591,32 +3270,11 @@ export default function Admin() {
               )}
 
               <AdminIntegrationsSection
-                integrationStatusFilter={integrationStatusFilter}
-                setIntegrationStatusFilter={setIntegrationStatusFilter}
-                integrationEnvironmentFilter={integrationEnvironmentFilter}
-                setIntegrationEnvironmentFilter={setIntegrationEnvironmentFilter}
-                filteredIntegrations={filteredIntegrations}
-                editingIntegrationId={editingIntegrationId}
-                resetIntegrationForm={resetIntegrationForm}
-                integrationForm={integrationForm}
-                setIntegrationForm={setIntegrationForm}
-                addTemplateFields={addTemplateFields}
-                addIntegrationField={() => addIntegrationField()}
-                updateIntegrationField={updateIntegrationField}
-                removeIntegrationField={removeIntegrationField}
-                handleIntegrationSubmit={handleIntegrationSubmit}
-                createPending={createIntegration.isPending}
-                updatePending={updateIntegration.isPending}
+                integrations={integrations}
                 isUnauthorized={isUnauthorized}
+                searchTerm={globalSearch}
                 integrationsLoading={integrationsLoading}
                 integrationsError={integrationsError}
-                onRefresh={() =>
-                  queryClient.invalidateQueries({
-                    queryKey: ["/api/admin/integrations"],
-                  })
-                }
-                handleIntegrationEdit={handleIntegrationEdit}
-                quickUpdateIntegration={(payload) => updateIntegration.mutate(payload)}
               />
             </div>
           </main>
