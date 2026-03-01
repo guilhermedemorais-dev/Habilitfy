@@ -20,6 +20,83 @@ Plano base: `docs.prd/audit-remediation-sprint-plan-2026-02-22.md`
 [ ] Monitorar 60 minutos pós-deploy (erros, latência, auth, pagamentos).  
 [ ] Registrar evidências de validação e monitoramento na issue.  
 
+## Runbook Operacional - Fechamento da Sprint 0
+
+Use este bloco para encerrar a Sprint 0 sem depender de memória informal. A parte de repositório já foi saneada; o restante depende de execução fora do Git.
+
+### 1. Estado já resolvido no repositório
+
+- `.env.production` foi removido do versionamento ativo.
+- `.gitignore` já bloqueia `.env` e `.env.*`.
+- O template seguro continua em `.env.production.example`.
+
+Validação objetiva:
+- `git ls-files .env.production` deve retornar vazio.
+
+### 2. Rotação obrigatória de credenciais (fora do Git)
+
+Executar em secret manager, painel do provedor ou servidor de produção:
+
+[ ] Rotacionar `GOOGLE_CLIENT_SECRET`.  
+[ ] Rotacionar `SESSION_SECRET`.  
+[ ] Rotacionar credenciais de banco (`DB_USER`/`DB_PASSWORD` ou `DATABASE_URL`).  
+[ ] Rotacionar chaves de gateways e integrações críticas (Stripe, AbacatePay, OpenAI e similares).  
+[ ] Revogar explicitamente as credenciais antigas.  
+
+Evidência mínima para anexar na issue:
+- timestamp da rotação
+- sistema afetado
+- responsável
+- confirmação de revogação da credencial antiga
+
+### 3. Atualização segura de configuração
+
+[ ] Atualizar apenas o secret manager / servidor / `.env.production` local com os novos valores.  
+[ ] Não reversionar nenhum arquivo `.env*` real.  
+[ ] Validar que a aplicação sobe com as novas credenciais.  
+
+Validação objetiva:
+- login OAuth continua funcional
+- sessão continua válida após login/logout
+- conexão com banco abre normalmente
+- integrações críticas respondem sem erro de autenticação
+
+### 4. Rollback obrigatório
+
+[ ] Documentar rollback técnico (como restaurar segredo/config anterior em caso de falha).  
+[ ] Documentar rollback operacional (quem executa, onde, em quanto tempo).  
+[ ] Testar o procedimento em staging/homologação ou registrar simulação controlada.  
+
+Template mínimo de evidência:
+- responsável:
+- comando/passos:
+- pré-condição:
+- gatilho para rollback:
+- resultado do teste:
+
+### 5. Monitoramento pós-deploy
+
+[ ] Realizar deploy em janela de baixo risco.  
+[ ] Monitorar por 60 minutos: erros, latência, login, pagamentos, webhooks.  
+[ ] Registrar se houve ou não regressão crítica.  
+
+Checklist de monitoramento:
+[ ] Auth/login sem regressão.  
+[ ] Logout sem loop.  
+[ ] Painel admin carrega sem erro crítico.  
+[ ] Pagamentos e webhooks sem duplicidade/erros novos.  
+[ ] Logs sem payload sensível.  
+
+### 6. Critério objetivo para encerrar a Sprint 0
+
+Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como concluídos quando:
+
+[ ] `git ls-files .env.production` sem retorno.  
+[ ] Credenciais antigas revogadas.  
+[ ] Evidência de rotação anexada.  
+[ ] Rollback documentado/testado.  
+[ ] Monitoramento pós-deploy concluído sem regressão crítica.  
+
 ## Sprint 0 - Contenção de Risco Crítico (bloqueadora)
 
 ### [ ] SEC-001 - Rotacionar credenciais expostas
