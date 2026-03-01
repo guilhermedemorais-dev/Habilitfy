@@ -33,7 +33,7 @@ import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AdminMonitoring } from "@/components/admin/AdminMonitoring";
 import { AdminAIChat } from "@/components/admin/AdminAIChat";
 import { AdminFinancialCharts } from "@/components/admin/AdminFinancialCharts";
-import { UserReviewDialog } from "@/components/admin/UserReviewDialog";
+import { UserManagementSheet } from "@/components/admin/UserManagementSheet";
 import {
   MapContainer,
   TileLayer,
@@ -4114,7 +4114,7 @@ export default function Admin() {
             </div>
           </main>
           <AdminAIChat />
-          <UserReviewDialog
+          <UserManagementSheet
             open={reviewDialogOpen}
             onOpenChange={setReviewDialogOpen}
             userId={reviewUserId}

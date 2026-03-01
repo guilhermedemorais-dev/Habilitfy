@@ -271,7 +271,7 @@ CREATE TABLE IF NOT EXISTS `withdrawals` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
   `user_id` VARCHAR(36) NOT NULL,
   `amount` DECIMAL(10, 2) NOT NULL,
-  `withdrawal_status` ENUM('pending', 'approved', 'rejected', 'processed') NOT NULL DEFAULT 'pending',
+  `status` ENUM('pending', 'approved', 'rejected', 'processed') NOT NULL DEFAULT 'pending',
   `destination_type` VARCHAR(50) DEFAULT 'pix',
   `destination_key` VARCHAR(255),
   `requested_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
