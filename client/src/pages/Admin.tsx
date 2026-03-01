@@ -32,6 +32,7 @@ import {
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AdminMonitoring } from "@/components/admin/AdminMonitoring";
 import { AdminAIChat } from "@/components/admin/AdminAIChat";
+import { AdminBookingsSection } from "@/components/admin/AdminBookingsSection";
 import { AdminFinanceSection } from "@/components/admin/AdminFinanceSection";
 import { AdminFinancialCharts } from "@/components/admin/AdminFinancialCharts";
 import { AdminInstructorSection } from "@/components/admin/AdminInstructorSection";
@@ -293,33 +294,6 @@ const formatRoleLabel = (role?: string | null) => {
 
   if (!role) return "—";
   return labels[role] || role;
-};
-
-const getBookingStatusMeta = (status?: string | null) => {
-  const classNames: Record<string, string> = {
-    pending: "bg-yellow-100 text-yellow-700",
-    confirmed: "bg-green-100 text-green-700",
-    paid: "bg-blue-100 text-blue-700",
-    completed: "bg-green-100 text-green-700",
-    cancelled: "bg-red-100 text-red-700",
-  };
-
-  const labels: Record<string, string> = {
-    pending: "Pendente",
-    confirmed: "Confirmado",
-    paid: "Pago",
-    completed: "Concluído",
-    cancelled: "Cancelado",
-  };
-
-  if (!status) {
-    return { label: "—", className: "bg-slate-100 text-slate-600" };
-  }
-
-  return {
-    label: labels[status] || status,
-    className: classNames[status] || "bg-slate-100 text-slate-600",
-  };
 };
 
 export default function Admin() {
@@ -594,24 +568,6 @@ export default function Admin() {
   };
 
   const normalizedSearch = globalSearch.trim().toLowerCase();
-
-  const filteredBookings = useMemo(() => {
-    if (!normalizedSearch) return bookings;
-
-    return bookings.filter((row) => {
-      const fields = [
-        row.booking.id,
-        row.booking.status,
-        formatPersonName(row.student),
-        formatPersonName(row.instructorUser),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return fields.includes(normalizedSearch);
-    });
-  }, [bookings, normalizedSearch]);
 
   const counts = useMemo(() => {
     let pending = 0;
@@ -1014,7 +970,23 @@ export default function Admin() {
   };
 
   const exportBookingsCsv = () => {
-    if (filteredBookings.length === 0) {
+    const bookingRows = !normalizedSearch
+      ? bookings
+      : bookings.filter((row) => {
+        const fields = [
+          row.booking.id,
+          row.booking.status,
+          formatPersonName(row.student),
+          formatPersonName(row.instructorUser),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return fields.includes(normalizedSearch);
+      });
+
+    if (bookingRows.length === 0) {
       toast({
         title: "Sem dados para exportar",
         description: "Nenhum agendamento encontrado.",
@@ -1033,7 +1005,7 @@ export default function Admin() {
         "instructor",
         "instructor_email",
       ],
-      filteredBookings.map((row) => [
+      bookingRows.map((row) => [
         row.booking.id,
         row.booking.status,
         row.booking.totalPrice,
@@ -1668,97 +1640,20 @@ export default function Admin() {
                 onReview={openUserReviewDialog}
               />
 
-              <section id="agendamentos" className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-blue-100">
-                      Últimos agendamentos
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-blue-400">
-                      Registros mais recentes da plataforma.
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Recarregar"
-                    onClick={() =>
-                      queryClient.invalidateQueries({
-                        queryKey: ["/api/admin/bookings?limit=12"],
-                      })
-                    }
-                  >
-                    <RefreshCcw className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <div className="min-h-[120px]">
-                    {isUnauthorized ? (
-                      <div className="flex items-center gap-2 p-4 text-sm text-slate-500">
-                        <AlertTriangle className="h-4 w-4" />
-                        Acesso restrito. Faça login como admin.
-                      </div>
-                    ) : bookingsLoading ? (
-                      <div className="flex items-center gap-2 p-4 text-slate-500">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Carregando
-                        agendamentos...
-                      </div>
-                    ) : bookingsError ? (
-                      <div className="flex items-center gap-2 p-4 text-sm text-red-600">
-                        <AlertTriangle className="h-4 w-4" />
-                        Erro ao carregar agendamentos:{" "}
-                        {(bookingsError as Error).message}
-                      </div>
-                    ) : filteredBookings.length === 0 ? (
-                      <div className="p-4 text-sm text-slate-500">
-                        Nenhum agendamento encontrado.
-                      </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>ID</TableHead>
-                            <TableHead>Aluno</TableHead>
-                            <TableHead>Instrutor</TableHead>
-                            <TableHead>Valor</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredBookings.map((row) => {
-                            const { booking, student, instructorUser } = row;
-                            const statusMeta = getBookingStatusMeta(
-                              booking.status,
-                            );
-
-                            return (
-                              <TableRow key={booking.id}>
-                                <TableCell className="font-medium">
-                                  {booking.id}
-                                </TableCell>
-                                <TableCell>{formatPersonName(student)}</TableCell>
-                                <TableCell>
-                                  {formatPersonName(instructorUser)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(booking.totalPrice)}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    className={`border-none shadow-none ${statusMeta.className}`}
-                                  >
-                                    {statusMeta.label}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </div>
-                </div>
-              </section>
+              <AdminBookingsSection
+                bookings={bookings}
+                isUnauthorized={isUnauthorized}
+                bookingsLoading={bookingsLoading}
+                bookingsError={bookingsError}
+                searchTerm={globalSearch}
+                formatPersonName={formatPersonName}
+                formatCurrency={formatCurrency}
+                onRefresh={() =>
+                  queryClient.invalidateQueries({
+                    queryKey: ["/api/admin/bookings?limit=12"],
+                  })
+                }
+              />
 
               <AdminFinanceSection
                 financeCards={financeCards}
