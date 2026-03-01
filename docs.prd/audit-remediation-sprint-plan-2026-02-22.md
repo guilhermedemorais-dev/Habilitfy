@@ -190,8 +190,8 @@ Entregue neste ciclo:
 Status contra a Definition of Done Global:
 - `npm run check` sem erros: `OK`
 - `npm run test:unit` passando: `OK`
-- Sem segredos versionados no Git: `PENDENTE` (depende de fechamento completo da Sprint 0)
-- Sem dados pessoais reais em artefatos versionados: `PENDENTE` (depende de evidência final de sanitização)
+- Sem segredos versionados no Git: `OK` (`.env.production` removido do índice; `git ls-files .env.production` sem retorno em 2026-03-01)
+- Sem dados pessoais reais em artefatos versionados: `OK` (scanner local em `migrations/production_full_dump.sql` sem matches de email/CPF em 2026-03-01)
 - Logs sem payload sensível: `OK`
 - Rollback testado/documentado para mudanças de produção: `PENDENTE`
 - Janela de monitoramento pós-deploy concluída sem regressão crítica: `PENDENTE`
@@ -200,9 +200,9 @@ Conclusão:
 - O plano técnico de estabilização e modularização foi executado.
 - O bloqueio remanescente para fechamento integral da DoD global está concentrado em evidências operacionais da Sprint 0 e em validação/monitoramento de produção.
 
-Bloqueadores verificados no repositório em 2026-03-01:
-- `.env.production` ainda está versionado (`git ls-files .env.production` retorna o arquivo), então a Sprint 0 não pode ser encerrada como concluída.
-- O fechamento integral continua dependendo da remoção do arquivo do versionamento ativo, da rotação efetiva das credenciais associadas e da evidência de sanitização final dos artefatos sensíveis.
+Bloqueadores remanescentes em 2026-03-01:
+- A parte de repositório foi saneada (`.env.production` saiu do versionamento ativo e o dump não acusou email/CPF no scanner local).
+- A Sprint 0 ainda não pode ser encerrada como concluída sem evidência externa de rotação efetiva das credenciais e sem o fechamento operacional de rollback/monitoramento pós-deploy.
 
 ## Questões em Aberto
 
