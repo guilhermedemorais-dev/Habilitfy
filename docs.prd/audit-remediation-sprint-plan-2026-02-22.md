@@ -200,6 +200,10 @@ Conclusão:
 - O plano técnico de estabilização e modularização foi executado.
 - O bloqueio remanescente para fechamento integral da DoD global está concentrado em evidências operacionais da Sprint 0 e em validação/monitoramento de produção.
 
+Bloqueadores verificados no repositório em 2026-03-01:
+- `.env.production` ainda está versionado (`git ls-files .env.production` retorna o arquivo), então a Sprint 0 não pode ser encerrada como concluída.
+- O fechamento integral continua dependendo da remoção do arquivo do versionamento ativo, da rotação efetiva das credenciais associadas e da evidência de sanitização final dos artefatos sensíveis.
+
 ## Questões em Aberto
 
 - Vamos reescrever histórico Git para remover segredos já com `filter-repo`, ou tratar só daqui para frente?
