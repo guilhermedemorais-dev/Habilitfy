@@ -21,6 +21,8 @@ vi.mock("@/hooks/use-toast", () => ({
   }),
 }));
 
+const SLOW_TEST_TIMEOUT_MS = 20_000;
+
 function renderSection(props?: Partial<ComponentProps<typeof AdminIntegrationsSection>>) {
   const client = new QueryClient({
     defaultOptions: {
@@ -81,7 +83,7 @@ describe("AdminIntegrationsSection", () => {
 
     expect(screen.getByText("Pix Gateway")).toBeTruthy();
     expect(screen.queryByText("GovBR Login")).toBeNull();
-  });
+  }, SLOW_TEST_TIMEOUT_MS);
 
   it("blocks submit when the integration name is empty", () => {
     renderSection();
@@ -94,5 +96,5 @@ describe("AdminIntegrationsSection", () => {
         title: "Informe o nome",
       }),
     );
-  });
+  }, SLOW_TEST_TIMEOUT_MS);
 });

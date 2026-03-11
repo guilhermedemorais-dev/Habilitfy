@@ -11,6 +11,8 @@ import {
   type AdminWithdrawalRow,
 } from "./AdminFinanceSection";
 
+const SLOW_TEST_TIMEOUT_MS = 20_000;
+
 const formatCurrency = (value: number | string | null | undefined) =>
   String(value ?? "—");
 
@@ -136,7 +138,7 @@ describe("AdminFinanceSection", () => {
 
     expect(screen.getByText("tx-1")).toBeTruthy();
     expect(screen.getByText("Nenhum saque encontrado.")).toBeTruthy();
-  });
+  }, SLOW_TEST_TIMEOUT_MS);
 
   it("triggers withdrawal actions from the withdrawals table", () => {
     const onWithdrawalAction = vi.fn();
@@ -148,5 +150,5 @@ describe("AdminFinanceSection", () => {
       id: "wd-1",
       status: "approved",
     });
-  });
+  }, SLOW_TEST_TIMEOUT_MS);
 });

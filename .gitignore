@@ -7,6 +7,7 @@ vite.config.ts.*
 tmp_tsx/
 .env
 .env.*
+.env.production
 !.env.production.example
 !.env.qa-remote.example
 client_secret_*.json

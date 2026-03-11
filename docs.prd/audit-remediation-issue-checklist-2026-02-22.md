@@ -10,6 +10,12 @@ Plano base: `docs.prd/audit-remediation-sprint-plan-2026-02-22.md`
 - Marque os checkboxes apenas após evidência objetiva de aceite.
 - Para itens que afetam produção, aplique o bloco "Guardrails comuns" abaixo como subtarefas obrigatórias.
 
+Verificação local em 2026-03-11:
+- `npm run check`: OK
+- `npm run test:unit`: OK
+- `npm run verify`: OK
+- Pendências remanescentes concentram-se em evidência operacional externa e em aceites funcionais não automatizados
+
 ## Guardrails comuns (adicionar em toda issue com impacto em produção)
 
 [ ] Definir plano de rollback técnico e operacional.  
@@ -91,7 +97,7 @@ Checklist de monitoramento:
 
 Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como concluídos quando:
 
-[ ] `git ls-files .env.production` sem retorno.  
+[x] `git ls-files .env.production` sem retorno.  
 [ ] Credenciais antigas revogadas.  
 [ ] Evidência de rotação anexada.  
 [ ] Rollback documentado/testado.  
@@ -124,9 +130,9 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `.env.production`, `.gitignore`, documentação de bootstrap
 - Descrição: retirar segredos do Git e formalizar processo seguro de distribuição de env.
 - Subtarefas:
-[ ] Remover `.env.production` do controle de versão.
+[x] Remover `.env.production` do controle de versão.
 [ ] Garantir bloqueio por `.gitignore` e política de pre-commit.
-[ ] Atualizar instruções de setup sem expor segredo.
+[x] Atualizar instruções de setup sem expor segredo.
 - Critérios de aceite:
 - `git ls-files .env.production` sem retorno.
 - Processo de provisionamento de env documentado.
@@ -156,9 +162,9 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `server/auth.ts`, boot de runtime, docs
 - Descrição: impedir inicialização insegura em `NODE_ENV=production`.
 - Subtarefas:
-[ ] Adicionar guarda de inicialização para combinação inválida.
-[ ] Expor erro explícito de configuração.
-[ ] Documentar comportamento esperado por ambiente.
+[x] Adicionar guarda de inicialização para combinação inválida.
+[x] Expor erro explícito de configuração.
+[x] Documentar comportamento esperado por ambiente.
 - Critérios de aceite:
 - Aplicação aborta boot quando `NODE_ENV=production` e `AUTH_MODE=local`.
 - Fluxo legítimo de produção mantém autenticação correta.
@@ -174,9 +180,9 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `client/src/components/ui/calendar.tsx`
 - Descrição: alinhar componente com API atual de `react-day-picker`.
 - Subtarefas:
-[ ] Remover imports e props não suportadas.
-[ ] Ajustar tipos de `components`, `classNames`, `formatters`.
-[ ] Eliminar `any` implícito.
+[x] Remover imports e props não suportadas.
+[x] Ajustar tipos de `components`, `classNames`, `formatters`.
+[x] Eliminar `any` implícito.
 - Critérios de aceite:
 - Sem erros TS no arquivo de calendário.
 - Sem regressão visual/funcional no uso do calendário.
@@ -190,25 +196,25 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `server/storage.ts`, `shared/schema.ts` (se necessário)
 - Descrição: alinhar `pricePerHour` ao contrato Drizzle e payload de inserção/atualização.
 - Subtarefas:
-[ ] Corrigir `createInstructor` para tipo compatível com decimal.
-[ ] Corrigir `updateInstructor` para tipo compatível.
-[ ] Garantir consistência entre schema e zod.
+[x] Corrigir `createInstructor` para tipo compatível com decimal.
+[x] Corrigir `updateInstructor` para tipo compatível.
+[x] Garantir consistência entre schema e zod.
 - Critérios de aceite:
 - Sem erro TS em `server/storage.ts`.
 - Fluxo de criar/editar instrutor funcionando.
 - Validação:
 - `npm run check` e teste de fluxo de instrutor.
 
-### [ ] ENG-003 - Corrigir suíte unitária de integrações
+### [x] ENG-003 - Corrigir suíte unitária de integrações
 - Tipo: Testing
 - Prioridade: P1
 - Dependências: Sprint 0 fechada
 - Arquivos afetados: `server/integrations.routes.test.ts`, `package.json`
 - Descrição: resolver falha por ausência de dependência/runtime de testes.
 - Subtarefas:
-[ ] Adicionar `supertest` runtime ou ajustar abordagem de teste.
-[ ] Garantir import resolvido e execução da suíte.
-[ ] Revisar setup de testes para evitar novas quebras.
+[x] Adicionar `supertest` runtime ou ajustar abordagem de teste.
+[x] Garantir import resolvido e execução da suíte.
+[x] Revisar setup de testes para evitar novas quebras.
 - Critérios de aceite:
 - Suíte `integrations.routes.test.ts` executa com sucesso.
 - `npm run test:unit` passa integralmente.
@@ -222,8 +228,8 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `package.json`, docs de contribuição
 - Descrição: consolidar check + testes unitários em comando único.
 - Subtarefas:
-[ ] Adicionar script `verify` no `package.json`.
-[ ] Atualizar documentação de contribuição.
+[x] Adicionar script `verify` no `package.json`.
+[x] Atualizar documentação de contribuição.
 [ ] Integrar comando como padrão em PR.
 - Critérios de aceite:
 - `npm run verify` executa `check` e `test:unit`.
@@ -240,8 +246,8 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `server/routes.ts` (e novos módulos se aplicável)
 - Descrição: remover duplicidade de `GET /api/admin/instructors` e `GET /api/admin/users`.
 - Subtarefas:
-[ ] Escolher implementação canônica por endpoint.
-[ ] Remover rotas duplicadas e ajustar chamadas dependentes.
+[x] Escolher implementação canônica por endpoint.
+[x] Remover rotas duplicadas e ajustar chamadas dependentes.
 [ ] Registrar contrato final em docs.
 - Critérios de aceite:
 - Apenas uma definição por endpoint no código.
@@ -256,8 +262,8 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `server/auth.ts`, `server/routes.ts`
 - Descrição: manter uma única fonte de verdade para endpoint de usuário autenticado.
 - Subtarefas:
-[ ] Definir arquivo proprietário da rota.
-[ ] Remover duplicata e ajustar middlewares.
+[x] Definir arquivo proprietário da rota.
+[x] Remover duplicata e ajustar middlewares.
 [ ] Garantir retorno consistente para frontend.
 - Critérios de aceite:
 - Endpoint definido uma única vez.
@@ -272,9 +278,9 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `server/index.ts`, logger utilitário
 - Descrição: eliminar logging de payload completo mantendo telemetria útil.
 - Subtarefas:
-[ ] Remover captura de corpo completo de `res.json`.
+[x] Remover captura de corpo completo de `res.json`.
 [ ] Padronizar campos mínimos (rota, status, latência, correlation id).
-[ ] Criar lista de campos sensíveis para redaction.
+[x] Criar lista de campos sensíveis para redaction.
 - Critérios de aceite:
 - Logs não contêm PII/tokens por padrão.
 - Observabilidade operacional preservada.
@@ -288,9 +294,9 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `server/routes.ts`, camada de transação/storage
 - Descrição: impedir processamento duplicado para mesmo evento de webhook.
 - Subtarefas:
-[ ] Definir chave idempotente (`event.id`/`session.id`).
+[x] Definir chave idempotente (`event.id`/`session.id`).
 [ ] Persistir processamento com trava atômica.
-[ ] Ignorar reentregas já processadas.
+[x] Ignorar reentregas já processadas.
 - Critérios de aceite:
 - Mesmo evento não gera transação duplicada.
 - Fluxo normal de pagamento preservado.
@@ -338,8 +344,8 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `client/src/pages/Admin.tsx` e novos módulos
 - Descrição: dividir tela admin em containers/componentes por domínio.
 - Subtarefas:
-[ ] Mapear domínios visuais (usuários, instrutores, pagamentos, settings).
-[ ] Extrair componentes e hooks dedicados.
+[x] Mapear domínios visuais (usuários, instrutores, pagamentos, settings).
+[x] Extrair componentes e hooks dedicados.
 [ ] Preservar comportamento e navegação.
 - Critérios de aceite:
 - `Admin.tsx` reduzido e com responsabilidade de composição.
@@ -354,8 +360,8 @@ Só marcar `SEC-001`, `SEC-002`, `SEC-003` e o checklist da Sprint 0 como conclu
 - Arquivos afetados: `README.md`
 - Descrição: corrigir divergência entre documentação e stack efetiva.
 - Subtarefas:
-[ ] Ajustar versões/frameworks declarados (React/Vite/MySQL).
-[ ] Atualizar seção de setup, build, teste e deploy real.
+[x] Ajustar versões/frameworks declarados (React/Vite/MySQL).
+[x] Atualizar seção de setup, build, teste e deploy real.
 [ ] Remover instruções obsoletas.
 - Critérios de aceite:
 - README condiz com código atual.

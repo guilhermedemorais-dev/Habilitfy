@@ -177,7 +177,9 @@ Meta: reduzir complexidade acoplada e custo de manutenção.
 [x] Criar comando `npm run verify` e adotar como gate local.  
 [x] Publicar status final contra Definition of Done global.
 
-## Status Final (2026-03-01)
+## Status Registrado em 2026-03-01
+
+Este bloco representa o fechamento registrado naquele momento. O estado atual do repositório foi revalidado em 2026-03-11 na seção abaixo.
 
 Entregue neste ciclo:
 - Bugfixes críticos do admin concluídos antes da expansão estrutural.
@@ -185,7 +187,7 @@ Entregue neste ciclo:
 - `withdrawals` alinhado com migration corretiva e backup pré-migration.
 - `server/routes.ts` modularizado por domínios administrativos (`admin-control`, `admin-config`, `admin-finance`, `admin-operations`, `admin-user-management`).
 - `client/src/pages/Admin.tsx` fatiado por contexto (`dashboard`, `instructors`, `students`, `bookings`, `finance`, `settings`, `integrations`).
-- Gate local `npm run verify` mantido verde durante os batches.
+- Gate local `npm run verify` mantido verde durante os batches de 2026-03-01.
 
 Status contra a Definition of Done Global:
 - `npm run check` sem erros: `OK`
@@ -203,6 +205,35 @@ Conclusão:
 Bloqueadores remanescentes em 2026-03-01:
 - A parte de repositório foi saneada (`.env.production` saiu do versionamento ativo e o dump não acusou email/CPF no scanner local).
 - A Sprint 0 ainda não pode ser encerrada como concluída sem evidência externa de rotação efetiva das credenciais e sem o fechamento operacional de rollback/monitoramento pós-deploy.
+
+## Revalidação Local (2026-03-11)
+
+Comandos executados nesta revalidação:
+- `npm run check`: `OK`
+- `npm run test:unit`: `OK`
+- `npm run verify`: `OK`
+- `git ls-files .env.production`: sem retorno
+- Scanner local em `migrations/production_full_dump.sql` com regex de email/CPF/telefone: sem matches
+- Busca de rotas duplicadas: apenas uma definição encontrada para `GET /api/admin/instructors`, `GET /api/admin/users` e `GET /api/auth/user`
+
+Revalidação da suíte unitária:
+- Os timeouts observados no início desta sessão foram eliminados com ajuste explícito de timeout nos testes mais pesados do admin.
+- `npm run test:unit` voltou a fechar com `13 passed` / `31 passed`.
+
+Leitura atual contra a Definition of Done Global:
+- `npm run check` sem erros: `OK`
+- `npm run test:unit` passando: `OK`
+- Gate local `npm run verify`: `OK`
+- Sem segredos versionados no Git: `OK`
+- Sem dados pessoais reais em artefatos versionados: `OK` pelo scanner local usado nesta data
+- Logs sem payload sensível: implementação presente, sem nova validação operacional nesta revalidação
+- Rollback testado/documentado para mudanças de produção: `PENDENTE`
+- Janela de monitoramento pós-deploy concluída sem regressão crítica: `PENDENTE`
+
+Conclusão da revalidação:
+- O trabalho estrutural segue visível no código.
+- A evidência de qualidade local volta a sustentar `npm run test:unit` e `npm run verify` verdes no estado atual do repositório.
+- O fechamento integral da DoD global continua bloqueado pelos itens operacionais da Sprint 0.
 
 ## Questões em Aberto
 
