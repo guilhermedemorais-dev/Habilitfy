@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen" alt="Node Version"/>
+  <img src="https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen" alt="Node Version"/>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License"/>
   <img src="https://img.shields.io/badge/status-em%20desenvolvimento-yellow" alt="Status"/>
 </p>
@@ -78,7 +78,7 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 - **Recharts** - Gráficos e visualizações
 
 ### Backend
-- **Node.js 22** - Runtime JavaScript
+- **Node.js 20+** - Runtime JavaScript
 - **Express 4** - Framework web
 - **MySQL 8+** - Banco de dados relacional
 - **Drizzle ORM** - ORM type-safe
@@ -102,7 +102,7 @@ O **HabilitFy** é uma plataforma SaaS moderna que conecta **instrutores de dire
 
 ### Pré-requisitos
 
-- Node.js >= 22.x
+- Node.js >= 20.x
 - MySQL >= 8
 - npm ou yarn
 
@@ -193,7 +193,8 @@ LOCAL_USER_ROLE=admin
 | `DATABASE_URL` | URL de conexão MySQL |
 | `SESSION_SECRET` | Chave secreta para sessões |
 | `NODE_ENV` | `production` para deploy |
-| `AUTH_MODE` | `oidc` para produção ( `local` é bloqueado em produção ) |
+| `AUTH_MODE` | `oidc` para produção (`local` é bloqueado em produção) |
+| `BASE_URL` | URL pública da aplicação |
 
 ### QA remoto (espelho)
 
@@ -204,15 +205,21 @@ cp .env.qa-remote.example .env.qa-remote
 npm run audit:schema:parity
 ```
 
-### Variáveis Opcionais
+### Variáveis por funcionalidade
 
 | Variável | Descrição |
 |----------|-----------|
 | `GOOGLE_CLIENT_ID` | ID do cliente Google OAuth 2.0 |
 | `GOOGLE_CLIENT_SECRET` | Secret do cliente Google OAuth 2.0 |
-| `GOOGLE_CALLBACK_URL` | URL de callback (ex: https://site.com/api/auth/google/callback) |
+| `GOOGLE_CALLBACK_URL` | URL absoluta de callback (ex: `https://site.com/api/auth/google/callback`) |
 | `ABACATEPAY_API_KEY` | Chave de API do AbacatePay |
+| `ABACATEPAY_WEBHOOK_SECRET` | Segredo do webhook AbacatePay |
+| `STRIPE_API_KEY` | Chave privada Stripe |
+| `STRIPE_WEBHOOK_SECRET` | Segredo do webhook Stripe |
 | `OPENAI_API_KEY` | Chave de API da OpenAI |
+| `ANTHROPIC_API_KEY` | Chave de API da Anthropic |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | SMTP para envio de e-mails |
+| `REDIS_URL` | Cache opcional |
 
 ### Deploy com Docker
 
@@ -220,12 +227,16 @@ npm run audit:schema:parity
 docker-compose up -d
 ```
 
-### Deploy na Hostinger / VPS
+### Deploy em VPS
 
-1. Configure as variáveis de ambiente no painel
-2. Aponte para a branch `main`
-3. Use a configuração predefinida **Express**
-4. O build será executado automaticamente
+1. Crie `.env.production` a partir de `.env.production.example`
+2. Rode `npm ci`
+3. Rode `npm run build`
+4. Aplique o schema com `npm run db:push`
+5. Suba a aplicação com `npm start`
+6. Coloque Nginx ou outro proxy reverso na frente da porta `5000`
+
+Guia operacional completo: [docs/deploy/vps-production-requirements.md](docs/deploy/vps-production-requirements.md)
 
 ---
 

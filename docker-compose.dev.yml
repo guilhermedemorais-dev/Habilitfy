@@ -1,72 +1,64 @@
-# HabilitFy - Development Docker Compose
-# Usage: docker-compose -f docker-compose.dev.yml up
-
-version: '3.8'
+# =====================================================
+# HabilitFy - LOCAL DEVELOPMENT ONLY
+# -----------------------------------------------------
+# WARNING: This compose file uses weak, well-known passwords and
+# exposes services on every network interface. It is intended ONLY
+# for local development on a trusted workstation. NEVER deploy to a
+# server, VPS, or any host reachable from the internet.
+# For production, use docker-compose.yml (which requires secrets via env).
+# =====================================================
 
 services:
-  # =====================
-  # PostgreSQL Database
-  # =====================
   db:
-    image: postgres:16-alpine
-    container_name: habilitfy-db-dev
+    image: mysql:8.4
+    container_name: habilitfy-mysql-dev
     restart: unless-stopped
     environment:
-      POSTGRES_USER: habilitfy
-      POSTGRES_PASSWORD: habilitfy_dev
-      POSTGRES_DB: habilitfy
+      MYSQL_DATABASE: habilitfy
+      MYSQL_USER: habilitfy
+      MYSQL_PASSWORD: habilitfy_dev
+      MYSQL_ROOT_PASSWORD: root_dev_password
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
+      - mysql_dev_data:/var/lib/mysql
+      - ./migrations/mysql-schema.sql:/docker-entrypoint-initdb.d/001-mysql-schema.sql:ro
+    # Loopback-only bind so the dev DB is never reachable from LAN.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:3306:3306"
     networks:
       - habilitfy-dev
 
-  # =====================
-  # Redis Cache
-  # =====================
   redis:
     image: redis:7-alpine
     container_name: habilitfy-redis-dev
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - habilitfy-dev
 
-  # =====================
-  # pgAdmin (Database UI)
-  # =====================
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: habilitfy-pgadmin
+  adminer:
+    image: adminer:latest
+    container_name: habilitfy-adminer
     restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@habilitfy.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:8080"
     networks:
       - habilitfy-dev
     depends_on:
       - db
 
-  # =====================
-  # MailHog (Email Testing)
-  # =====================
   mailhog:
     image: mailhog/mailhog:latest
     container_name: habilitfy-mailhog
     restart: unless-stopped
     ports:
-      - "1025:1025" # SMTP
-      - "8025:8025" # Web UI
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
     networks:
       - habilitfy-dev
 
 volumes:
-  postgres_dev_data:
+  mysql_dev_data:
     driver: local
 
 networks:

@@ -2,9 +2,15 @@ import { loadEnvFile } from "./env";
 
 const ensureEnv = () => {
   const envFile = loadEnvFile();
-  if (!process.env.DATABASE_URL && envFile.DATABASE_URL) {
-    process.env.DATABASE_URL = envFile.DATABASE_URL;
-  }
+  process.env.DB_HOST = process.env.DB_HOST || "127.0.0.1";
+  process.env.DB_PORT = process.env.DB_PORT || "3306";
+  process.env.DB_USER = process.env.DB_USER || "habilitfy";
+  process.env.DB_PASSWORD = process.env.DB_PASSWORD || "habilitfy_dev";
+  process.env.DB_NAME = process.env.DB_NAME || "habilitfy";
+  process.env.DATABASE_URL =
+    process.env.E2E_DATABASE_URL ||
+    envFile.E2E_DATABASE_URL ||
+    "mysql://habilitfy:habilitfy_dev@127.0.0.1:3306/habilitfy";
   if (!process.env.SESSION_SECRET && envFile.SESSION_SECRET) {
     process.env.SESSION_SECRET = envFile.SESSION_SECRET;
   }

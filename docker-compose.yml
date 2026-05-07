@@ -1,36 +1,45 @@
-# HabilitFy - Docker Compose Production
-# Usage: docker-compose -f docker-compose.yml up -d
-
-version: '3.8'
+# =====================================================
+# HabilitFy - Production docker-compose
+# -----------------------------------------------------
+# Required environment variables (no defaults — deploy fails fast if absent):
+#   DB_NAME, DB_USER, DB_PASSWORD, DB_ROOT_PASSWORD,
+#   SESSION_SECRET, BASE_URL, DOMAIN
+# Recommended:
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OWNER_MASTER_EMAIL,
+#   ABACATEPAY_API_KEY, ABACATEPAY_WEBHOOK_SECRET, STRIPE_API_KEY,
+#   SMTP_*, OPENAI_API_KEY, ANTHROPIC_API_KEY
+#
+# Provide them via your orchestrator's secret manager or a server-only
+# .env file (chmod 600). NEVER commit real values.
+# =====================================================
 
 services:
-  # =====================
-  # PostgreSQL Database
-  # =====================
   db:
-    image: postgres:16-alpine
+    image: mysql:8.4
     container_name: habilitfy-db
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-habilitfy}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-habilitfy_secret}
-      POSTGRES_DB: ${DB_NAME:-habilitfy}
+      MYSQL_DATABASE: ${DB_NAME:?DB_NAME is required}
+      MYSQL_USER: ${DB_USER:?DB_USER is required}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d:ro
+      - mysql_data:/var/lib/mysql
+      - ./migrations/mysql-schema.sql:/docker-entrypoint-initdb.d/001-mysql-schema.sql:ro
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-habilitfy} -d ${DB_NAME:-habilitfy}" ]
-      interval: 10s
+      # Use root socket auth via env to avoid leaking the app password to argv.
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent" ]
+      interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - habilitfy-network
-    ports:
-      - "5432:5432"
+    # No `ports:` mapping in production: MySQL is reachable only via the
+    # internal `habilitfy-network`. To expose for emergency admin access,
+    # bind to loopback only and tunnel via SSH:
+    #   ports:
+    #     - "127.0.0.1:3306:3306"
 
-  # =====================
-  # Redis Cache (Optional)
-  # =====================
   redis:
     image: redis:7-alpine
     container_name: habilitfy-redis
@@ -45,12 +54,11 @@ services:
       retries: 5
     networks:
       - habilitfy-network
-    ports:
-      - "6379:6379"
+    # No `ports:` in production — internal network only.
+    # Loopback-only override if absolutely needed:
+    #   ports:
+    #     - "127.0.0.1:6379:6379"
 
-  # =====================
-  # HabilitFy Application
-  # =====================
   app:
     build:
       context: .
@@ -66,84 +74,57 @@ services:
       NODE_ENV: production
       PORT: 5000
       HOST: 0.0.0.0
-
-      # Database
-      DATABASE_URL: postgresql://${DB_USER:-habilitfy}:${DB_PASSWORD:-habilitfy_secret}@db:5432/${DB_NAME:-habilitfy}
-
-      # Session
-      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
-
-      # Authentication
-      AUTH_MODE: production
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-/api/auth/google/callback}
-
-      # AI Services
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      BASE_URL: ${BASE_URL:?BASE_URL is required}
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+      DATABASE_URL: mysql://${DB_USER}:${DB_PASSWORD}@db:3306/${DB_NAME}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required - generate with openssl rand -hex 64}"
+      SESSION_COOKIE_SECURE: "true"
+      SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-lax}
+      AUTH_MODE: ${AUTH_MODE:-oidc}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+      GOOGLE_AUTO_REGISTER: ${GOOGLE_AUTO_REGISTER:-false}
+      OWNER_MASTER_EMAIL: ${OWNER_MASTER_EMAIL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-
-      # Redis
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ABACATEPAY_API_KEY: ${ABACATEPAY_API_KEY:-}
+      ABACATEPAY_WEBHOOK_SECRET: ${ABACATEPAY_WEBHOOK_SECRET:-}
+      ABACATEPAY_BASE_URL: ${ABACATEPAY_BASE_URL:-https://api.abacatepay.com}
+      ABACATEPAY_DEV_MODE: ${ABACATEPAY_DEV_MODE:-false}
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       REDIS_URL: redis://redis:6379
     volumes:
       - uploads_data:/app/uploads
+    # Expose app on loopback by default; put a TLS-terminating reverse proxy
+    # (Caddy/Traefik/Nginx) in front. To bind publicly, override in a
+    # docker-compose.override.yml that you do not commit.
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     networks:
       - habilitfy-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.habilitfy.rule=Host(`${DOMAIN:-localhost}`)"
-      - "traefik.http.routers.habilitfy.tls=true"
-      - "traefik.http.routers.habilitfy.tls.certresolver=letsencrypt"
-      - "traefik.http.services.habilitfy.loadbalancer.server.port=5000"
 
-  # =====================
-  # Traefik Reverse Proxy (Optional)
-  # =====================
-  traefik:
-    image: traefik:v3.0
-    container_name: habilitfy-traefik
-    restart: always
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - letsencrypt_data:/letsencrypt
-    networks:
-      - habilitfy-network
-    profiles:
-      - production
-
-# =====================
-# Volumes
-# =====================
 volumes:
-  postgres_data:
+  mysql_data:
     driver: local
   redis_data:
     driver: local
   uploads_data:
     driver: local
-  letsencrypt_data:
-    driver: local
 
-# =====================
-# Networks
-# =====================
 networks:
   habilitfy-network:
     driver: bridge

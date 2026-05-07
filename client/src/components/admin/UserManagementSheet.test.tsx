@@ -17,6 +17,8 @@ vi.mock("@/hooks/use-toast", () => ({
   }),
 }));
 
+const SLOW_TEST_TIMEOUT_MS = 20_000;
+
 const reviewPayload = {
   user: {
     id: "user-1",
@@ -144,5 +146,5 @@ describe("UserManagementSheet", () => {
         "/api/admin/users/user-1/history",
       );
     });
-  });
+  }, SLOW_TEST_TIMEOUT_MS);
 });

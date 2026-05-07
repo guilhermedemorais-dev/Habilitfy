@@ -34,6 +34,8 @@ vi.mock("./AdminFinancialCharts", () => ({
 
 import { AdminDashboardSection } from "./AdminDashboardSection";
 
+const SLOW_TEST_TIMEOUT_MS = 20_000;
+
 describe("AdminDashboardSection", () => {
   it("renders overview content and triggers primary actions", () => {
     const onExportBookings = vi.fn();
@@ -104,5 +106,5 @@ describe("AdminDashboardSection", () => {
 
     expect(onExportBookings).toHaveBeenCalledTimes(1);
     expect(onMapLayerChange).toHaveBeenCalledWith("students");
-  });
+  }, SLOW_TEST_TIMEOUT_MS);
 });

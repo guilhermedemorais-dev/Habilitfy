@@ -7,6 +7,7 @@ vite.config.ts.*
 tmp_tsx/
 .env
 .env.*
+.env.production
 !.env.production.example
 !.env.qa-remote.example
 client_secret_*.json
@@ -17,3 +18,20 @@ client_secret_*.json
 .factory/bots/runtime/.env
 logs/
 backups/
+
+# TestSprite / QA generated artifacts
+.testsprite/
+testsprite_tests/
+code_summary.json
+standard_prd.json
+TestSprite_*
+testsprite-report*
+testsprite-results/
+output/playwright/
+test-results/
+playwright-report/
+videos/
+.claude/
+.codex/
+.blackbox/
+BOOT_MARKER.txt
