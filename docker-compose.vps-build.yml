@@ -1,21 +1,23 @@
 # =====================================================
-# HabilitFy - Hostinger / Docker Manager production compose
+# HabilitFy - Production docker-compose
 # -----------------------------------------------------
-# Hostinger Docker Manager does not build local Dockerfiles. Publish the
-# app image first, then set APP_IMAGE to that public image reference.
-#
-# Required env:
-#   APP_IMAGE, DB_NAME, DB_USER, DB_PASSWORD, DB_ROOT_PASSWORD,
+# Required environment variables (no defaults — deploy fails fast if absent):
+#   DB_NAME, DB_USER, DB_PASSWORD, DB_ROOT_PASSWORD,
 #   SESSION_SECRET, BASE_URL, DOMAIN
+# Recommended:
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OWNER_MASTER_EMAIL,
+#   ABACATEPAY_API_KEY, ABACATEPAY_WEBHOOK_SECRET, STRIPE_API_KEY,
+#   SMTP_*, OPENAI_API_KEY, ANTHROPIC_API_KEY
 #
-# This file avoids `build:` because Hostinger Docker Manager expects
-# public images it can pull directly.
+# Provide them via your orchestrator's secret manager or a server-only
+# .env file (chmod 600). NEVER commit real values.
 # =====================================================
 
 services:
   db:
     image: mysql:8.4
-    restart: unless-stopped
+    container_name: habilitfy-db
+    restart: always
     environment:
       MYSQL_DATABASE: ${DB_NAME:?DB_NAME is required}
       MYSQL_USER: ${DB_USER:?DB_USER is required}
@@ -23,33 +25,46 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
     volumes:
       - mysql_data:/var/lib/mysql
-      # This file must exist beside this compose file on the VPS before first boot.
       - ./migrations/mysql-schema.sql:/docker-entrypoint-initdb.d/001-mysql-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      # Use root socket auth via env to avoid leaking the app password to argv.
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent" ]
       interval: 15s
       timeout: 5s
       retries: 10
     networks:
-      - app_internal
+      - habilitfy-network
+    # No `ports:` mapping in production: MySQL is reachable only via the
+    # internal `habilitfy-network`. To expose for emergency admin access,
+    # bind to loopback only and tunnel via SSH:
+    #   ports:
+    #     - "127.0.0.1:3306:3306"
 
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
+    container_name: habilitfy-redis
+    restart: always
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - app_internal
+      - habilitfy-network
+    # No `ports:` in production — internal network only.
+    # Loopback-only override if absolutely needed:
+    #   ports:
+    #     - "127.0.0.1:6379:6379"
 
   app:
-    image: ${APP_IMAGE:?APP_IMAGE is required, e.g. docker.io/your-user/habilitfy:1.0.0}
-    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: habilitfy-app
+    restart: always
     depends_on:
       db:
         condition: service_healthy
@@ -67,7 +82,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
-      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required - generate with openssl rand -hex 64}"
       SESSION_COOKIE_SECURE: "true"
       SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-lax}
       AUTH_MODE: ${AUTH_MODE:-oidc}
@@ -94,16 +109,22 @@ services:
       REDIS_URL: redis://redis:6379
     volumes:
       - uploads_data:/app/uploads
+    # Expose app on loopback by default; put a TLS-terminating reverse proxy
+    # (Caddy/Traefik/Nginx) in front. To bind publicly, override in a
+    # docker-compose.override.yml that you do not commit.
     ports:
-      - "${APP_PORT:-5000}:5000"
+      - "127.0.0.1:5000:5000"
     networks:
-      - app_internal
+      - habilitfy-network
 
 volumes:
   mysql_data:
+    driver: local
   redis_data:
+    driver: local
   uploads_data:
+    driver: local
 
 networks:
-  app_internal:
+  habilitfy-network:
     driver: bridge
