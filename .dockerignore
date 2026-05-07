@@ -40,20 +40,57 @@ jest.config.*
 *.test.*
 *.spec.*
 __tests__
+e2e
+test-results
+playwright.config.ts
+vitest.config.ts
+vitest.setup.ts
 
 # Documentation
 docs
+docs_legacy
+docs.prd
 README.md
 CHANGELOG.md
 LICENSE
 *.md
 
-# Development
+# Secrets / env files (NEVER ship to image)
 .env
-.env.local
-.env.development
-.env.test
-*.local
+.env.*
+!.env.production.example
+!.env.qa-remote.example
+client_secret_*.json
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+.factory
+.agents
+.claude
+.codex
+
+# Local data, backups, dumps, uploads
+backups
+uploads
+*.sql
+*.dump
+*.bak
+*.tar.gz
+*.zip
+
+# Local helper scripts that read .env.production directly
+seed-admin-prod.ts
+diagnose-data.ts
+fix-production-data.ts
+test-db.cjs
+test-prod-connection.ts
+test-connection-modes.ts
+test-remote-server.cjs
+test_hello.ts
+dev.log
 
 # OS files
 .DS_Store
@@ -61,18 +98,17 @@ Thumbs.db
 
 # Temporary files
 tmp
+tmp_tsx
+.tmp-*
+.tsx-tmp
+.vite-cache
 temp
 .tmp
 .temp
 *.tmp
-*.bak
 
 # Cache
 .cache
 .parcel-cache
 .eslintcache
 .npm
-
-# Database
-*.sql
-*.dump

@@ -1276,23 +1276,64 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  private async ensureWalletEntry(transaction: Transaction) {
+  private async getOrCreateWalletTx(tx: any, userId: string): Promise<Wallet> {
+    const [existing] = await tx
+      .select()
+      .from(wallets)
+      .where(eq(wallets.userId, userId));
+    if (existing) return existing;
+
+    const walletId = crypto.randomUUID();
+    const now = new Date();
+    const wallet: Wallet = {
+      id: walletId,
+      userId,
+      balance: "0.00",
+      currency: "BRL",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await tx.insert(wallets).values(wallet);
+    return wallet;
+  }
+
+  private async ensureWalletEntryTx(tx: any, transaction: Transaction) {
     if (!transaction.toUserId) return;
 
-    const [existing] = await db
+    await tx.execute(sql`SELECT id FROM transactions WHERE id = ${transaction.id} FOR UPDATE`);
+
+    const [existing] = await tx
       .select({ id: walletEntries.id })
       .from(walletEntries)
-      .where(eq(walletEntries.transactionId, transaction.id));
+      .where(
+        transaction.bookingId
+          ? or(
+              eq(walletEntries.transactionId, transaction.id),
+              and(
+                eq(walletEntries.userId, transaction.toUserId),
+                eq(walletEntries.bookingId, transaction.bookingId),
+                eq(walletEntries.type, "credit" as any),
+                eq(walletEntries.amount, transaction.amountNet),
+              ),
+            )
+          : eq(walletEntries.transactionId, transaction.id),
+      );
 
     if (existing) return;
 
-    const wallet = await this.getOrCreateWallet(transaction.toUserId);
+    await tx.execute(sql`SELECT id FROM users WHERE id = ${transaction.toUserId} FOR UPDATE`);
 
-    await db.insert(walletEntries).values({
+    const wallet = await this.getOrCreateWalletTx(tx, transaction.toUserId);
+    const amountNet = Number(transaction.amountNet);
+    const safeAmountNet = Number.isFinite(amountNet) ? amountNet.toFixed(2) : "0.00";
+
+    await tx.insert(walletEntries).values({
+      id: crypto.randomUUID(),
       walletId: wallet.id,
       userId: transaction.toUserId,
       type: "credit",
-      amount: transaction.amountNet,
+      amount: safeAmountNet,
       description: transaction.bookingId
         ? `Repasse booking ${transaction.bookingId}`
         : "Repasse booking",
@@ -1301,25 +1342,23 @@ export class DatabaseStorage implements IStorage {
       createdAt: transaction.createdAt ?? new Date(),
     });
 
-    const currentBalance = Number(wallet.balance);
-    const baseBalance = Number.isFinite(currentBalance) ? currentBalance : 0;
-    const delta = Number(transaction.amountNet);
-    const safeDelta = Number.isFinite(delta) ? delta : 0;
-    const updatedBalance = baseBalance + safeDelta;
-
-    await db
+    await tx
       .update(wallets)
-      .set({ balance: updatedBalance.toFixed(2), updatedAt: new Date() })
+      .set({
+        balance: sql`${wallets.balance} + ${safeAmountNet}`,
+        updatedAt: new Date(),
+      })
       .where(eq(wallets.id, wallet.id));
+  }
+
+  private async ensureWalletEntry(transaction: Transaction) {
+    await db.transaction(async (tx) => {
+      await this.ensureWalletEntryTx(tx, transaction);
+    });
   }
 
   async upsertBookingTransaction(booking: Booking): Promise<Transaction | undefined> {
     if (!booking) return undefined;
-
-    const [existing] = await db
-      .select()
-      .from(transactions)
-      .where(eq(transactions.bookingId, booking.id));
 
     const instructor = await this.getInstructor(booking.instructorId);
     const gross = Number(booking.totalPrice);
@@ -1337,8 +1376,39 @@ export class DatabaseStorage implements IStorage {
     // Only process wallet entry if status is 'paid' (money is available)
     const shouldProcessWallet = status === "paid";
 
-    if (existing) {
-      await db.update(transactions).set({
+    return await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM bookings WHERE id = ${booking.id} FOR UPDATE`);
+
+      const [existing] = await tx
+        .select()
+        .from(transactions)
+        .where(and(eq(transactions.bookingId, booking.id), eq(transactions.type, "booking")));
+
+      if (existing) {
+        await tx.update(transactions).set({
+          status,
+          amountGross,
+          amountNet,
+          gateway: booking.paymentProvider ?? null,
+          paymentId: booking.paymentId ?? null,
+          fromUserId: booking.studentId,
+          toUserId: instructor?.userId ?? null,
+          updatedAt: new Date(),
+        }).where(eq(transactions.id, existing.id));
+        const [updated] = await tx.select().from(transactions).where(eq(transactions.id, existing.id));
+
+        if (shouldProcessWallet) {
+          await this.ensureWalletEntryTx(tx, updated);
+        }
+
+        return updated;
+      }
+
+      const transactionId = crypto.randomUUID();
+      await tx.insert(transactions).values({
+        id: transactionId,
+        bookingId: booking.id,
+        type: "booking",
         status,
         amountGross,
         amountNet,
@@ -1346,37 +1416,15 @@ export class DatabaseStorage implements IStorage {
         paymentId: booking.paymentId ?? null,
         fromUserId: booking.studentId,
         toUserId: instructor?.userId ?? null,
-        updatedAt: new Date(),
-      }).where(eq(transactions.id, existing.id));
-      const [updated] = await db.select().from(transactions).where(eq(transactions.id, existing.id));
+      });
+      const [created] = await tx.select().from(transactions).where(eq(transactions.id, transactionId));
 
       if (shouldProcessWallet) {
-        await this.ensureWalletEntry(updated);
+        await this.ensureWalletEntryTx(tx, created);
       }
 
-      return updated;
-    }
-
-    const transactionId = crypto.randomUUID();
-    await db.insert(transactions).values({
-      id: transactionId,
-      bookingId: booking.id,
-      type: "booking",
-      status,
-      amountGross,
-      amountNet,
-      gateway: booking.paymentProvider ?? null,
-      paymentId: booking.paymentId ?? null,
-      fromUserId: booking.studentId,
-      toUserId: instructor?.userId ?? null,
+      return created;
     });
-    const [created] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
-
-    if (shouldProcessWallet) {
-      await this.ensureWalletEntry(created);
-    }
-
-    return created;
   }
 
   async createReview(reviewData: InsertReview): Promise<Review> {

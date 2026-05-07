@@ -26,7 +26,7 @@ type InstructorDetails = Instructor & {
 };
 
 export default function Booking() {
-  const { id } = useParams();
+  const { instructorId: id } = useParams<{ instructorId: string }>();
   const [, setLocation] = useLocation();
   const [rentVehicle, setRentVehicle] = useState(false);
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);

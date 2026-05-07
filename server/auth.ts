@@ -502,7 +502,10 @@ export async function setupAuth(app: Express) {
                     req.login(effectiveLocalUser, (err) => {
                         if (err) return next(err);
                         logger.info(`[auth] Local auto-login success for ${effectiveLocalUser.id}`);
-                        return res.redirect("/");
+                        const redirect = typeof req.query.redirect === "string"
+                            ? req.query.redirect
+                            : "/";
+                        return res.redirect(redirect.startsWith("/") ? redirect : "/");
                     });
                     return;
                 }
@@ -607,7 +610,24 @@ export async function setupAuth(app: Express) {
     // Auth Status Route
     // -------------------------------------------------------------------------
     app.get("/api/auth/user", async (req, res) => {
-        if (!req.isAuthenticated() || !req.user) {
+        if ((!req.isAuthenticated() || !req.user) && isLocalAuthMode()) {
+            const isTestEnv = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+            const allowBypass = process.env.E2E_AUTH_BYPASS === "true" || process.env.E2E_AUTH_BYPASS === "1";
+
+            if (isTestEnv || allowBypass) {
+                const localUserId = process.env.LOCAL_USER_ID || "local-admin";
+                const localUser = await storage.getUser(localUserId);
+
+                if (localUser) {
+                    (req as any).user = {
+                        ...localUser,
+                        claims: { sub: localUser.id },
+                    };
+                }
+            }
+        }
+
+        if (!req.isAuthenticated() && !req.user) {
             return res.status(401).json({ message: "Not authenticated" });
         }
 

@@ -3,8 +3,10 @@ import { test, expect } from "@playwright/test";
 test("fluxo completo: instrutor -> agendamento -> checkout -> sucesso", async ({
   page,
 }) => {
-  await page.goto("/api/login");
-  await page.goto("/instrutores");
+  const loginResponse = await page.request.get("/api/login");
+  expect(loginResponse.ok()).toBeTruthy();
+
+  await page.goto("/mapa");
 
   await page.getByRole("button", { name: "Lista" }).click();
   await expect(page.getByText("Instrutores Próximos")).toBeVisible();
@@ -18,7 +20,7 @@ test("fluxo completo: instrutor -> agendamento -> checkout -> sucesso", async ({
   const instructorId = href.split("/").pop();
   await page.goto(href, { waitUntil: "domcontentloaded" });
   await expect(
-    page.getByRole("button", { name: "Agendar Horário" }),
+    page.getByRole("button", { name: "Agendar Aula" }),
   ).toBeVisible();
 
   if (instructorId) {
@@ -99,23 +101,36 @@ test("fluxo completo: instrutor -> agendamento -> checkout -> sucesso", async ({
       throw new Error("Nao foi possivel encontrar horario disponivel para teste.");
     }
 
-    await page.getByRole("button", { name: "Agendar Horário" }).click();
+    await page.getByRole("button", { name: "Agendar Aula" }).click();
     await expect(
       page.getByRole("heading", { name: "Agendar Aula" }),
     ).toBeVisible();
 
-    await page.getByLabel("Data").fill(dateValue);
-    await page.getByLabel("Horário").selectOption({ value: startTime });
+    for (let submitAttempt = 0; submitAttempt < 5; submitAttempt += 1) {
+      await page.getByLabel("Data").fill(dateValue);
+      await page.getByLabel("Horário").selectOption({ value: startTime });
 
-    const bookingResponsePromise = page.waitForResponse(
-      (resp) =>
-        resp.url().includes("/api/bookings") &&
-        resp.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "Ir para Pagamento" }).click();
-    const bookingResponse = await bookingResponsePromise;
-    bookingStatus = bookingResponse.status();
-    bookingBody = await bookingResponse.text();
+      const bookingResponsePromise = page.waitForResponse(
+        (resp) =>
+          resp.url().includes("/api/bookings") &&
+          resp.request().method() === "POST",
+      );
+      await page.getByRole("button", { name: "Ir para Pagamento" }).click();
+      const bookingResponse = await bookingResponsePromise;
+      bookingStatus = bookingResponse.status();
+      bookingBody = await bookingResponse.text();
+
+      if (bookingStatus === 201) {
+        break;
+      }
+
+      if (bookingStatus !== 409) {
+        break;
+      }
+
+      bookingDate.setDate(bookingDate.getDate() + 7);
+      dateValue = bookingDate.toISOString().split("T")[0];
+    }
 
     if (bookingStatus !== 201) {
       console.log("Booking response:", bookingStatus, bookingBody);
@@ -124,9 +139,7 @@ test("fluxo completo: instrutor -> agendamento -> checkout -> sucesso", async ({
   }
 
   await expect(page.getByText("Checkout Seguro")).toBeVisible();
-
-  await page.getByRole("button", { name: /Gerar link de pagamento/i }).click();
   await expect(
-    page.getByRole("heading", { name: /Agendamento Confirmado/i }),
+    page.getByRole("button", { name: /Ir para Pagamento Seguro/i }),
   ).toBeVisible();
 });

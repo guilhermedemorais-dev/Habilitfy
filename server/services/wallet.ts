@@ -1,14 +1,24 @@
 import { db } from "../db";
 import { wallets, walletEntries, type Wallet, type WalletEntry } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import crypto from "crypto";
 
 export class WalletService {
-    /**
-     * Get or create a wallet for a user.
-     */
-    async getWallet(userId: string): Promise<Wallet> {
-        const existing = await db.query.wallets.findFirst({
+    private getAffectedRows(result: unknown) {
+        if (Array.isArray(result)) {
+            const [header] = result;
+            return Number((header as { affectedRows?: number } | undefined)?.affectedRows ?? 0);
+        }
+
+        return Number((result as { affectedRows?: number } | undefined)?.affectedRows ?? 0);
+    }
+
+    private async lockWalletOwner(tx: any, userId: string) {
+        await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+    }
+
+    private async getOrCreateWalletTx(tx: any, userId: string): Promise<Wallet> {
+        const existing = await tx.query.wallets.findFirst({
             where: eq(wallets.userId, userId),
         });
 
@@ -16,16 +26,28 @@ export class WalletService {
             return existing;
         }
 
-        const walletId = crypto.randomUUID();
-        await db.insert(wallets).values({
-            id: walletId,
+        const now = new Date();
+        const created: Wallet = {
+            id: crypto.randomUUID(),
             userId,
             balance: "0.00",
             currency: "BRL",
-        });
-        const [newWallet] = await db.select().from(wallets).where(eq(wallets.id, walletId));
+            createdAt: now,
+            updatedAt: now,
+        };
 
-        return newWallet;
+        await tx.insert(wallets).values(created);
+        return created;
+    }
+
+    /**
+     * Get or create a wallet for a user.
+     */
+    async getWallet(userId: string): Promise<Wallet> {
+        return await db.transaction(async (tx) => {
+            await this.lockWalletOwner(tx, userId);
+            return await this.getOrCreateWalletTx(tx, userId);
+        });
     }
 
     /**
@@ -42,41 +64,39 @@ export class WalletService {
         const entryType = type === "sale" ? "credit" : type;
 
         return await db.transaction(async (tx) => {
-            let wallet = await tx.query.wallets.findFirst({
-                where: eq(wallets.userId, userId),
-            });
+            await this.lockWalletOwner(tx, userId);
 
-            if (!wallet) {
-                const walletId = crypto.randomUUID();
-                await tx.insert(wallets).values({
-                    id: walletId,
-                    userId,
-                    balance: "0.00",
+            if (metadata?.transactionId) {
+                const existing = await tx.query.walletEntries.findFirst({
+                    where: eq(walletEntries.transactionId, metadata.transactionId),
                 });
-                const [created] = await tx.select().from(wallets).where(eq(wallets.id, walletId));
-                wallet = created;
+
+                if (existing) {
+                    return existing;
+                }
             }
 
-            // Insert Entry
-            const entryId = crypto.randomUUID();
-            await tx.insert(walletEntries).values({
-                id: entryId,
+            const wallet = await this.getOrCreateWalletTx(tx, userId);
+            const now = new Date();
+            const entry: WalletEntry = {
+                id: crypto.randomUUID(),
                 walletId: wallet.id,
                 userId,
                 type: entryType as any,
                 amount: amount.toFixed(2),
                 description,
-                bookingId: metadata?.bookingId,
-                transactionId: metadata?.transactionId,
-            });
-            const [entry] = await tx.select().from(walletEntries).where(eq(walletEntries.id, entryId));
+                bookingId: metadata?.bookingId ?? null,
+                transactionId: metadata?.transactionId ?? null,
+                createdAt: now,
+            };
 
-            // Update Balance
+            await tx.insert(walletEntries).values(entry);
+
             await tx
                 .update(wallets)
                 .set({
                     balance: sql`${wallets.balance} + ${amount.toFixed(2)}`,
-                    updatedAt: new Date(),
+                    updatedAt: now,
                 })
                 .where(eq(wallets.id, wallet.id));
 
@@ -96,7 +116,19 @@ export class WalletService {
         metadata?: { bookingId?: string; transactionId?: string }
     ): Promise<WalletEntry> {
         return await db.transaction(async (tx) => {
-            let wallet = await tx.query.wallets.findFirst({
+            await this.lockWalletOwner(tx, userId);
+
+            if (metadata?.transactionId) {
+                const existing = await tx.query.walletEntries.findFirst({
+                    where: eq(walletEntries.transactionId, metadata.transactionId),
+                });
+
+                if (existing) {
+                    return existing;
+                }
+            }
+
+            const wallet = await tx.query.wallets.findFirst({
                 where: eq(wallets.userId, userId),
             });
 
@@ -104,33 +136,38 @@ export class WalletService {
                 throw new Error("Wallet not found");
             }
 
-            const currentBalance = Number(wallet.balance);
-            if (currentBalance < amount) {
+            const now = new Date();
+            const amountValue = amount.toFixed(2);
+            const updateResult = await tx
+                .update(wallets)
+                .set({
+                    balance: sql`${wallets.balance} - ${amountValue}`,
+                    updatedAt: now,
+                })
+                .where(
+                    and(
+                        eq(wallets.id, wallet.id),
+                        sql`${wallets.balance} >= ${amountValue}`,
+                    ),
+                );
+
+            if (this.getAffectedRows(updateResult) === 0) {
                 throw new Error("Insufficient funds");
             }
 
-            // Insert Entry
-            const entryId = crypto.randomUUID();
-            await tx.insert(walletEntries).values({
-                id: entryId,
+            const entry: WalletEntry = {
+                id: crypto.randomUUID(),
                 walletId: wallet.id,
                 userId,
                 type: type,
                 amount: (-amount).toFixed(2),
                 description,
-                bookingId: metadata?.bookingId,
-                transactionId: metadata?.transactionId,
-            });
-            const [entry] = await tx.select().from(walletEntries).where(eq(walletEntries.id, entryId));
+                bookingId: metadata?.bookingId ?? null,
+                transactionId: metadata?.transactionId ?? null,
+                createdAt: now,
+            };
 
-            // Update Balance
-            await tx
-                .update(wallets)
-                .set({
-                    balance: sql`${wallets.balance} - ${amount.toFixed(2)}`,
-                    updatedAt: new Date(),
-                })
-                .where(eq(wallets.id, wallet.id));
+            await tx.insert(walletEntries).values(entry);
 
             return entry;
         });

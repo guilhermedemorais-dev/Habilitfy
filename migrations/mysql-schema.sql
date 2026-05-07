@@ -1,8 +1,9 @@
 -- HabilitFy MySQL Database Schema
 -- Synced with shared/schema.ts (Drizzle ORM source of truth)
--- CRITICAL: Column names for shared enums use the ENUM name, not 'status'/'type'
--- Example: mysqlEnum('instructor_status', ...) → column is `instructor_status`, NOT `status`
--- Last sync: 2026-02-11
+-- CRITICAL: Column names for shared enum builders are the Drizzle column names
+-- from shared/schema.ts, e.g. mysqlEnum('status', ...) used as `status` maps
+-- to column `status`.
+-- Last sync: 2026-05-05
 
 -- Sessions table (express-mysql-session compatible)
 -- CRITICAL: expires must be INT (epoch), NOT TIMESTAMP
@@ -18,7 +19,7 @@ CREATE TABLE IF NOT EXISTS `capture_sessions` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
   `session_token` VARCHAR(64) NOT NULL UNIQUE,
   `image_data` TEXT,
-  `capture_session_status` ENUM('pending', 'completed', 'expired') NOT NULL DEFAULT 'pending',
+  `status` ENUM('pending', 'completed', 'expired') NOT NULL DEFAULT 'pending',
   `expires_at` TIMESTAMP NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -56,7 +57,9 @@ CREATE TABLE IF NOT EXISTS `users` (
   `is_verified` TINYINT(1) NOT NULL DEFAULT 0,
   `verification_token` VARCHAR(255),
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `users_role_created_idx` (`role`, `created_at`),
+  INDEX `users_kyc_status_idx` (`kyc_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Admin Logs table (aligned with Drizzle schema)
@@ -100,7 +103,7 @@ CREATE TABLE IF NOT EXISTS `instructors` (
   `vehicle_doc_image_url` VARCHAR(500),
   `vehicle_plate_image_url` VARCHAR(500),
   `vehicle_authorization_image_url` VARCHAR(500),
-  `instructor_status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+  `status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   `service_areas` TEXT,
   `pix_key` VARCHAR(255),
   `years_experience` INT DEFAULT 0,
@@ -112,6 +115,8 @@ CREATE TABLE IF NOT EXISTS `instructors` (
   `lessons_completed` INT DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `instructors_user_idx` (`user_id`),
+  INDEX `instructors_status_city_state_idx` (`status`, `city`, `state`),
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -126,7 +131,7 @@ CREATE TABLE IF NOT EXISTS `bookings` (
   `rent_vehicle` BOOLEAN DEFAULT FALSE,
   `vehicle_rental_price` DECIMAL(10, 2) DEFAULT 0,
   `total_price` DECIMAL(10, 2) NOT NULL,
-  `booking_status` ENUM('pending', 'confirmed', 'paid', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
+  `status` ENUM('pending', 'confirmed', 'paid', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
   `meeting_address` TEXT,
   `student_notes` TEXT,
   `payment_status` VARCHAR(50) DEFAULT 'pending',
@@ -147,6 +152,11 @@ CREATE TABLE IF NOT EXISTS `bookings` (
   `cancelled_minutes` INT,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `bookings_student_date_idx` (`student_id`, `date`),
+  INDEX `bookings_instructor_date_idx` (`instructor_id`, `date`),
+  INDEX `bookings_instructor_date_status_idx` (`instructor_id`, `date`, `status`),
+  INDEX `bookings_status_created_idx` (`status`, `created_at`),
+  INDEX `bookings_payment_id_idx` (`payment_id`),
   FOREIGN KEY (`student_id`) REFERENCES `users`(`id`),
   FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`),
   FOREIGN KEY (`cancelled_by_user_id`) REFERENCES `users`(`id`)
@@ -161,6 +171,9 @@ CREATE TABLE IF NOT EXISTS `reviews` (
   `rating` INT NOT NULL,
   `comment` TEXT,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `reviews_booking_idx` (`booking_id`),
+  INDEX `reviews_instructor_created_idx` (`instructor_id`, `created_at`),
+  INDEX `reviews_student_created_idx` (`student_id`, `created_at`),
   FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`),
   FOREIGN KEY (`student_id`) REFERENCES `users`(`id`),
   FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`)
@@ -174,6 +187,7 @@ CREATE TABLE IF NOT EXISTS `availability` (
   `start_time` VARCHAR(10) NOT NULL,
   `end_time` VARCHAR(10) NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `availability_instructor_day_idx` (`instructor_id`, `day_of_week`),
   FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -186,6 +200,9 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `content` TEXT NOT NULL,
   `read` BOOLEAN NOT NULL DEFAULT FALSE,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `messages_sender_created_idx` (`sender_id`, `created_at`),
+  INDEX `messages_receiver_read_created_idx` (`receiver_id`, `read`, `created_at`),
+  INDEX `messages_booking_created_idx` (`booking_id`, `created_at`),
   FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`),
   FOREIGN KEY (`receiver_id`) REFERENCES `users`(`id`),
   FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`)
@@ -198,8 +215,8 @@ CREATE TABLE IF NOT EXISTS `disputes` (
   `opened_by_user_id` VARCHAR(36) NOT NULL,
   `opened_by_role` ENUM('student', 'instructor', 'admin') NOT NULL,
   `reason` TEXT NOT NULL,
-  `dispute_status` ENUM('open', 'in_review', 'resolved') NOT NULL DEFAULT 'open',
-  `dispute_resolution` ENUM('refund_student', 'release_instructor', 'split'),
+  `status` ENUM('open', 'in_review', 'resolved') NOT NULL DEFAULT 'open',
+  `resolution` ENUM('refund_student', 'release_instructor', 'split'),
   `resolved_by_user_id` VARCHAR(36),
   `resolved_at` TIMESTAMP NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -223,8 +240,8 @@ CREATE TABLE IF NOT EXISTS `admin_settings` (
 CREATE TABLE IF NOT EXISTS `transactions` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
   `booking_id` VARCHAR(36),
-  `transaction_type` ENUM('booking', 'withdrawal', 'refund', 'commission', 'affiliate', 'coupon') NOT NULL,
-  `transaction_status` ENUM('pending', 'paid', 'processing', 'refunded', 'cancelled', 'failed') NOT NULL DEFAULT 'pending',
+  `type` ENUM('booking', 'withdrawal', 'refund', 'commission', 'affiliate', 'coupon') NOT NULL,
+  `status` ENUM('pending', 'paid', 'processing', 'refunded', 'cancelled', 'failed') NOT NULL DEFAULT 'pending',
   `amount_gross` DECIMAL(10, 2) NOT NULL,
   `amount_net` DECIMAL(10, 2) NOT NULL,
   `gateway` VARCHAR(100),
@@ -233,6 +250,11 @@ CREATE TABLE IF NOT EXISTS `transactions` (
   `to_user_id` VARCHAR(36),
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `transactions_booking_idx` (`booking_id`),
+  INDEX `transactions_status_created_idx` (`status`, `created_at`),
+  INDEX `transactions_to_created_idx` (`to_user_id`, `created_at`),
+  INDEX `transactions_from_created_idx` (`from_user_id`, `created_at`),
+  INDEX `transactions_payment_id_idx` (`payment_id`),
   FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`),
   FOREIGN KEY (`from_user_id`) REFERENCES `users`(`id`),
   FOREIGN KEY (`to_user_id`) REFERENCES `users`(`id`)
@@ -254,12 +276,15 @@ CREATE TABLE IF NOT EXISTS `wallet_entries` (
   `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
   `wallet_id` VARCHAR(36) NOT NULL,
   `user_id` VARCHAR(36) NOT NULL,
-  `wallet_entry_type` ENUM('credit', 'debit', 'refund', 'withdrawal', 'adjustment') NOT NULL,
+  `type` ENUM('credit', 'debit', 'refund', 'withdrawal', 'adjustment') NOT NULL,
   `amount` DECIMAL(10, 2) NOT NULL,
   `description` TEXT,
   `booking_id` VARCHAR(36),
   `transaction_id` VARCHAR(36),
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `wallet_entries_wallet_created_idx` (`wallet_id`, `created_at`),
+  INDEX `wallet_entries_user_created_idx` (`user_id`, `created_at`),
+  INDEX `wallet_entries_transaction_idx` (`transaction_id`),
   FOREIGN KEY (`wallet_id`) REFERENCES `wallets`(`id`),
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`),
   FOREIGN KEY (`booking_id`) REFERENCES `bookings`(`id`),
@@ -280,6 +305,8 @@ CREATE TABLE IF NOT EXISTS `withdrawals` (
   `notes` TEXT,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `withdrawals_status_requested_idx` (`status`, `requested_at`),
+  INDEX `withdrawals_user_requested_idx` (`user_id`, `requested_at`),
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`),
   FOREIGN KEY (`processed_by_user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -304,7 +331,7 @@ CREATE TABLE IF NOT EXISTS `vehicles` (
   `year` INT NOT NULL,
   `plate` VARCHAR(20) NOT NULL,
   `category` VARCHAR(50) NOT NULL,
-  `vehicle_status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+  `status` ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   `photo_front` TEXT,
   `photo_side` TEXT,
   `photo_back` TEXT,
@@ -325,7 +352,7 @@ CREATE TABLE IF NOT EXISTS `support_tickets` (
   `message` TEXT NOT NULL,
   `attachment_urls` JSON,
   `type` VARCHAR(50) NOT NULL,
-  `ticket_status` ENUM('open', 'in_progress', 'resolved', 'closed') NOT NULL DEFAULT 'open',
+  `status` ENUM('open', 'in_progress', 'resolved', 'closed') NOT NULL DEFAULT 'open',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
@@ -356,14 +383,14 @@ CREATE TABLE IF NOT EXISTS `integrations` (
   `name` VARCHAR(255) NOT NULL,
   `slug` VARCHAR(100) NOT NULL,
   `category` VARCHAR(100) NOT NULL,
-  `integration_status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
-  `integration_environment` ENUM('development', 'production') NOT NULL DEFAULT 'production',
+  `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  `environment` ENUM('development', 'production') NOT NULL DEFAULT 'production',
   `is_default` BOOLEAN DEFAULT FALSE,
   `fields` JSON,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX `integrations_slug_env_idx` (`slug`, `integration_environment`),
-  INDEX `integrations_category_env_idx` (`category`, `integration_environment`)
+  INDEX `integrations_slug_env_idx` (`slug`, `environment`),
+  INDEX `integrations_category_env_idx` (`category`, `environment`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Notifications table

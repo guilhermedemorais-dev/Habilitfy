@@ -105,41 +105,48 @@ export const captureSessions = mysqlTable("capture_sessions", {
 
 export type CaptureSession = typeof captureSessions.$inferSelect;
 
-export const users = mysqlTable("users", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  email: varchar("email", { length: 255 }).unique(),
-  googleId: varchar("google_id", { length: 255 }).unique(),
-  firstName: varchar("first_name", { length: 255 }),
-  lastName: varchar("last_name", { length: 255 }),
-  profileImageUrl: varchar("profile_image_url", { length: 500 }),
-  role: userRoleEnum.default('student').notNull(),
-  adminRole: adminRoleEnum,
-  kycStatus: kycStatusEnum.default("approved").notNull(),
-  phone: varchar("phone", { length: 50 }),
-  cpf: varchar("cpf", { length: 20 }),
-  cnpj: varchar("cnpj", { length: 20 }),
-  addressLine: varchar("address_line", { length: 500 }),
-  zipCode: varchar("zip_code", { length: 20 }),
-  neighborhood: varchar("neighborhood", { length: 255 }),
-  city: varchar("city", { length: 255 }),
-  state: varchar("state", { length: 50 }),
-  lat: decimal("lat", { precision: 10, scale: 7 }),
-  lng: decimal("lng", { precision: 10, scale: 7 }),
-  isBlocked: boolean("is_blocked").default(false).notNull(),
-  blockedAt: timestamp("blocked_at"),
-  blockedReason: text("blocked_reason"),
-  blockedByAdminId: varchar("blocked_by_admin_id", { length: 36 }),
-  adminNotes: text("admin_notes"),
-  adminNotesUpdatedAt: timestamp("admin_notes_updated_at"),
-  adminNotesUpdatedByAdminId: varchar("admin_notes_updated_by_admin_id", {
-    length: 36,
-  }),
-  password: text("password"),
-  isVerified: boolean("is_verified").default(false).notNull(),
-  verificationToken: varchar("verification_token", { length: 255 }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const users = mysqlTable(
+  "users",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    email: varchar("email", { length: 255 }).unique(),
+    googleId: varchar("google_id", { length: 255 }).unique(),
+    firstName: varchar("first_name", { length: 255 }),
+    lastName: varchar("last_name", { length: 255 }),
+    profileImageUrl: varchar("profile_image_url", { length: 500 }),
+    role: userRoleEnum.default('student').notNull(),
+    adminRole: adminRoleEnum,
+    kycStatus: kycStatusEnum.default("approved").notNull(),
+    phone: varchar("phone", { length: 50 }),
+    cpf: varchar("cpf", { length: 20 }),
+    cnpj: varchar("cnpj", { length: 20 }),
+    addressLine: varchar("address_line", { length: 500 }),
+    zipCode: varchar("zip_code", { length: 20 }),
+    neighborhood: varchar("neighborhood", { length: 255 }),
+    city: varchar("city", { length: 255 }),
+    state: varchar("state", { length: 50 }),
+    lat: decimal("lat", { precision: 10, scale: 7 }),
+    lng: decimal("lng", { precision: 10, scale: 7 }),
+    isBlocked: boolean("is_blocked").default(false).notNull(),
+    blockedAt: timestamp("blocked_at"),
+    blockedReason: text("blocked_reason"),
+    blockedByAdminId: varchar("blocked_by_admin_id", { length: 36 }),
+    adminNotes: text("admin_notes"),
+    adminNotesUpdatedAt: timestamp("admin_notes_updated_at"),
+    adminNotesUpdatedByAdminId: varchar("admin_notes_updated_by_admin_id", {
+      length: 36,
+    }),
+    password: text("password"),
+    isVerified: boolean("is_verified").default(false).notNull(),
+    verificationToken: varchar("verification_token", { length: 255 }),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("users_role_created_idx").on(table.role, table.createdAt),
+    index("users_kyc_status_idx").on(table.kycStatus),
+  ],
+);
 
 export const adminLogs = mysqlTable("admin_logs", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
@@ -150,82 +157,107 @@ export const adminLogs = mysqlTable("admin_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const instructors = mysqlTable("instructors", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
-  bio: text("bio"),
-  pricePerHour: decimal("price_per_hour", { precision: 10, scale: 2 }).notNull(),
-  slotDurationMinutes: int("slot_duration_minutes").default(50).notNull(),
-  maxBookingsPerStudent: int("max_bookings_per_student").default(0).notNull(),
-  vehicleModel: varchar("vehicle_model", { length: 255 }).notNull(),
-  vehicleYear: varchar("vehicle_year", { length: 10 }),
-  vehicleType: varchar("vehicle_type", { length: 100 }).notNull(),
-  vehiclePlate: varchar("vehicle_plate", { length: 20 }),
-  rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),
-  reviewsCount: int("reviews_count").default(0),
-  lat: decimal("lat", { precision: 10, scale: 7 }),
-  lng: decimal("lng", { precision: 10, scale: 7 }),
-  neighborhood: varchar("neighborhood", { length: 255 }),
-  city: varchar("city", { length: 255 }),
-  state: varchar("state", { length: 50 }),
-  credentialNumber: varchar("credential_number", { length: 100 }),
-  credentialImageUrl: varchar("credential_image_url", { length: 500 }),
-  documentNumber: varchar("document_number", { length: 100 }),
-  documentImageUrl: varchar("document_image_url", { length: 500 }),
-  selfieImageUrl: varchar("selfie_image_url", { length: 500 }),
-  cnhFrontImageUrl: varchar("cnh_front_image_url", { length: 500 }),
-  cnhBackImageUrl: varchar("cnh_back_image_url", { length: 500 }),
-  vehicleImageUrl: varchar("vehicle_image_url", { length: 500 }),
-  vehicleDocImageUrl: varchar("vehicle_doc_image_url", { length: 500 }),
-  vehiclePlateImageUrl: varchar("vehicle_plate_image_url", { length: 500 }),
-  vehicleAuthorizationImageUrl: varchar("vehicle_authorization_image_url", { length: 500 }),
-  status: instructorStatusEnum.default('pending').notNull(),
-  serviceAreas: text("service_areas"),
-  pixKey: varchar("pix_key", { length: 255 }),
-  // Novos campos - Fase 2.5
-  yearsExperience: int("years_experience").default(0),
-  languages: json("languages").$type<string[]>(),
-  specialties: json("specialties").$type<string[]>(),
-  workingHours: varchar("working_hours", { length: 100 }),
-  responseTime: varchar("response_time", { length: 50 }),
-  galleryImages: json("gallery_images").$type<string[]>(),
-  lessonsCompleted: int("lessons_completed").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const instructors = mysqlTable(
+  "instructors",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
+    bio: text("bio"),
+    pricePerHour: decimal("price_per_hour", { precision: 10, scale: 2 }).notNull(),
+    slotDurationMinutes: int("slot_duration_minutes").default(50).notNull(),
+    maxBookingsPerStudent: int("max_bookings_per_student").default(0).notNull(),
+    vehicleModel: varchar("vehicle_model", { length: 255 }).notNull(),
+    vehicleYear: varchar("vehicle_year", { length: 10 }),
+    vehicleType: varchar("vehicle_type", { length: 100 }).notNull(),
+    vehiclePlate: varchar("vehicle_plate", { length: 20 }),
+    rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),
+    reviewsCount: int("reviews_count").default(0),
+    lat: decimal("lat", { precision: 10, scale: 7 }),
+    lng: decimal("lng", { precision: 10, scale: 7 }),
+    neighborhood: varchar("neighborhood", { length: 255 }),
+    city: varchar("city", { length: 255 }),
+    state: varchar("state", { length: 50 }),
+    credentialNumber: varchar("credential_number", { length: 100 }),
+    credentialImageUrl: varchar("credential_image_url", { length: 500 }),
+    documentNumber: varchar("document_number", { length: 100 }),
+    documentImageUrl: varchar("document_image_url", { length: 500 }),
+    selfieImageUrl: varchar("selfie_image_url", { length: 500 }),
+    cnhFrontImageUrl: varchar("cnh_front_image_url", { length: 500 }),
+    cnhBackImageUrl: varchar("cnh_back_image_url", { length: 500 }),
+    vehicleImageUrl: varchar("vehicle_image_url", { length: 500 }),
+    vehicleDocImageUrl: varchar("vehicle_doc_image_url", { length: 500 }),
+    vehiclePlateImageUrl: varchar("vehicle_plate_image_url", { length: 500 }),
+    vehicleAuthorizationImageUrl: varchar("vehicle_authorization_image_url", { length: 500 }),
+    status: instructorStatusEnum.default('pending').notNull(),
+    serviceAreas: text("service_areas"),
+    pixKey: varchar("pix_key", { length: 255 }),
+    // Novos campos - Fase 2.5
+    yearsExperience: int("years_experience").default(0),
+    languages: json("languages").$type<string[]>(),
+    specialties: json("specialties").$type<string[]>(),
+    workingHours: varchar("working_hours", { length: 100 }),
+    responseTime: varchar("response_time", { length: 50 }),
+    galleryImages: json("gallery_images").$type<string[]>(),
+    lessonsCompleted: int("lessons_completed").default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("instructors_user_idx").on(table.userId),
+    index("instructors_status_city_state_idx").on(
+      table.status,
+      table.city,
+      table.state,
+    ),
+  ],
+);
 
-export const bookings = mysqlTable("bookings", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  studentId: varchar("student_id", { length: 36 }).references(() => users.id).notNull(),
-  instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
-  date: timestamp("date").notNull(),
-  duration: int("duration").default(50).notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  rentVehicle: boolean("rent_vehicle").default(false),
-  vehicleRentalPrice: decimal("vehicle_rental_price", { precision: 10, scale: 2 }).default("0"),
-  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
-  status: bookingStatusEnum.default('pending').notNull(),
-  meetingAddress: text("meeting_address"),
-  studentNotes: text("student_notes"),
-  paymentStatus: varchar("payment_status", { length: 50 }).default('pending'),
-  paymentId: varchar("payment_id", { length: 255 }),
-  paymentProvider: varchar("payment_provider", { length: 100 }),
-  paymentUrl: varchar("payment_url", { length: 500 }),
-  paymentMethods: json("payment_methods"),
-  paymentDevMode: boolean("payment_dev_mode"),
-  paidAt: timestamp("paid_at"),
-  startCode: varchar("start_code", { length: 10 }),
-  endCode: varchar("end_code", { length: 10 }),
-  startedAt: timestamp("started_at"),
-  completedAt: timestamp("completed_at"),
-  cancelledAt: timestamp("cancelled_at"),
-  cancelledByRole: mysqlEnum('cancelled_by_role', ['student', 'instructor', 'admin']),
-  cancelledByUserId: varchar("cancelled_by_user_id", { length: 36 }).references(() => users.id),
-  cancelReason: text("cancel_reason"),
-  cancelledMinutes: int("cancelled_minutes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const bookings = mysqlTable(
+  "bookings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    studentId: varchar("student_id", { length: 36 }).references(() => users.id).notNull(),
+    instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
+    date: timestamp("date").notNull(),
+    duration: int("duration").default(50).notNull(),
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    rentVehicle: boolean("rent_vehicle").default(false),
+    vehicleRentalPrice: decimal("vehicle_rental_price", { precision: 10, scale: 2 }).default("0"),
+    totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+    status: bookingStatusEnum.default('pending').notNull(),
+    meetingAddress: text("meeting_address"),
+    studentNotes: text("student_notes"),
+    paymentStatus: varchar("payment_status", { length: 50 }).default('pending'),
+    paymentId: varchar("payment_id", { length: 255 }),
+    paymentProvider: varchar("payment_provider", { length: 100 }),
+    paymentUrl: varchar("payment_url", { length: 500 }),
+    paymentMethods: json("payment_methods"),
+    paymentDevMode: boolean("payment_dev_mode"),
+    paidAt: timestamp("paid_at"),
+    startCode: varchar("start_code", { length: 10 }),
+    endCode: varchar("end_code", { length: 10 }),
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+    cancelledAt: timestamp("cancelled_at"),
+    cancelledByRole: mysqlEnum('cancelled_by_role', ['student', 'instructor', 'admin']),
+    cancelledByUserId: varchar("cancelled_by_user_id", { length: 36 }).references(() => users.id),
+    cancelReason: text("cancel_reason"),
+    cancelledMinutes: int("cancelled_minutes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("bookings_student_date_idx").on(table.studentId, table.date),
+    index("bookings_instructor_date_idx").on(table.instructorId, table.date),
+    index("bookings_instructor_date_status_idx").on(
+      table.instructorId,
+      table.date,
+      table.status,
+    ),
+    index("bookings_status_created_idx").on(table.status, table.createdAt),
+    index("bookings_payment_id_idx").on(table.paymentId),
+  ],
+);
 
 export const disputes = mysqlTable("disputes", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
@@ -250,20 +282,30 @@ export const adminSettings = mysqlTable("admin_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const transactions = mysqlTable("transactions", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
-  type: transactionTypeEnum.notNull(),
-  status: transactionStatusEnum.default('pending').notNull(),
-  amountGross: decimal("amount_gross", { precision: 10, scale: 2 }).notNull(),
-  amountNet: decimal("amount_net", { precision: 10, scale: 2 }).notNull(),
-  gateway: varchar("gateway", { length: 100 }),
-  paymentId: varchar("payment_id", { length: 255 }),
-  fromUserId: varchar("from_user_id", { length: 36 }).references(() => users.id),
-  toUserId: varchar("to_user_id", { length: 36 }).references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const transactions = mysqlTable(
+  "transactions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
+    type: transactionTypeEnum.notNull(),
+    status: transactionStatusEnum.default('pending').notNull(),
+    amountGross: decimal("amount_gross", { precision: 10, scale: 2 }).notNull(),
+    amountNet: decimal("amount_net", { precision: 10, scale: 2 }).notNull(),
+    gateway: varchar("gateway", { length: 100 }),
+    paymentId: varchar("payment_id", { length: 255 }),
+    fromUserId: varchar("from_user_id", { length: 36 }).references(() => users.id),
+    toUserId: varchar("to_user_id", { length: 36 }).references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("transactions_booking_idx").on(table.bookingId),
+    index("transactions_status_created_idx").on(table.status, table.createdAt),
+    index("transactions_to_created_idx").on(table.toUserId, table.createdAt),
+    index("transactions_from_created_idx").on(table.fromUserId, table.createdAt),
+    index("transactions_payment_id_idx").on(table.paymentId),
+  ],
+);
 
 export const wallets = mysqlTable("wallets", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
@@ -274,32 +316,47 @@ export const wallets = mysqlTable("wallets", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const walletEntries = mysqlTable("wallet_entries", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  walletId: varchar("wallet_id", { length: 36 }).references(() => wallets.id).notNull(),
-  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
-  type: walletEntryTypeEnum.notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  description: text("description"),
-  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
-  transactionId: varchar("transaction_id", { length: 36 }).references(() => transactions.id),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const walletEntries = mysqlTable(
+  "wallet_entries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    walletId: varchar("wallet_id", { length: 36 }).references(() => wallets.id).notNull(),
+    userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
+    type: walletEntryTypeEnum.notNull(),
+    amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+    description: text("description"),
+    bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
+    transactionId: varchar("transaction_id", { length: 36 }).references(() => transactions.id),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("wallet_entries_wallet_created_idx").on(table.walletId, table.createdAt),
+    index("wallet_entries_user_created_idx").on(table.userId, table.createdAt),
+    index("wallet_entries_transaction_idx").on(table.transactionId),
+  ],
+);
 
-export const withdrawals = mysqlTable("withdrawals", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  status: withdrawalStatusEnum.default('pending').notNull(),
-  destinationType: varchar("destination_type", { length: 50 }).default("pix"),
-  destinationKey: varchar("destination_key", { length: 255 }),
-  requestedAt: timestamp("requested_at").defaultNow(),
-  processedAt: timestamp("processed_at"),
-  processedByUserId: varchar("processed_by_user_id", { length: 36 }).references(() => users.id),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const withdrawals = mysqlTable(
+  "withdrawals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
+    amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+    status: withdrawalStatusEnum.default('pending').notNull(),
+    destinationType: varchar("destination_type", { length: 50 }).default("pix"),
+    destinationKey: varchar("destination_key", { length: 255 }),
+    requestedAt: timestamp("requested_at").defaultNow(),
+    processedAt: timestamp("processed_at"),
+    processedByUserId: varchar("processed_by_user_id", { length: 36 }).references(() => users.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("withdrawals_status_requested_idx").on(table.status, table.requestedAt),
+    index("withdrawals_user_requested_idx").on(table.userId, table.requestedAt),
+  ],
+);
 
 export const paymentGateways = mysqlTable("payment_gateways", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
@@ -444,24 +501,41 @@ export const integrations = mysqlTable(
   ],
 );
 
-export const reviews = mysqlTable("reviews", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id).notNull(),
-  studentId: varchar("student_id", { length: 36 }).references(() => users.id).notNull(),
-  instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
-  rating: int("rating").notNull(),
-  comment: text("comment"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const reviews = mysqlTable(
+  "reviews",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id).notNull(),
+    studentId: varchar("student_id", { length: 36 }).references(() => users.id).notNull(),
+    instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
+    rating: int("rating").notNull(),
+    comment: text("comment"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("reviews_booking_idx").on(table.bookingId),
+    index("reviews_instructor_created_idx").on(table.instructorId, table.createdAt),
+    index("reviews_student_created_idx").on(table.studentId, table.createdAt),
+  ],
+);
 
-export const availability = mysqlTable("availability", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
-  dayOfWeek: int("day_of_week").notNull(),
-  startTime: varchar("start_time", { length: 10 }).notNull(),
-  endTime: varchar("end_time", { length: 10 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const availability = mysqlTable(
+  "availability",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    instructorId: varchar("instructor_id", { length: 36 }).references(() => instructors.id).notNull(),
+    dayOfWeek: int("day_of_week").notNull(),
+    startTime: varchar("start_time", { length: 10 }).notNull(),
+    endTime: varchar("end_time", { length: 10 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("availability_instructor_day_idx").on(
+      table.instructorId,
+      table.dayOfWeek,
+    ),
+  ],
+);
 
 export const usersRelations = relations(users, ({ many, one }) => ({
   instructorProfile: one(instructors, {
@@ -530,15 +604,27 @@ export const disputesRelations = relations(disputes, ({ one }) => ({
   }),
 }));
 
-export const messages = mysqlTable("messages", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
-  senderId: varchar("sender_id", { length: 36 }).references(() => users.id).notNull(),
-  receiverId: varchar("receiver_id", { length: 36 }).references(() => users.id).notNull(),
-  bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
-  content: text("content").notNull(),
-  read: boolean("read").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const messages = mysqlTable(
+  "messages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+    senderId: varchar("sender_id", { length: 36 }).references(() => users.id).notNull(),
+    receiverId: varchar("receiver_id", { length: 36 }).references(() => users.id).notNull(),
+    bookingId: varchar("booking_id", { length: 36 }).references(() => bookings.id),
+    content: text("content").notNull(),
+    read: boolean("read").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("messages_sender_created_idx").on(table.senderId, table.createdAt),
+    index("messages_receiver_read_created_idx").on(
+      table.receiverId,
+      table.read,
+      table.createdAt,
+    ),
+    index("messages_booking_created_idx").on(table.bookingId, table.createdAt),
+  ],
+);
 
 export const transactionsRelations = relations(transactions, ({ one }) => ({
   booking: one(bookings, {
