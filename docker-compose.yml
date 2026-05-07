@@ -1,9 +1,11 @@
 # =====================================================
 # HabilitFy - Production docker-compose
 # -----------------------------------------------------
-# Required environment variables (no defaults — deploy fails fast if absent):
+# Required environment variables (no secret defaults — deploy fails fast if absent):
 #   DB_NAME, DB_USER, DB_PASSWORD, DB_ROOT_PASSWORD,
-#   SESSION_SECRET, BASE_URL, DOMAIN
+#   SESSION_SECRET
+# Public URL defaults can be overridden by the deploy environment:
+#   BASE_URL, DOMAIN
 # Recommended:
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OWNER_MASTER_EMAIL,
 #   ABACATEPAY_API_KEY, ABACATEPAY_WEBHOOK_SECRET, STRIPE_API_KEY,
@@ -74,8 +76,8 @@ services:
       NODE_ENV: production
       PORT: 5000
       HOST: 0.0.0.0
-      BASE_URL: ${BASE_URL:?BASE_URL is required}
-      DOMAIN: ${DOMAIN:?DOMAIN is required}
+      BASE_URL: ${BASE_URL:-https://habilitfy.com.br}
+      DOMAIN: ${DOMAIN:-habilitfy.com.br}
       DATABASE_URL: mysql://${DB_USER}:${DB_PASSWORD}@db:3306/${DB_NAME}
       DB_HOST: db
       DB_PORT: 3306
