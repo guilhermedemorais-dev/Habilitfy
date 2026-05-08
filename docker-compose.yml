@@ -31,12 +31,12 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - app_internal
+      - habilitfy-network
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -45,7 +45,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - app_internal
+      - habilitfy-network
 
   app:
     image: ${APP_IMAGE:?APP_IMAGE is required, e.g. docker.io/your-user/habilitfy:1.0.0}
@@ -61,14 +61,14 @@ services:
       HOST: 0.0.0.0
       BASE_URL: ${BASE_URL:?BASE_URL is required}
       DOMAIN: ${DOMAIN:?DOMAIN is required}
-      DATABASE_URL: mysql://${DB_USER}:${DB_PASSWORD}@db:3306/${DB_NAME}
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
+      DATABASE_URL: mysql://${DB_USER}:${DB_PASSWORD}@db:3306/${DB_NAME}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
-      SESSION_COOKIE_SECURE: "true"
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
       SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-lax}
       AUTH_MODE: ${AUTH_MODE:-oidc}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -95,9 +95,9 @@ services:
     volumes:
       - uploads_data:/app/uploads
     ports:
-      - "${APP_PORT:-5000}:5000"
+      - "127.0.0.1:${APP_PORT:-5000}:5000"
     networks:
-      - app_internal
+      - habilitfy-network
 
 volumes:
   mysql_data:
@@ -105,5 +105,5 @@ volumes:
   uploads_data:
 
 networks:
-  app_internal:
+  habilitfy-network:
     driver: bridge
