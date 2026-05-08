@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { GraduationCap, Award, Mail, Eye, EyeOff } from "lucide-react";
+import { GraduationCap, Award, Mail, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -94,6 +94,21 @@ export default function Login() {
           className="w-full h-full object-cover object-top"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/20" />
+
+        <button
+          type="button"
+          onClick={() => {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              setLocation("/");
+            }
+          }}
+          aria-label="Voltar"
+          className="absolute top-4 left-4 z-10 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center text-gray-800 hover:bg-white transition-colors active:scale-95"
+        >
+          <ArrowLeft size={20} />
+        </button>
       </div>
 
       <motion.div
