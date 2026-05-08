@@ -1,17 +1,16 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { GraduationCap, BadgeCheck, Mail, Eye, EyeOff } from "lucide-react";
+import { GraduationCap, Award, Mail, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useGlobalAlert } from "@/components/ui/GlobalAlert";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 const logoBlue = "/logo-new-blue.svg";
 const heroImage = "/login-hero.png";
 
-// Google Icon SVG Component
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5">
     <path
@@ -33,16 +32,18 @@ const GoogleIcon = () => (
   </svg>
 );
 
+type Tab = "login" | "register";
+
 export default function Login() {
   const { loginMutation, user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
+  const [tab, setTab] = useState<Tab>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const { showAlert } = useGlobalAlert();
 
-  // Redirecionar se já estiver logado
   useEffect(() => {
     if (user && !isLoading) {
       if (user.role === "admin") {
@@ -54,6 +55,7 @@ export default function Login() {
       }
     }
   }, [user, isLoading, setLocation]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const error = params.get("error");
@@ -81,121 +83,179 @@ export default function Login() {
     window.location.href = `/api/auth/google`;
   };
 
+  const isPending = !!(loginMutation && loginMutation.isPending);
+
   return (
     <div className="min-h-screen bg-white flex flex-col relative overflow-hidden">
-      {/* Hero Image - Top 40% */}
       <div className="relative h-[40vh] w-full">
         <img
           src={heroImage}
           alt="Instrutora de autoescola"
           className="w-full h-full object-cover object-top"
         />
-        {/* Gradient overlay for smooth transition */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/20" />
+
+        <button
+          type="button"
+          onClick={() => {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              setLocation("/");
+            }
+          }}
+          aria-label="Voltar"
+          className="absolute top-4 left-4 z-10 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center text-gray-800 hover:bg-white transition-colors active:scale-95"
+        >
+          <ArrowLeft size={20} />
+        </button>
       </div>
 
-      {/* Bottom Sheet */}
       <motion.div
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="relative flex-1 bg-white rounded-t-[28px] -mt-6 px-6 pt-8 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]"
       >
-        {/* Logo */}
         <div className="flex flex-col items-center mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <img src={logoBlue} alt="HabilitFy" className="h-20 w-auto" />
-          </div>
+          <img src={logoBlue} alt="HabilitFy" className="h-20 w-auto" />
         </div>
 
-        {/* Cadastre-se section */}
-        <div className="mb-6">
-          <p className="text-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            CADASTRE-SE
-          </p>
-          <div className="space-y-3">
-            <Button
-              variant="outline"
-              className="w-full h-14 justify-start px-4 rounded-2xl border-gray-200 hover:border-[#3B82F6] hover:bg-blue-50/50 transition-all group"
-              onClick={() => setLocation("/cadastro-aluno")}
-            >
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mr-3">
-                <GraduationCap size={20} />
-              </div>
-              <span className="font-semibold text-gray-800">Cadastro Aluno</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              className="w-full h-14 justify-start px-4 rounded-2xl border-gray-200 hover:border-[#3B82F6] hover:bg-blue-50/50 transition-all group"
-              onClick={() => setLocation("/cadastro-instrutor")}
-            >
-              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
-                <BadgeCheck size={20} />
-              </div>
-              <span className="font-semibold text-gray-800">Cadastro Instrutor</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Login Separator */}
-        <p className="text-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 mt-8">
-          ACESSE SUA CONTA
-        </p>
-
-        {/* Login Form */}
-        <div className="space-y-4">
-          {/* Email Input */}
-          <div className="relative">
-            <Input
-              type="email"
-              placeholder="E-mail"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="h-14 rounded-2xl bg-gray-50 border-gray-200 pl-4 pr-12 text-base placeholder:text-gray-400 focus:border-[#3B82F6] focus:ring-[#3B82F6]"
-            />
-            <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" />
-          </div>
-
-          {/* Password Input */}
-          <div className="relative">
-            <Input
-              type={showPassword ? "text" : "password"}
-              placeholder="Senha"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-14 rounded-2xl bg-gray-50 border-gray-200 pl-4 pr-12 text-base placeholder:text-gray-400 focus:border-[#3B82F6] focus:ring-[#3B82F6]"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
-          </div>
-
-          {/* Submit Button */}
-          <Button
-            size="lg"
-            className="w-full h-14 text-base bg-[#3B82F6] hover:bg-[#2563EB] text-white font-semibold rounded-2xl shadow-lg shadow-blue-500/25 transition-all active:scale-[0.98]"
-            onClick={handleLogin}
-            disabled={loginMutation && loginMutation.isPending}
+        {/* Tabs Entrar / Cadastrar */}
+        <div className="relative grid grid-cols-2 bg-gray-100 rounded-2xl p-1 mb-6">
+          <motion.div
+            className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-xl shadow-sm"
+            animate={{ left: tab === "login" ? 4 : "calc(50% + 0px)" }}
+            transition={{ type: "spring", stiffness: 400, damping: 32 }}
+          />
+          <button
+            type="button"
+            onClick={() => setTab("login")}
+            className={`relative z-10 h-11 rounded-xl text-sm font-semibold transition-colors ${
+              tab === "login" ? "text-gray-900" : "text-gray-500"
+            }`}
           >
-            {loginMutation && loginMutation.isPending ? "Entrando..." : "Entrar"}
-          </Button>
-
-          {/* Google Login */}
-          <Button
-            variant="outline"
-            size="lg"
-            className="w-full h-14 text-base bg-white text-gray-700 font-semibold rounded-2xl border-gray-200 hover:bg-gray-50 transition-all active:scale-[0.98]"
-            onClick={handleGoogleLogin}
+            Entrar
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("register")}
+            className={`relative z-10 h-11 rounded-xl text-sm font-semibold transition-colors ${
+              tab === "register" ? "text-gray-900" : "text-gray-500"
+            }`}
           >
-            <GoogleIcon />
-            <span className="ml-3">Entrar com Google</span>
-          </Button>
+            Cadastrar
+          </button>
         </div>
+
+        <AnimatePresence mode="wait">
+          {tab === "login" ? (
+            <motion.div
+              key="login"
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -16 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  E-mail
+                </label>
+                <div className="relative">
+                  <Input
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 pl-4 pr-12 text-base placeholder:text-gray-400 focus:border-[#3B82F6] focus:ring-[#3B82F6]"
+                  />
+                  <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Senha
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-14 rounded-2xl bg-gray-50 border-gray-200 pl-4 pr-12 text-base placeholder:text-gray-400 focus:border-[#3B82F6] focus:ring-[#3B82F6]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                size="lg"
+                className="w-full h-14 text-base bg-[#3B82F6] hover:bg-[#2563EB] text-white font-semibold rounded-2xl shadow-lg shadow-blue-500/25 transition-all active:scale-[0.98]"
+                onClick={() => handleLogin()}
+                disabled={isPending}
+              >
+                {isPending ? "Entrando..." : "Entrar"}
+              </Button>
+
+              <div className="flex items-center gap-3 my-2">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">ou</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full h-14 text-base bg-gray-50 text-gray-800 font-semibold rounded-2xl border-gray-200 hover:bg-gray-100 transition-all active:scale-[0.98]"
+                onClick={handleGoogleLogin}
+              >
+                <GoogleIcon />
+                <span className="ml-3">Continuar com Google</span>
+              </Button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="register"
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 16 }}
+              transition={{ duration: 0.2 }}
+              className="grid grid-cols-2 gap-3"
+            >
+              <button
+                type="button"
+                onClick={() => setLocation("/cadastro-aluno")}
+                className="flex flex-col items-center justify-center text-center rounded-2xl border-2 border-[#3B82F6] bg-blue-50/40 px-4 py-6 transition-all hover:bg-blue-50 active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-2 text-2xl">
+                  🎓
+                </div>
+                <span className="text-sm font-semibold text-[#3B82F6]">Aluno</span>
+                <span className="text-xs text-gray-500 mt-0.5">Quero aprender</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLocation("/cadastro-instrutor")}
+                className="flex flex-col items-center justify-center text-center rounded-2xl border-2 border-gray-200 bg-white px-4 py-6 transition-all hover:border-[#3B82F6] hover:bg-blue-50/40 active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-2 text-2xl">
+                  🏅
+                </div>
+                <span className="text-sm font-semibold text-gray-800">Instrutor</span>
+                <span className="text-xs text-gray-500 mt-0.5">Quero ensinar</span>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );

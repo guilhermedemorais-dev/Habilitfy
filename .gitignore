@@ -10,6 +10,7 @@ tmp_tsx/
 .env.production
 !.env.production.example
 !.env.qa-remote.example
+!.env.hostinger.example
 client_secret_*.json
 .factory/
 .factory/.venv/
