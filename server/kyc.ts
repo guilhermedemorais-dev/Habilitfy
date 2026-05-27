@@ -44,13 +44,14 @@ export async function analyzeSelfie(imageBase64: string): Promise<{
     const anthropic = getAnthropicClient();
 
     if (!anthropic) {
-        // Fallback: assume valid if no API configured
+        // FAIL-SAFE: Never auto-approve without provider
+        logger.warn('[KYC] analyzeSelfie: AI provider unavailable — returning fail-safe result');
         return {
-            hasFace: true,
-            faceCount: 1,
-            quality: 'good',
-            issues: [],
-            livenessIndicators: ['Movement detected'],
+            hasFace: false,
+            faceCount: 0,
+            quality: 'unacceptable',
+            issues: ['AI_PROVIDER_UNAVAILABLE'],
+            livenessIndicators: [],
         };
     }
 
@@ -89,7 +90,18 @@ Return ONLY the JSON, no other text.`,
 
         const content = response.content[0];
         if (content.type === 'text') {
-            return JSON.parse(content.text);
+            try {
+                return JSON.parse(content.text);
+            } catch (parseError) {
+                logger.error('[KYC] analyzeSelfie: Failed to parse AI response JSON', { error: parseError });
+                return {
+                    hasFace: false,
+                    faceCount: 0,
+                    quality: 'unacceptable',
+                    issues: ['AI_PARSE_ERROR'],
+                    livenessIndicators: [],
+                };
+            }
         }
     } catch (error) {
         console.error('[KYC] Selfie analysis error:', error);
@@ -121,12 +133,14 @@ export async function analyzeDocument(imageBase64: string): Promise<{
     const anthropic = getAnthropicClient();
 
     if (!anthropic) {
+        // FAIL-SAFE: Never auto-approve without provider
+        logger.warn('[KYC] analyzeDocument: AI provider unavailable — returning fail-safe result');
         return {
-            isValid: true,
-            documentType: 'cnh',
+            isValid: false,
+            documentType: 'unknown',
             extractedData: {},
-            hasFace: true,
-            issues: [],
+            hasFace: false,
+            issues: ['AI_PROVIDER_UNAVAILABLE'],
         };
     }
 
@@ -171,7 +185,18 @@ Return ONLY the JSON, no other text.`,
 
         const content = response.content[0];
         if (content.type === 'text') {
-            return JSON.parse(content.text);
+            try {
+                return JSON.parse(content.text);
+            } catch (parseError) {
+                logger.error('[KYC] analyzeDocument: Failed to parse AI response JSON', { error: parseError });
+                return {
+                    isValid: false,
+                    documentType: 'unknown' as const,
+                    extractedData: {},
+                    hasFace: false,
+                    issues: ['AI_PARSE_ERROR'],
+                };
+            }
         }
     } catch (error) {
         console.error('[KYC] Document analysis error:', error);
@@ -199,11 +224,13 @@ export async function compareFaces(
     const anthropic = getAnthropicClient();
 
     if (!anthropic) {
+        // FAIL-SAFE: Never auto-approve without provider
+        logger.warn('[KYC] compareFaces: AI provider unavailable — returning fail-safe result');
         return {
-            match: true,
-            similarity: 0.90,
-            confidence: 'medium',
-            notes: ['API not configured - using default approval'],
+            match: false,
+            similarity: 0,
+            confidence: 'low',
+            notes: ['AI_PROVIDER_UNAVAILABLE'],
         };
     }
 
@@ -253,7 +280,17 @@ Return ONLY the JSON, no other text.`,
 
         const content = response.content[0];
         if (content.type === 'text') {
-            return JSON.parse(content.text);
+            try {
+                return JSON.parse(content.text);
+            } catch (parseError) {
+                logger.error('[KYC] compareFaces: Failed to parse AI response JSON', { error: parseError });
+                return {
+                    match: false,
+                    similarity: 0,
+                    confidence: 'low' as const,
+                    notes: ['AI_PARSE_ERROR'],
+                };
+            }
         }
     } catch (error) {
         console.error('[KYC] Face comparison error:', error);
@@ -369,10 +406,15 @@ export async function performKycVerification(
 function getAnthropicClient(): Anthropic | null {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-        logger.warn('[KYC] Anthropic API key not configured');
+        logger.warn('[KYC] Anthropic API key not configured — KYC will use fail-safe mode (requires_review)');
         return null;
     }
     return new Anthropic({ apiKey });
+}
+
+// Check if KYC AI provider is available (for route/frontend use)
+export function isKycProviderAvailable(): boolean {
+    return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
 // Middleware to validate file uploads

@@ -43,6 +43,7 @@ import { registerAdminUserManagementRoutes } from "./routes/admin-user-managemen
 import { registerAdminFinanceRoutes } from "./routes/admin-finance";
 import { registerAdminControlRoutes } from "./routes/admin-control";
 import { registerAdminOperationsRoutes } from "./routes/admin-operations";
+import { registerKycAdminRoutes } from "./routes/kyc-admin";
 
 
 // Trigger server restart for stability check
@@ -398,6 +399,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
   registerAdminFinanceRoutes(app);
   registerAdminConfigRoutes(app);
   registerAdminOperationsRoutes(app);
+  registerKycAdminRoutes(app);
   // --- End Admin Routes ---
 
   // Register new user (student or instructor)
@@ -1833,11 +1835,14 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       // Check KYC status from user record
       const kycStatus = user.kycStatus || 'pending';
 
+      // Import provider check
+      const { isKycProviderAvailable } = await import('./kyc');
+
       res.json({
-        status: kycStatus === 'approved' ? 'approved' :
-          kycStatus === 'rejected' ? 'rejected' : 'not_started',
+        status: kycStatus,
         canRetry: kycStatus === 'rejected',
         userId: user.id,
+        providerAvailable: isKycProviderAvailable(),
       });
     } catch (error) {
       console.error('Error fetching KYC status:', error);
@@ -1872,20 +1877,69 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         });
       }
 
+      // Check consent before allowing upload (Phase 2 — LGPD)
+      const { hasValidConsent } = await import('./kyc-admin');
+      const hasConsent = await hasValidConsent(userId);
+      if (!hasConsent) {
+        return res.status(403).json({
+          message: 'Você precisa aceitar o termo de consentimento antes de enviar documentos.',
+          code: 'CONSENT_REQUIRED',
+        });
+      }
+
       // Import KYC service
       const { performKycVerification, saveBase64Image } = await import('./kyc');
+      const { computeFileHash, logKycAuditEvent } = await import('./kyc-admin');
+      const { KYC_AUDIT_EVENTS, KYC_REASON_CODES } = await import('@shared/kyc-schema');
 
-      // Save images
+      const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip;
+
+      // Log KYC started
+      await logKycAuditEvent({
+        userId,
+        eventType: KYC_AUDIT_EVENTS.STARTED,
+        ipAddress,
+        userAgent: req.headers['user-agent'],
+      });
+
+      // Save images + compute hashes (Phase 5 — Hardening)
       const selfieUrl = await saveBase64Image(selfie, userId, 'selfie');
+      const fileHashSelfie = computeFileHash(selfie);
       const documentFrontUrl = await saveBase64Image(documentFront, userId, 'document_front');
+      const fileHashDocumentFront = computeFileHash(documentFront);
       let documentBackUrl;
+      let fileHashDocumentBack;
       if (documentBack) {
         documentBackUrl = await saveBase64Image(documentBack, userId, 'document_back');
+        fileHashDocumentBack = computeFileHash(documentBack);
       }
+
+      // Log uploads
+      await logKycAuditEvent({
+        userId,
+        eventType: KYC_AUDIT_EVENTS.SELFIE_UPLOADED,
+        metadata: { fileHash: fileHashSelfie },
+        ipAddress,
+        userAgent: req.headers['user-agent'],
+      });
+      await logKycAuditEvent({
+        userId,
+        eventType: KYC_AUDIT_EVENTS.DOCUMENT_UPLOADED,
+        metadata: { fileHash: fileHashDocumentFront, type: 'front' },
+        ipAddress,
+        userAgent: req.headers['user-agent'],
+      });
 
       // Extract base64 data (remove data URL prefix)
       const selfieBase64 = selfie.replace(/^data:image\/\w+;base64,/, '');
       const documentFrontBase64 = documentFront.replace(/^data:image\/\w+;base64,/, '');
+
+      // Log AI analysis start
+      await logKycAuditEvent({
+        userId,
+        eventType: KYC_AUDIT_EVENTS.AI_ANALYSIS_STARTED,
+        ipAddress,
+      });
 
       // Perform verification
       const result = await performKycVerification(
@@ -1895,14 +1949,35 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
         documentBack ? documentBack.replace(/^data:image\/\w+;base64,/, '') : undefined
       );
 
-      // Update user KYC status
-      const newKycStatus = result.overallStatus === 'approved' ? 'approved' :
-        result.overallStatus === 'rejected' ? 'rejected' : 'pending';
+      // Log AI analysis result
+      await logKycAuditEvent({
+        userId,
+        eventType: result.success ? KYC_AUDIT_EVENTS.AI_ANALYSIS_COMPLETED : KYC_AUDIT_EVENTS.AI_ANALYSIS_FAILED,
+        newStatus: result.overallStatus,
+        reasonCode: result.success ? undefined : KYC_REASON_CODES.TECHNICAL_ANALYSIS_FAILED,
+        metadata: {
+          faceMatchPassed: result.faceMatchPassed,
+          documentValid: result.documentValid,
+          rejectionReasons: result.rejectionReasons,
+        },
+        ipAddress,
+      });
+
+      // Update user KYC status — preserve requires_review, don't map to pending
+      const statusMap: Record<string, string> = {
+        approved: 'approved',
+        rejected: 'rejected',
+        requires_review: 'pending', // user.kycStatus enum only has pending/approved/rejected
+      };
+      const newKycStatus = statusMap[result.overallStatus] || 'pending';
 
       await storage.upsertUser({
         id: userId,
         kycStatus: newKycStatus as any,
       });
+
+      // Store the detailed result in kyc_verifications if we have documents
+      // The actual requires_review status is preserved in the verification record
 
       logger.info(`[KYC] User ${userId} verification: ${result.overallStatus} `, { userId, status: result.overallStatus });
 
