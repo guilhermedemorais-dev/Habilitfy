@@ -27,6 +27,7 @@ import {
   WalletCards,
   Lock,
   Map as MapIcon,
+  ArrowLeftRight,
 } from "lucide-react";
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AdminAIChat } from "@/components/admin/AdminAIChat";
@@ -43,6 +44,8 @@ import { AdminSettingsSection } from "@/components/admin/AdminSettingsSection";
 import { UserManagementSheet } from "@/components/admin/UserManagementSheet";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleSwitcher } from "@/hooks/useRoleSwitcher";
+import { RoleSwitcherModal } from "@/components/RoleSwitcherModal";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -258,6 +261,8 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [globalSearch, setGlobalSearch] = useState("");
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const { viewRole, canSwitch, setViewRole } = useRoleSwitcher(user?.role);
   const [mapLayer, setMapLayer] = useState<"instructors" | "students">(
     "instructors",
   );
@@ -1063,7 +1068,17 @@ export default function Admin() {
               ))}
             </nav>
             <Separator className="dark:bg-slate-800" />
-            <div className="px-4 py-4">
+            <div className="px-4 py-4 space-y-1">
+              {canSwitch && (
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-2 hover:bg-blue-50 text-blue-600 dark:hover:bg-blue-900/30 dark:text-blue-300"
+                  onClick={() => setShowRoleSwitcher(true)}
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                  Trocar Conta
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800/50 dark:text-blue-300"
@@ -1109,7 +1124,17 @@ export default function Admin() {
                         ))}
                       </nav>
                       <Separator className="dark:bg-slate-800" />
-                      <div className="px-4 py-4">
+                      <div className="px-4 py-4 space-y-1">
+                        {canSwitch && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start gap-2 hover:bg-blue-50 text-blue-600 dark:hover:bg-blue-900/30 dark:text-blue-300"
+                            onClick={() => setShowRoleSwitcher(true)}
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                            Trocar Conta
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800/50 dark:text-blue-300"
@@ -1322,6 +1347,18 @@ export default function Admin() {
           />
         </div>
       </div>
+      {/* Role Switcher Modal */}
+      <RoleSwitcherModal
+        open={showRoleSwitcher}
+        onClose={() => setShowRoleSwitcher(false)}
+        currentViewRole={viewRole}
+        onSelectRole={(role) => {
+          setViewRole(role);
+          if (role === "admin") window.location.hash = "#dashboard";
+          else if (role === "instructor") window.location.href = "/dashboard/instrutor";
+          else window.location.href = "/dashboard/aluno";
+        }}
+      />
     </AuthGuard>
   );
 }
