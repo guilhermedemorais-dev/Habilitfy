@@ -4,6 +4,7 @@ import { hashPassword, requireAdminRole } from "../auth";
 import { storage } from "../storage";
 import { db } from "../db";
 import { userAccessLogs } from "@shared/schema";
+import { calculateCapacity, getRuntimeResources } from "../system-capacity";
 
 const SENSITIVE_RESPONSE_KEYS = new Set(["password", "verificationToken"]);
 
@@ -83,9 +84,19 @@ export function registerAdminControlRoutes(
 
       const activeSessions = activeRow?.count ?? 0;
       const avgResponseTime = responseRow?.avg ?? 0;
+      const requestsPerMinute = runtimeMetrics.getRequestCount();
+      const errorsLastHour = runtimeMetrics.getErrorCount();
+      const resources = getRuntimeResources();
+      const capacity = calculateCapacity({
+        activeSessions,
+        requestsPerMinute,
+        avgResponseTime,
+        errorsLastHour,
+        ...resources,
+      });
 
       res.json({
-        status: "healthy",
+        status: capacity.status,
         uptime,
         memory: {
           rss: Math.round(memoryUsage.rss / 1024 / 1024),
@@ -94,10 +105,17 @@ export function registerAdminControlRoutes(
         },
         metrics: {
           activeSessions,
-          requestsPerMinute: runtimeMetrics.getRequestCount(),
-          errorsLastHour: runtimeMetrics.getErrorCount(),
+          requestsPerMinute,
+          errorsLastHour,
           avgResponseTime,
+          cpuPercent: Math.round(resources.cpuPercent),
+          cpuLimit: Number(resources.cpuLimit.toFixed(2)),
         },
+        container: {
+          memoryUsedMb: Math.round(resources.memoryUsedBytes / 1024 / 1024),
+          memoryLimitMb: Math.round(resources.memoryLimitBytes / 1024 / 1024),
+        },
+        capacity,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch system health" });
