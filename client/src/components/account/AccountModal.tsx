@@ -1,19 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Camera,
-  Car,
-  Check,
   FileCheck2,
-  GraduationCap,
   KeyRound,
   Loader2,
   Save,
-  Shield,
   UserRound,
 } from "lucide-react";
 import type { User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useRoleSwitcher, type ViewRole } from "@/hooks/useRoleSwitcher";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,20 +30,8 @@ type AccountModalProps = {
   user: User | null | undefined;
 };
 
-const roleOptions: Array<{
-  role: ViewRole;
-  label: string;
-  description: string;
-  icon: typeof Shield;
-}> = [
-  { role: "admin", label: "Administrador", description: "Gestão completa da plataforma", icon: Shield },
-  { role: "instructor", label: "Instrutor", description: "Agenda, alunos e financeiro", icon: Car },
-  { role: "student", label: "Aluno", description: "Busca, agendamentos e aulas", icon: GraduationCap },
-];
-
 export function AccountModal({ open, onOpenChange, user }: AccountModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { viewRole, canSwitch, setViewRole } = useRoleSwitcher(user?.role);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -153,19 +136,8 @@ export function AccountModal({ open, onOpenChange, user }: AccountModalProps) {
     }
   };
 
-  const selectRole = (role: ViewRole) => {
-    setViewRole(role);
-    onOpenChange(false);
-    const destination = role === "admin"
-      ? "/admin"
-      : role === "instructor"
-        ? "/dashboard/instrutor"
-        : "/dashboard/aluno";
-    window.location.assign(destination);
-  };
-
   const canRetryKyc = (user.role === "student" || user.role === "instructor") && user.kycStatus === "rejected";
-  const tabCount = 2 + (canSwitch ? 1 : 0) + (canRetryKyc ? 1 : 0);
+  const tabCount = 2 + (canRetryKyc ? 1 : 0);
 
   return (
     <>
@@ -177,10 +149,9 @@ export function AccountModal({ open, onOpenChange, user }: AccountModalProps) {
         </DialogHeader>
 
         <Tabs defaultValue="profile" className="px-6 pb-6">
-          <TabsList className={`mt-5 grid w-full ${tabCount === 4 ? "grid-cols-4" : tabCount === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+          <TabsList className={`mt-5 grid w-full ${tabCount === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
             <TabsTrigger value="profile"><UserRound className="mr-2 h-4 w-4" />Perfil</TabsTrigger>
             <TabsTrigger value="password"><KeyRound className="mr-2 h-4 w-4" />Senha</TabsTrigger>
-            {canSwitch ? <TabsTrigger value="access"><Shield className="mr-2 h-4 w-4" />Acessos</TabsTrigger> : null}
             {canRetryKyc ? <TabsTrigger value="kyc"><FileCheck2 className="mr-2 h-4 w-4" />KYC</TabsTrigger> : null}
           </TabsList>
 
@@ -242,30 +213,6 @@ export function AccountModal({ open, onOpenChange, user }: AccountModalProps) {
               Atualizar senha
             </Button>
           </TabsContent>
-
-          {canSwitch ? (
-            <TabsContent value="access" className="mt-6 space-y-3 outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
-              <p className="text-sm text-slate-600 dark:text-slate-300">Escolha o painel que deseja testar. Suas permissões administrativas reais não serão alteradas.</p>
-              {roleOptions.map(({ role, label, description, icon: Icon }) => {
-                const active = viewRole === role;
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => selectRole(role)}
-                    className="flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"><Icon className="h-5 w-5" /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold">{label}</span>
-                      <span className="block text-xs text-slate-500">{description}</span>
-                    </span>
-                    {active ? <Check className="h-5 w-5 text-primary" /> : null}
-                  </button>
-                );
-              })}
-            </TabsContent>
-          ) : null}
 
           {canRetryKyc ? (
             <TabsContent value="kyc" className="mt-6 space-y-4 outline-none focus-visible:ring-0 focus-visible:ring-offset-0">

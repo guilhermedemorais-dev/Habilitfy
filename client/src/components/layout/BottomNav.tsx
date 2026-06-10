@@ -10,7 +10,10 @@ import { User } from "lucide-react";
 export function BottomNav() {
   const [location, navigate] = useLocation();
   const { user } = useAuth();
-  const { viewRole, canSwitch, isImpersonating, setViewRole } = useRoleSwitcher(user?.role);
+  const { viewRole, canSwitch, isImpersonating, setViewRole } = useRoleSwitcher(
+    user?.role,
+    user?.adminRole,
+  );
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
 
   // Use viewRole for navigation items so admin sees the correct nav

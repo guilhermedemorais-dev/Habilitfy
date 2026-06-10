@@ -28,6 +28,7 @@ import {
   Lock,
   Map as MapIcon,
   ArrowLeftRight,
+  ChevronRight,
 } from "lucide-react";
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AdminAIChat } from "@/components/admin/AdminAIChat";
@@ -264,7 +265,11 @@ export default function Admin() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
-  const { viewRole, canSwitch, setViewRole } = useRoleSwitcher(user?.role);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { viewRole, canSwitch, setViewRole } = useRoleSwitcher(
+    user?.role,
+    user?.adminRole,
+  );
   const [mapLayer, setMapLayer] = useState<"instructors" | "students">(
     "instructors",
   );
@@ -1093,9 +1098,10 @@ export default function Admin() {
           </aside>
           <main className="flex-1">
             <header className="sticky top-0 z-20 border-b border-slate-200 bg-background/90 backdrop-blur dark:bg-slate-900/90 dark:border-slate-800">
-              <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4 lg:px-10">
-                <div className="flex items-center gap-3">
-                  <Sheet>
+              <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4 lg:px-10">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                  <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                     <SheetTrigger asChild>
                       <Button variant="outline" size="icon" className="lg:hidden dark:bg-slate-800 dark:border-slate-700">
                         <Menu className="h-4 w-4 dark:text-blue-200" />
@@ -1131,7 +1137,10 @@ export default function Admin() {
                           <Button
                             variant="ghost"
                             className="w-full justify-start gap-2 hover:bg-blue-50 text-blue-600 dark:hover:bg-blue-900/30 dark:text-blue-300"
-                            onClick={() => setShowRoleSwitcher(true)}
+                            onClick={() => {
+                              setMobileMenuOpen(false);
+                              window.setTimeout(() => setShowRoleSwitcher(true), 0);
+                            }}
                           >
                             <ArrowLeftRight className="h-4 w-4" />
                             Trocar Conta
@@ -1152,7 +1161,7 @@ export default function Admin() {
                     <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-blue-400">
                       Painel Administrativo
                     </p>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-blue-100">
+                    <h1 className="text-xl font-bold text-slate-900 sm:text-2xl dark:text-blue-100">
                       Dashboard
                     </h1>
                   </div>
@@ -1203,6 +1212,29 @@ export default function Admin() {
                     </div>
                   </button>
                 </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAccountModal(true)}
+                  className="mt-3 flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition-colors active:bg-slate-100 md:hidden dark:border-slate-700 dark:bg-slate-800 dark:active:bg-slate-700"
+                  aria-label="Abrir configurações da conta"
+                >
+                  <Avatar className="h-10 w-10 shrink-0">
+                    {user?.profileImageUrl ? (
+                      <AvatarImage src={user.profileImageUrl} alt={adminName} />
+                    ) : null}
+                    <AvatarFallback>{adminInitials}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {adminName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {user?.adminRole === "master" ? "Administrador mestre" : "Administrador"}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+                </button>
               </div>
             </header>
             <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-8 lg:px-10">

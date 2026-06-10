@@ -1,7 +1,13 @@
 import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Shield, GraduationCap, Car, X, Check } from "lucide-react";
+import { Shield, GraduationCap, Car, Check } from "lucide-react";
 import type { ViewRole } from "@/hooks/useRoleSwitcher";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface RoleSwitcherModalProps {
   open: boolean;
@@ -39,42 +45,13 @@ const roles: { role: ViewRole; label: string; description: string; icon: React.E
 
 export function RoleSwitcherModal({ open, onClose, currentViewRole, onSelectRole }: RoleSwitcherModalProps) {
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-
-          {/* Modal */}
-          <motion.div
-            className="fixed inset-x-4 bottom-24 z-[101] mx-auto max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
-            initial={{ opacity: 0, y: 60, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 60, scale: 0.95 }}
-            transition={{ type: "spring", damping: 25, stiffness: 350 }}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Trocar Visão</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Visualize como cada tipo de usuário</p>
-              </div>
-              <button
-                onClick={onClose}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Role options */}
-            <div className="space-y-3">
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+      <DialogContent className="z-[120] max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-lg p-5 sm:p-6">
+        <DialogHeader className="pr-7 text-left">
+          <DialogTitle>Trocar conta</DialogTitle>
+          <DialogDescription>Visualize a plataforma como cada tipo de usuário.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
               {roles.map(({ role, label, description, icon: Icon, color, bgColor }) => {
                 const isActive = currentViewRole === role;
                 return (
@@ -84,7 +61,7 @@ export function RoleSwitcherModal({ open, onClose, currentViewRole, onSelectRole
                       onSelectRole(role);
                       onClose();
                     }}
-                    className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
+                    className={`flex min-h-20 w-full items-center gap-3 rounded-lg border-2 p-3 text-left transition-colors sm:gap-4 sm:p-4 ${
                       isActive
                         ? `${bgColor} border-current ring-2 ring-offset-1 ${color.replace("text-", "ring-")}`
                         : "bg-gray-50 border-gray-100 hover:bg-gray-100"
@@ -108,20 +85,16 @@ export function RoleSwitcherModal({ open, onClose, currentViewRole, onSelectRole
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{description}</p>
+                      <p className="mt-0.5 text-xs leading-4 text-gray-500">{description}</p>
                     </div>
                   </button>
                 );
               })}
-            </div>
-
-            {/* Footer note */}
-            <p className="text-[10px] text-gray-400 text-center mt-4">
-              Apenas visual • Suas permissões reais não mudam
-            </p>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+        </div>
+        <p className="text-center text-[11px] text-gray-500">
+          Apenas visual. Suas permissões reais não mudam.
+        </p>
+      </DialogContent>
+    </Dialog>
   );
 }
