@@ -269,7 +269,7 @@ export async function setupAuth(app: Express) {
                                 profileImageUrl: profile.photos?.[0]?.value,
                                 role: ownerIsLoggingIn ? "admin" : "student",
                                 ...(ownerIsLoggingIn ? { adminRole: "master" } : {}),
-                                kycStatus: "approved",
+                                kycStatus: ownerIsLoggingIn ? "approved" : "pending",
                                 isVerified: true,
                                 password: autoPasswordHash,
                             });

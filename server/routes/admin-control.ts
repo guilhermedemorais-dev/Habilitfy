@@ -1,6 +1,9 @@
 import type { Express, Response } from "express";
+import { and, gte, sql } from "drizzle-orm";
 import { hashPassword, requireAdminRole } from "../auth";
 import { storage } from "../storage";
+import { db } from "../db";
+import { userAccessLogs } from "@shared/schema";
 
 const SENSITIVE_RESPONSE_KEYS = new Set(["password", "verificationToken"]);
 
@@ -52,7 +55,34 @@ export function registerAdminControlRoutes(
     try {
       const memoryUsage = process.memoryUsage();
       const uptime = process.uptime();
-      const activeSessions = Math.floor(Math.random() * 50) + 10;
+
+      const now = Date.now();
+      const activeWindow = new Date(now - 15 * 60 * 1000); // últimos 15 minutos
+      const responseWindow = new Date(now - 60 * 60 * 1000); // última hora
+
+      // Active sessions = contas únicas que acessaram a plataforma nos últimos 15 min.
+      const [activeRow] = await db
+        .select({
+          count: sql<number>`count(distinct ${userAccessLogs.userId})`.mapWith(Number),
+        })
+        .from(userAccessLogs)
+        .where(gte(userAccessLogs.createdAt, activeWindow));
+
+      // Tempo médio de resposta real (ms) na última hora.
+      const [responseRow] = await db
+        .select({
+          avg: sql<number>`coalesce(round(avg(${userAccessLogs.requestDurationMs})), 0)`.mapWith(Number),
+        })
+        .from(userAccessLogs)
+        .where(
+          and(
+            gte(userAccessLogs.createdAt, responseWindow),
+            sql`${userAccessLogs.requestDurationMs} is not null`,
+          ),
+        );
+
+      const activeSessions = activeRow?.count ?? 0;
+      const avgResponseTime = responseRow?.avg ?? 0;
 
       res.json({
         status: "healthy",
@@ -66,7 +96,7 @@ export function registerAdminControlRoutes(
           activeSessions,
           requestsPerMinute: runtimeMetrics.getRequestCount(),
           errorsLastHour: runtimeMetrics.getErrorCount(),
-          avgResponseTime: Math.floor(Math.random() * 100) + 20,
+          avgResponseTime,
         },
       });
     } catch (error) {

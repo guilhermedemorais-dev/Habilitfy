@@ -116,7 +116,7 @@ export const users = mysqlTable(
     profileImageUrl: varchar("profile_image_url", { length: 500 }),
     role: userRoleEnum.default('student').notNull(),
     adminRole: adminRoleEnum,
-    kycStatus: kycStatusEnum.default("approved").notNull(),
+    kycStatus: kycStatusEnum.default("pending").notNull(),
     phone: varchar("phone", { length: 50 }),
     cpf: varchar("cpf", { length: 20 }),
     cnpj: varchar("cnpj", { length: 20 }),
