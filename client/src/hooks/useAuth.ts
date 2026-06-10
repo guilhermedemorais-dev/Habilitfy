@@ -6,7 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import type { User } from "@shared/schema";
 
 const LOGIN_REDIRECT_KEY = "habilitfy.postLoginRedirect";
-const JUST_LOGGED_OUT_KEY = "habilitfy.justLoggedOut";
 
 function rememberRedirect(target?: string) {
   if (typeof window === "undefined") return;
@@ -24,25 +23,6 @@ function consumeRedirect() {
   return null;
 }
 
-function markJustLoggedOut() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(JUST_LOGGED_OUT_KEY, "1");
-}
-
-function consumeJustLoggedOut() {
-  if (typeof window === "undefined") return false;
-  const justLoggedOut = window.sessionStorage.getItem(JUST_LOGGED_OUT_KEY) === "1";
-  if (justLoggedOut) {
-    window.sessionStorage.removeItem(JUST_LOGGED_OUT_KEY);
-  }
-  return justLoggedOut;
-}
-
-function clearJustLoggedOut() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(JUST_LOGGED_OUT_KEY);
-}
-
 export function useAuth() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -56,7 +36,6 @@ export function useAuth() {
 
   useEffect(() => {
     if (!user || hasNavigated.current) return;
-    clearJustLoggedOut();
     const redirectTo = consumeRedirect();
     if (redirectTo) {
       hasNavigated.current = true;
@@ -103,16 +82,8 @@ export function useAuth() {
         return;
       }
 
-      if (consumeJustLoggedOut()) {
-        rememberRedirect(redirectTo);
-        navigate("/login");
-        return;
-      }
-
       rememberRedirect(redirectTo);
-      if (typeof window !== "undefined") {
-        window.location.assign("/api/login");
-      }
+      navigate("/login");
     },
     [navigate, user]
   );
@@ -131,8 +102,7 @@ export function useAuth() {
         window.sessionStorage.removeItem("habilitfy.postLoginRedirect");
       }
 
-      markJustLoggedOut();
-      navigate("/");
+      navigate("/login");
     },
     onError: (error: Error) => {
       toast({
