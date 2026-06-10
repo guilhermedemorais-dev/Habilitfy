@@ -4,6 +4,9 @@ const VIEW_ROLE_KEY = "habilitfy.adminViewRole";
 
 export type ViewRole = "admin" | "instructor" | "student";
 
+const isViewRole = (value: string | null): value is ViewRole =>
+  value === "admin" || value === "instructor" || value === "student";
+
 /**
  * Hook para admin simular visualização como outro role.
  * Salva em sessionStorage — não altera o banco, não afeta permissões reais.
@@ -15,17 +18,23 @@ export function useRoleSwitcher(realRole?: string) {
   const [viewRole, setViewRoleState] = useState<ViewRole>(() => {
     if (typeof window === "undefined") return (realRole as ViewRole) || "student";
     const saved = window.sessionStorage.getItem(VIEW_ROLE_KEY);
-    if (saved && isAdmin) return saved as ViewRole;
+    if (isViewRole(saved)) return saved;
     return (realRole as ViewRole) || "student";
   });
 
   // Sync when realRole changes (login/logout)
   useEffect(() => {
+    if (!realRole) return;
+
     if (!isAdmin) {
       // Non-admin: always use their real role
       setViewRoleState((realRole as ViewRole) || "student");
       window.sessionStorage.removeItem(VIEW_ROLE_KEY);
+      return;
     }
+
+    const saved = window.sessionStorage.getItem(VIEW_ROLE_KEY);
+    setViewRoleState(isViewRole(saved) ? saved : "admin");
   }, [realRole, isAdmin]);
 
   const setViewRole = useCallback(

@@ -37,6 +37,7 @@ export default function InstructorDashboard() {
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const { user } = useAuth();
   const instructorProfile = (user as any)?.instructorProfile;
+  const isAdminPreview = user?.role === "admin" && !instructorProfile;
   const instructorName =
     user?.firstName || user?.lastName || user?.email || "Instrutor";
   const [slotDurationMinutes, setSlotDurationMinutes] = useState<number>(50);
@@ -386,8 +387,9 @@ export default function InstructorDashboard() {
   };
 
   const isKycApproved = user?.kycStatus === "approved";
+  const canOpenInstructorDashboard = isAdminPreview || isKycApproved;
 
-  if (isLoading) {
+  if (isLoading && !isAdminPreview) {
     return (
       <AuthGuard redirectTo="/dashboard/instrutor">
         <div className="min-h-screen bg-background pb-24">
@@ -522,22 +524,44 @@ export default function InstructorDashboard() {
         <AccountModal open={accountModalOpen} onOpenChange={setAccountModalOpen} user={user} />
 
         <div className="p-6 space-y-6">
-          {!isKycApproved ? (
+          {isAdminPreview ? (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+              <Shield className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Visualização administrativa</p>
+                <p className="mt-1 text-sm text-amber-800">
+                  Este painel está em modo somente leitura. Para testar agenda, veículos, perfil e financeiro, use uma conta de instrutor de teste.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {!canOpenInstructorDashboard ? (
             <KYCPendingBlock status={user?.kycStatus} onRetry={() => setAccountModalOpen(true)} />
           ) : (
             <Tabs defaultValue="overview" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-5 lg:w-fit">
+              <TabsList className={`grid w-full ${isAdminPreview ? "grid-cols-2" : "grid-cols-5"} lg:w-fit`}>
                 <TabsTrigger value="overview">Resumo</TabsTrigger>
-                <TabsTrigger value="schedule">Agenda</TabsTrigger>
-                <TabsTrigger value="profile">Perfil</TabsTrigger>
-                <TabsTrigger value="vehicles">Veículos</TabsTrigger>
+                {!isAdminPreview ? <TabsTrigger value="schedule">Agenda</TabsTrigger> : null}
+                {!isAdminPreview ? <TabsTrigger value="profile">Perfil</TabsTrigger> : null}
+                {!isAdminPreview ? <TabsTrigger value="vehicles">Veículos</TabsTrigger> : null}
                 <TabsTrigger value="support">Suporte</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="space-y-6 outline-none">
                 {/* Stats Grid */}
                 <div className="grid grid-cols-2 gap-4">
-                  < WalletCard />
+                  {isAdminPreview ? (
+                    <Card className="border-none shadow-sm h-full">
+                      <CardContent className="flex h-full flex-col justify-between p-4">
+                        <div>
+                          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 md:text-xs">Saldo</p>
+                          <h3 className="text-2xl font-bold text-slate-900 dark:text-white md:text-3xl">R$ 0,00</h3>
+                        </div>
+                        <p className="text-xs text-slate-500">Indisponível na visualização administrativa</p>
+                      </CardContent>
+                    </Card>
+                  ) : <WalletCard />}
                   <Card className="border-none shadow-sm h-full flex flex-col justify-between">
                     < CardContent className="p-4 flex flex-col h-full justify-between">
                       < div >

@@ -1143,15 +1143,40 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.patch('/api/vehicles/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
-      const updated = await storage.updateVehicle(req.params.id, req.body);
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, req.params.id)).limit(1);
+      if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
+
+      const instructor = await storage.getInstructor(vehicle.instructorId);
+      const user = userId ? await storage.getUser(userId) : null;
+      if (!userId || (instructor?.userId !== userId && user?.role !== 'admin')) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const allowedPayload = insertVehicleSchema
+        .partial()
+        .omit({ instructorId: true, status: true, rejectionReason: true })
+        .parse(req.body || {});
+      const updated = await storage.updateVehicle(req.params.id, allowedPayload);
       res.json(updated);
     } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: error.errors });
       res.status(500).json({ message: "Failed to update vehicle" });
     }
   });
 
   app.delete('/api/vehicles/:id', isAuthenticated, async (req: any, res: Response) => {
     try {
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, req.params.id)).limit(1);
+      if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
+
+      const instructor = await storage.getInstructor(vehicle.instructorId);
+      const user = userId ? await storage.getUser(userId) : null;
+      if (!userId || (instructor?.userId !== userId && user?.role !== 'admin')) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
       await storage.deleteVehicle(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -1239,6 +1264,16 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
 
   app.get('/api/bookings/instructor/:instructorId', isAuthenticated, async (req: Request, res: Response) => {
     try {
+      const authenticatedRequest = req as any;
+      const userId = authenticatedRequest.user?.claims?.sub ?? authenticatedRequest.user?.id;
+      const instructor = await storage.getInstructor(req.params.instructorId);
+      if (!instructor) return res.status(404).json({ message: "Instructor not found" });
+
+      const user = userId ? await storage.getUser(userId) : null;
+      if (!userId || (instructor.userId !== userId && user?.role !== 'admin')) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
       const bookings = await storage.getBookingsByInstructor(req.params.instructorId);
 
       // Enrich bookings with student details
