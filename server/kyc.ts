@@ -4,6 +4,7 @@ import { storage } from './storage';
 import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 // KYC Configuration
 const KYC_CONFIG = {
@@ -441,8 +442,28 @@ export function fileToBase64(filePath: string): string {
 export async function saveBase64Image(
     base64Data: string,
     userId: string,
-    type: 'selfie' | 'document_front' | 'document_back' | 'cnh_front' | 'cnh_back' | 'credential' | 'vehicle_auth' | 'vehicle' | 'vehicle_doc' | 'vehicle_plate'
+    type: 'selfie' | 'document_front' | 'document_back' | 'cnh_front' | 'cnh_back' | 'credential' | 'license' | 'theoretical_proof' | 'vehicle_auth' | 'vehicle' | 'vehicle_doc' | 'vehicle_plate'
 ): Promise<string> {
+    const match = base64Data.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/);
+    if (!match) {
+        throw new Error('Formato de imagem inválido. Use JPG, PNG ou WebP.');
+    }
+
+    const mimeType = match[1];
+    const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+    if (!buffer.length || buffer.length > 5 * 1024 * 1024) {
+        throw new Error('A imagem deve ter no máximo 5 MB.');
+    }
+
+    const signatures: Record<string, boolean> = {
+        'image/jpeg': buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff,
+        'image/png': buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+        'image/webp': buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP',
+    };
+    if (!signatures[mimeType]) {
+        throw new Error('O conteúdo do arquivo não corresponde a uma imagem válida.');
+    }
+
     const uploadsDir = path.join(process.cwd(), 'uploads', 'kyc', userId);
 
     // Create directory if it doesn't exist
@@ -450,13 +471,10 @@ export async function saveBase64Image(
         fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
-    const filename = `${type}_${Date.now()}.jpg`;
+    const extension = mimeType === 'image/jpeg' ? 'jpg' : mimeType.split('/')[1];
+    const filename = `${type}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${extension}`;
     const filePath = path.join(uploadsDir, filename);
-
-    // Remove data URL prefix if present
-    const base64Clean = base64Data.replace(/^data:image\/\w+;base64,/, '');
-
-    fs.writeFileSync(filePath, Buffer.from(base64Clean, 'base64'));
+    fs.writeFileSync(filePath, buffer, { mode: 0o600 });
 
     // Return relative URL for storage
     return `/uploads/kyc/${userId}/${filename}`;

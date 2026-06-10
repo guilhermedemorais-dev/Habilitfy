@@ -25,7 +25,7 @@ import { kycVerifications as kycVerificationsTable } from "@shared/kyc-schema";
 import { saveBase64Image } from "./kyc";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { setupAuth, isAuthenticated, hashPassword, requireAdmin, requireAdminRole } from "./auth";
+import { setupAuth, isAuthenticated, hashPassword, comparePassword, requireAdmin, requireAdminRole } from "./auth";
 import { insertInstructorSchema, insertBookingSchema, insertReviewSchema, insertAvailabilitySchema, insertMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import { createAbacateBilling, getAbacateBilling, mapAbacateStatusToBooking } from "./abacatepay";
@@ -36,6 +36,8 @@ import { cacheMiddleware } from "./cache";
 import { invalidateCache } from "./redis";
 import { insertVehicleSchema, insertSupportTicketSchema } from "@shared/schema";
 import * as crypto from "crypto";
+import { promises as fs } from "fs";
+import path from "path";
 import { sendVerificationEmail } from "./email";
 import OpenAI from "openai";
 import { registerAdminConfigRoutes } from "./routes/admin-config";
@@ -66,6 +68,14 @@ const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 20, // max 20 payment attempts per IP
   message: { message: 'Muitas tentativas de pagamento. Tente novamente em 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const accountSecurityLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: "Muitas tentativas. Aguarde 15 minutos e tente novamente." },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -595,6 +605,8 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       let savedSelfieUrl = null;
       let savedDocumentFrontUrl = null;
       let savedDocumentBackUrl = null;
+      let savedLicenseImageUrl = null;
+      let savedTheoreticalProofImageUrl = null;
 
       // Instructor specific images
       let savedCredentialImageUrl = null;
@@ -614,6 +626,12 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       if (documentBackImageUrl) {
         savedDocumentBackUrl = await saveBase64Image(documentBackImageUrl, userId, 'document_back');
       }
+      if (role !== 'instructor' && licenseImageUrl) {
+        savedLicenseImageUrl = await saveBase64Image(licenseImageUrl, userId, 'license');
+      }
+      if (role !== 'instructor' && theoreticalProofImageUrl) {
+        savedTheoreticalProofImageUrl = await saveBase64Image(theoreticalProofImageUrl, userId, 'theoretical_proof');
+      }
 
       if (role === 'instructor') {
         const { vehicleAuthorizationImageUrl, vehicleImageUrl, vehicleDocImageUrl, vehiclePlateImageUrl } = req.body;
@@ -631,12 +649,22 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       }
 
       // 3. Create KYC Verification Record
-      if (savedSelfieUrl || savedDocumentFrontUrl) {
+      const kycDocumentFrontUrl = role === 'instructor' ? savedCnhFrontImageUrl : savedDocumentFrontUrl;
+      const kycDocumentBackUrl = role === 'instructor' ? savedCnhBackImageUrl : savedDocumentBackUrl;
+      if (savedSelfieUrl || kycDocumentFrontUrl) {
         await db.insert(kycVerificationsTable).values({
           userId: userId,
           selfieUrl: savedSelfieUrl,
-          documentFrontUrl: savedDocumentFrontUrl,
-          documentBackUrl: savedDocumentBackUrl,
+          documentFrontUrl: kycDocumentFrontUrl,
+          documentBackUrl: kycDocumentBackUrl,
+          documentValidationDetails: {
+            submissionType: 'registration',
+            role: role === 'instructor' ? 'instructor' : 'student',
+            isLicensed: role !== 'instructor' ? Boolean(isLicensed) : undefined,
+            licenseImageUrl: savedLicenseImageUrl,
+            theoreticalProofImageUrl: savedTheoreticalProofImageUrl,
+            credentialImageUrl: savedCredentialImageUrl,
+          },
           status: 'pending',
           ipAddress: req.ip,
           userAgent: req.headers['user-agent']
@@ -661,7 +689,7 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
           credentialNumber: credentialNumber || "",
           documentNumber: documentNumber || "",
           selfieImageUrl: savedSelfieUrl,
-          documentImageUrl: savedDocumentFrontUrl,
+          documentImageUrl: savedCnhFrontImageUrl,
           cnhFrontImageUrl: savedCnhFrontImageUrl,
           cnhBackImageUrl: savedCnhBackImageUrl,
           credentialImageUrl: savedCredentialImageUrl,
@@ -778,6 +806,97 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     } catch (error) {
       console.error("Error updating user:", error);
       res.status(500).json({ message: "Failed to update user" });
+    }
+  });
+
+  app.post('/api/users/me/avatar', isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const imageData = req.body?.imageData;
+      if (typeof imageData !== "string") {
+        return res.status(400).json({ message: "Selecione uma imagem válida." });
+      }
+
+      const match = imageData.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+      if (!match) {
+        return res.status(400).json({ message: "Use uma imagem JPG, PNG ou WebP." });
+      }
+
+      const buffer = Buffer.from(match[2], "base64");
+      if (buffer.length === 0 || buffer.length > 2 * 1024 * 1024) {
+        return res.status(400).json({ message: "A imagem deve ter no máximo 2 MB." });
+      }
+
+      const imageType = match[1];
+      const hasValidSignature =
+        (imageType === "jpeg" && buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) ||
+        (imageType === "png" && buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) ||
+        (imageType === "webp" && buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP");
+      if (!hasValidSignature) {
+        return res.status(400).json({ message: "O conteúdo do arquivo não corresponde a uma imagem válida." });
+      }
+
+      const extensions: Record<string, string> = {
+        jpeg: "jpg",
+        png: "png",
+        webp: "webp",
+      };
+      const extension = extensions[imageType];
+      const profileDirectory = path.join(process.cwd(), "uploads", "profiles", userId);
+      await fs.mkdir(profileDirectory, { recursive: true });
+
+      const fileName = `avatar-${Date.now()}.${extension}`;
+      const filePath = path.join(profileDirectory, fileName);
+      await fs.writeFile(filePath, buffer, { flag: "wx" });
+
+      const profileImageUrl = `/uploads/profiles/${userId}/${fileName}`;
+      const updated = await storage.updateUser(userId, { profileImageUrl });
+      res.json(sanitizeSensitiveData(updated));
+    } catch (error) {
+      console.error("Error updating avatar:", error);
+      res.status(500).json({ message: "Não foi possível atualizar a foto." });
+    }
+  });
+
+  app.post('/api/users/me/password', accountSecurityLimiter, isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.claims?.sub ?? req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const currentPassword = typeof req.body?.currentPassword === "string"
+        ? req.body.currentPassword
+        : "";
+      const newPassword = typeof req.body?.newPassword === "string"
+        ? req.body.newPassword
+        : "";
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "A nova senha deve ter pelo menos 8 caracteres." });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado." });
+      }
+
+      if (user.password) {
+        const currentPasswordIsValid = await comparePassword(currentPassword, user.password);
+        if (!currentPasswordIsValid) {
+          return res.status(400).json({ message: "A senha atual está incorreta." });
+        }
+      }
+
+      await storage.updateUser(userId, { password: await hashPassword(newPassword) });
+      res.json({ success: true, message: "Senha atualizada com sucesso." });
+    } catch (error) {
+      console.error("Error updating password:", error);
+      res.status(500).json({ message: "Não foi possível atualizar a senha." });
     }
   });
 
@@ -1861,6 +1980,127 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
     }
   });
 
+  // Resubmit KYC documents for manual review after a rejection or incomplete submission.
+  app.post('/api/kyc/resubmit', kycLimiter, isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: 'Não autenticado' });
+
+      const user = await storage.getUser(userId);
+      if (!user || !['student', 'instructor'].includes(user.role || '')) {
+        return res.status(403).json({ message: 'Reenvio disponível apenas para alunos e instrutores.' });
+      }
+      if (user.kycStatus === 'approved') {
+        return res.status(409).json({ message: 'Seu KYC já está aprovado.' });
+      }
+
+      const payload = z.object({
+        selfie: z.string().min(1),
+        documentFront: z.string().optional(),
+        documentBack: z.string().optional(),
+        cnhFront: z.string().optional(),
+        cnhBack: z.string().optional(),
+        credential: z.string().optional(),
+        license: z.string().optional(),
+        theoreticalProof: z.string().optional(),
+        isLicensed: z.boolean().optional(),
+      }).parse(req.body);
+
+      const isInstructor = user.role === 'instructor';
+      if (isInstructor && (!payload.cnhFront || !payload.cnhBack || !payload.credential)) {
+        return res.status(400).json({ message: 'Envie a frente e o verso da CNH e a credencial de instrutor.' });
+      }
+      if (!isInstructor && (!payload.documentFront || !payload.documentBack)) {
+        return res.status(400).json({ message: 'Envie a frente e o verso do documento.' });
+      }
+      if (!isInstructor && payload.isLicensed && !payload.license) {
+        return res.status(400).json({ message: 'Envie a foto da CNH.' });
+      }
+      if (!isInstructor && !payload.isLicensed && !payload.theoreticalProof) {
+        return res.status(400).json({ message: 'Envie o LADV ou comprovante do exame teórico.' });
+      }
+
+      const { hasValidConsent, computeFileHash, logKycAuditEvent } = await import('./kyc-admin');
+      if (!(await hasValidConsent(userId))) {
+        return res.status(403).json({
+          message: 'Você precisa aceitar o termo de consentimento antes de enviar documentos.',
+          code: 'CONSENT_REQUIRED',
+        });
+      }
+
+      const selfieUrl = await saveBase64Image(payload.selfie, userId, 'selfie');
+      const frontData = isInstructor ? payload.cnhFront! : payload.documentFront!;
+      const backData = isInstructor ? payload.cnhBack! : payload.documentBack!;
+      const documentFrontUrl = await saveBase64Image(frontData, userId, isInstructor ? 'cnh_front' : 'document_front');
+      const documentBackUrl = await saveBase64Image(backData, userId, isInstructor ? 'cnh_back' : 'document_back');
+      const credentialImageUrl = payload.credential
+        ? await saveBase64Image(payload.credential, userId, 'credential')
+        : null;
+      const licenseImageUrl = payload.license
+        ? await saveBase64Image(payload.license, userId, 'license')
+        : null;
+      const theoreticalProofImageUrl = payload.theoreticalProof
+        ? await saveBase64Image(payload.theoreticalProof, userId, 'theoretical_proof')
+        : null;
+
+      const verificationId = crypto.randomUUID();
+      await db.insert(kycVerificationsTable).values({
+        id: verificationId,
+        userId,
+        selfieUrl,
+        documentFrontUrl,
+        documentBackUrl,
+        fileHashSelfie: computeFileHash(payload.selfie),
+        fileHashDocumentFront: computeFileHash(frontData),
+        fileHashDocumentBack: computeFileHash(backData),
+        documentValidationDetails: {
+          submissionType: 'resubmission',
+          role: user.role,
+          isLicensed: isInstructor ? undefined : Boolean(payload.isLicensed),
+          licenseImageUrl,
+          theoreticalProofImageUrl,
+          credentialImageUrl,
+        },
+        status: 'pending',
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      await storage.updateUser(userId, { kycStatus: 'pending' });
+      if (isInstructor) {
+        const instructor = await storage.getInstructorByUserId(userId);
+        if (instructor) {
+          await storage.updateInstructor(instructor.id, {
+            status: 'pending',
+            selfieImageUrl: selfieUrl,
+            documentImageUrl: documentFrontUrl,
+            cnhFrontImageUrl: documentFrontUrl,
+            cnhBackImageUrl: documentBackUrl,
+            credentialImageUrl,
+          });
+        }
+      }
+
+      await logKycAuditEvent({
+        userId,
+        kycVerificationId: verificationId,
+        eventType: 'KYC_RESUBMISSION_REQUESTED',
+        previousStatus: user.kycStatus || undefined,
+        newStatus: 'pending',
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      res.status(201).json({ success: true, status: 'pending', verificationId });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Preencha todos os documentos obrigatórios.' });
+      }
+      logger.error('[KYC] Resubmission failed', { error, userId: req.user?.id });
+      res.status(500).json({ message: error instanceof Error ? error.message : 'Erro ao reenviar documentos.' });
+    }
+  });
+
   // Verify KYC (submit images for verification)
   app.post('/api/kyc/verify', kycLimiter, isAuthenticated, async (req: any, res: Response) => {
     try {
@@ -1971,13 +2211,34 @@ export async function registerRoutes(app: any, httpServer: Server): Promise<Serv
       };
       const newKycStatus = statusMap[result.overallStatus] || 'pending';
 
+      await db.insert(kycVerificationsTable).values({
+        userId,
+        selfieUrl,
+        documentFrontUrl,
+        documentBackUrl,
+        fileHashSelfie,
+        fileHashDocumentFront,
+        fileHashDocumentBack,
+        faceMatchScore: result.faceMatchScore != null ? String(result.faceMatchScore) : null,
+        faceMatchPassed: result.faceMatchPassed,
+        livenessScore: result.livenessScore != null ? String(result.livenessScore) : null,
+        livenessPassed: result.livenessPassed,
+        documentValid: result.documentValid,
+        documentValidationDetails: {
+          submissionType: 'automated_verification',
+          confidenceLevel: result.confidenceLevel,
+          rejectionReasons: result.rejectionReasons,
+        },
+        status: result.overallStatus,
+        rejectionReason: result.rejectionReasons.join('; ') || null,
+        ipAddress,
+        userAgent: req.headers['user-agent'],
+      });
+
       await storage.upsertUser({
         id: userId,
         kycStatus: newKycStatus as any,
       });
-
-      // Store the detailed result in kyc_verifications if we have documents
-      // The actual requires_review status is preserved in the verification record
 
       logger.info(`[KYC] User ${userId} verification: ${result.overallStatus} `, { userId, status: result.overallStatus });
 

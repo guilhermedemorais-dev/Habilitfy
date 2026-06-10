@@ -30,9 +30,11 @@ import { WalletCard } from "@/components/dashboard/wallet/WalletCard";
 import { TransactionHistory } from "@/components/dashboard/wallet/TransactionHistory";
 import { ProfileEditor } from "@/components/dashboard/ProfileEditor";
 import { PwaInstallBanner } from "@/components/pwa/PwaInstallBanner";
+import { AccountModal } from "@/components/account/AccountModal";
 
 export default function InstructorDashboard() {
   const [date, setDate] = useState<Date>(new Date());
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
   const { user } = useAuth();
   const instructorProfile = (user as any)?.instructorProfile;
   const instructorName =
@@ -455,7 +457,12 @@ export default function InstructorDashboard() {
       <div className="min-h-screen bg-background pb-24 mobile-app-container border-x border-sidebar-border">
         <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center transition-all duration-300">
           <div className="flex items-center gap-3 md:gap-4">
-            <div className="relative group cursor-pointer shrink-0">
+            <button
+              type="button"
+              onClick={() => setAccountModalOpen(true)}
+              className="group relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              aria-label="Abrir configurações da conta"
+            >
               <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-100 group-hover:ring-primary/20 transition-all duration-300">
                 {user?.profileImageUrl ? (
                   <img
@@ -470,7 +477,7 @@ export default function InstructorDashboard() {
                 )}
               </div>
               <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
-            </div>
+            </button>
 
             <div>
               <p className="text-[10px] md:text-xs text-slate-400 font-medium tracking-wide uppercase">Olá</p>
@@ -512,10 +519,11 @@ export default function InstructorDashboard() {
         </header>
 
         <PwaInstallBanner />
+        <AccountModal open={accountModalOpen} onOpenChange={setAccountModalOpen} user={user} />
 
         <div className="p-6 space-y-6">
           {!isKycApproved ? (
-            <KYCPendingBlock status={user?.kycStatus} />
+            <KYCPendingBlock status={user?.kycStatus} onRetry={() => setAccountModalOpen(true)} />
           ) : (
             <Tabs defaultValue="overview" className="space-y-6">
               <TabsList className="grid w-full grid-cols-5 lg:w-fit">

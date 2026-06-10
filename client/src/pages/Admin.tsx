@@ -46,6 +46,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleSwitcher } from "@/hooks/useRoleSwitcher";
 import { RoleSwitcherModal } from "@/components/RoleSwitcherModal";
+import { AccountModal } from "@/components/account/AccountModal";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -262,6 +263,7 @@ export default function Admin() {
   const { toast } = useToast();
   const [globalSearch, setGlobalSearch] = useState("");
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
   const { viewRole, canSwitch, setViewRole } = useRoleSwitcher(user?.role);
   const [mapLayer, setMapLayer] = useState<"instructors" | "students">(
     "instructors",
@@ -1178,7 +1180,12 @@ export default function Admin() {
                       <Moon className="h-4 w-4 text-slate-600" />
                     )}
                   </Button>
-                  <div className="hidden items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm md:flex dark:border-slate-700 dark:bg-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowAccountModal(true)}
+                    className="hidden items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:flex dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+                    aria-label="Abrir configurações da conta"
+                  >
                     <Avatar className="h-8 w-8">
                       {user?.profileImageUrl ? (
                         <AvatarImage
@@ -1194,7 +1201,7 @@ export default function Admin() {
                       </p>
                       <p className="text-xs text-slate-500">Admin</p>
                     </div>
-                  </div>
+                  </button>
                 </div>
               </div>
             </header>
@@ -1358,6 +1365,11 @@ export default function Admin() {
           else if (role === "instructor") window.location.href = "/dashboard/instrutor";
           else window.location.href = "/dashboard/aluno";
         }}
+      />
+      <AccountModal
+        open={showAccountModal}
+        onOpenChange={setShowAccountModal}
+        user={user}
       />
     </AuthGuard>
   );
