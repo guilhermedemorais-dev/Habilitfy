@@ -23,11 +23,13 @@ import { useEffect, useState } from "react";
 import { PwaInstallBanner } from "@/components/pwa/PwaInstallBanner";
 import { QRCodeSVG } from "qrcode.react";
 import { KYCPendingBlock } from "@/components/dashboard/KYCPendingBlock";
+import { AccountModal } from "@/components/account/AccountModal";
 
 export default function StudentDashboard() {
   const { user, logout } = useAuth();
   const { data: bookings, isLoading, error } = useStudentBookings();
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<{
     id: string;
     instructorId: string;
@@ -150,9 +152,18 @@ export default function StudentDashboard() {
         <header className="bg-primary pt-12 pb-24 px-6 rounded-b-[2.5rem] shadow-lg">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white border-2 border-white/30">
-                <User className="w-6 h-6" />
-              </div>
+              <button
+                type="button"
+                onClick={() => setAccountModalOpen(true)}
+                className="h-12 w-12 overflow-hidden rounded-full border-2 border-white/30 bg-white/20 text-white transition hover:bg-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Abrir configurações da conta"
+              >
+                {user?.profileImageUrl ? (
+                  <img src={user.profileImageUrl} alt={studentName} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center"><User className="w-6 h-6" /></span>
+                )}
+              </button>
               <div>
                 <p className="text-green-100 text-sm">Bem-vindo,</p>
                 <h1 className="text-white text-xl font-bold truncate max-w-[200px]">
@@ -196,10 +207,11 @@ export default function StudentDashboard() {
         </header>
 
         <PwaInstallBanner />
+        <AccountModal open={accountModalOpen} onOpenChange={setAccountModalOpen} user={user} />
 
         <div className="px-6 -mt-16 space-y-6">
           {!isKycApproved ? (
-            <KYCPendingBlock status={user?.kycStatus} />
+            <KYCPendingBlock status={user?.kycStatus} onRetry={() => setAccountModalOpen(true)} />
           ) : (
             <>
               <div className="mb-2">

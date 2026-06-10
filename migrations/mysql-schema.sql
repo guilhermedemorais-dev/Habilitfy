@@ -456,8 +456,84 @@ CREATE TABLE IF NOT EXISTS `kyc_verifications` (
   `ip_address` VARCHAR(50),
   `user_agent` TEXT,
   `device_fingerprint` VARCHAR(255),
+  `provider_status` VARCHAR(50) DEFAULT NULL COMMENT 'success | unavailable | error | timeout | parse_error',
+  `provider_error` TEXT DEFAULT NULL COMMENT 'Internal technical error details for auditing',
+  `consent_id` VARCHAR(36) DEFAULT NULL,
+  `file_hash_selfie` VARCHAR(64) DEFAULT NULL,
+  `file_hash_document_front` VARCHAR(64) DEFAULT NULL,
+  `file_hash_document_back` VARCHAR(64) DEFAULT NULL,
+  `reason_code` VARCHAR(100) DEFAULT NULL,
+  `risk_level` VARCHAR(20) DEFAULT NULL COMMENT 'low | medium | high | critical',
+  `legal_hold` BOOLEAN DEFAULT FALSE,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- KYC Consents table (LGPD compliance)
+CREATE TABLE IF NOT EXISTS `kyc_consents` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `consent_version` VARCHAR(20) NOT NULL,
+  `policy_version` VARCHAR(20) NOT NULL,
+  `consent_text_hash` VARCHAR(64) NOT NULL,
+  `accepted` BOOLEAN NOT NULL DEFAULT FALSE,
+  `accepted_at` TIMESTAMP NULL,
+  `ip_address` VARCHAR(50),
+  `user_agent` TEXT,
+  `device_fingerprint` VARCHAR(255),
+  `source_screen` VARCHAR(100),
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_kyc_consents_user` (`user_id`),
+  INDEX `idx_kyc_consents_version` (`consent_version`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- KYC Audit Events table (immutable audit trail)
+CREATE TABLE IF NOT EXISTS `kyc_audit_events` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `admin_id` VARCHAR(36) DEFAULT NULL,
+  `kyc_verification_id` VARCHAR(36) DEFAULT NULL,
+  `event_type` VARCHAR(100) NOT NULL,
+  `previous_status` VARCHAR(50) DEFAULT NULL,
+  `new_status` VARCHAR(50) DEFAULT NULL,
+  `reason_code` VARCHAR(100) DEFAULT NULL,
+  `reason_text` TEXT DEFAULT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `ip_address` VARCHAR(50) DEFAULT NULL,
+  `user_agent` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_kyc_audit_user` (`user_id`),
+  INDEX `idx_kyc_audit_event_type` (`event_type`),
+  INDEX `idx_kyc_audit_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- KYC Legal Holds table (judicial preservation)
+CREATE TABLE IF NOT EXISTS `kyc_legal_holds` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `reason` TEXT NOT NULL,
+  `protocol` VARCHAR(100) DEFAULT NULL,
+  `created_by` VARCHAR(36) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `released_by` VARCHAR(36) DEFAULT NULL,
+  `released_at` TIMESTAMP NULL,
+  `active` BOOLEAN NOT NULL DEFAULT TRUE,
+  INDEX `idx_kyc_legal_holds_user` (`user_id`),
+  INDEX `idx_kyc_legal_holds_active` (`active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- KYC Dossier Exports table (legal evidence trail)
+CREATE TABLE IF NOT EXISTS `kyc_dossier_exports` (
+  `id` VARCHAR(36) NOT NULL PRIMARY KEY DEFAULT (UUID()),
+  `user_id` VARCHAR(36) NOT NULL,
+  `exported_by` VARCHAR(36) NOT NULL,
+  `reason` TEXT NOT NULL,
+  `protocol` VARCHAR(100) DEFAULT NULL,
+  `export_hash` VARCHAR(64) NOT NULL,
+  `exported_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `ip_address` VARCHAR(50) DEFAULT NULL,
+  INDEX `idx_kyc_dossier_user` (`user_id`),
+  INDEX `idx_kyc_dossier_exported` (`exported_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Insert default admin settings

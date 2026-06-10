@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 
 interface KYCPendingBlockProps {
     status: string | null | undefined;
+    onRetry?: () => void;
 }
 
-export function KYCPendingBlock({ status }: KYCPendingBlockProps) {
+export function KYCPendingBlock({ status, onRetry }: KYCPendingBlockProps) {
     if (status === "approved") return null;
 
     const isPending = status === "pending" || !status;
@@ -27,7 +28,7 @@ export function KYCPendingBlock({ status }: KYCPendingBlockProps) {
                         </h2>
                         <p className="text-slate-500 leading-relaxed">
                             {isRejected
-                                ? "Houve um problema com sua documentação. Entre em contato com o suporte para regularizar seu cadastro."
+                                ? "Houve um problema com sua documentação. Corrija as imagens e envie uma nova tentativa para análise."
                                 : "Seus documentos estão sendo analisados pela nossa equipe. Você receberá uma notificação assim que seu cadastro for aprovado."}
                         </p>
                     </div>
@@ -53,8 +54,8 @@ export function KYCPendingBlock({ status }: KYCPendingBlockProps) {
                     </div>
 
                     {isRejected && (
-                        <Button className="w-full bg-primary hover:bg-primary/90">
-                            Falar com Suporte
+                        <Button className="w-full bg-primary hover:bg-primary/90" onClick={onRetry}>
+                            Reenviar documentos
                         </Button>
                     )}
                     {!isRejected && (

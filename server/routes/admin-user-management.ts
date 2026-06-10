@@ -115,6 +115,17 @@ export function registerAdminUserManagementRoutes(app: Express) {
             updatedAt: new Date(),
           })
           .where(eq(kycVerificationsTable.id, latestKyc.id));
+      } else {
+        // Nenhum histórico de verificação: cria um registro de auditoria para
+        // refletir a decisão manual do admin, em vez de só alterar users.kycStatus.
+        await db.insert(kycVerificationsTable).values({
+          userId,
+          status: payload.status,
+          rejectionReason:
+            payload.status === "rejected" ? payload.rejectionReason ?? null : null,
+          reviewedByUserId: adminId,
+          reviewedAt: new Date(),
+        });
       }
 
       if (user.role === 'instructor') {

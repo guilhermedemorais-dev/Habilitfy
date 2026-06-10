@@ -11,7 +11,7 @@ export interface BookingWithStudent extends Booking {
 }
 
 export function useInstructorBookings(instructorId: string | undefined) {
-    return useQuery<BookingWithStudent[]>({
+    const query = useQuery<BookingWithStudent[]>({
         queryKey: ["/api/bookings/instructor", instructorId],
         queryFn: async () => {
             if (!instructorId) throw new Error("Instructor ID required");
@@ -24,6 +24,17 @@ export function useInstructorBookings(instructorId: string | undefined) {
         },
         enabled: !!instructorId,
     });
+
+    if (!instructorId) {
+        return {
+            ...query,
+            data: [] as BookingWithStudent[],
+            isLoading: false,
+            isFetching: false,
+        };
+    }
+
+    return query;
 }
 
 export function getTodayBookings(bookings: BookingWithStudent[] | undefined) {

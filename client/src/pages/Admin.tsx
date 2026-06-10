@@ -27,6 +27,8 @@ import {
   WalletCards,
   Lock,
   Map as MapIcon,
+  ArrowLeftRight,
+  ChevronRight,
 } from "lucide-react";
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AdminAIChat } from "@/components/admin/AdminAIChat";
@@ -43,6 +45,9 @@ import { AdminSettingsSection } from "@/components/admin/AdminSettingsSection";
 import { UserManagementSheet } from "@/components/admin/UserManagementSheet";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleSwitcher } from "@/hooks/useRoleSwitcher";
+import { RoleSwitcherModal } from "@/components/RoleSwitcherModal";
+import { AccountModal } from "@/components/account/AccountModal";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -258,6 +263,13 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [globalSearch, setGlobalSearch] = useState("");
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { viewRole, canSwitch, setViewRole } = useRoleSwitcher(
+    user?.role,
+    user?.adminRole,
+  );
   const [mapLayer, setMapLayer] = useState<"instructors" | "students">(
     "instructors",
   );
@@ -1063,7 +1075,17 @@ export default function Admin() {
               ))}
             </nav>
             <Separator className="dark:bg-slate-800" />
-            <div className="px-4 py-4">
+            <div className="px-4 py-4 space-y-1">
+              {canSwitch && (
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-2 hover:bg-blue-50 text-blue-600 dark:hover:bg-blue-900/30 dark:text-blue-300"
+                  onClick={() => setShowRoleSwitcher(true)}
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                  Trocar Conta
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800/50 dark:text-blue-300"
@@ -1076,9 +1098,10 @@ export default function Admin() {
           </aside>
           <main className="flex-1">
             <header className="sticky top-0 z-20 border-b border-slate-200 bg-background/90 backdrop-blur dark:bg-slate-900/90 dark:border-slate-800">
-              <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4 lg:px-10">
-                <div className="flex items-center gap-3">
-                  <Sheet>
+              <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4 lg:px-10">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                  <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                     <SheetTrigger asChild>
                       <Button variant="outline" size="icon" className="lg:hidden dark:bg-slate-800 dark:border-slate-700">
                         <Menu className="h-4 w-4 dark:text-blue-200" />
@@ -1109,7 +1132,20 @@ export default function Admin() {
                         ))}
                       </nav>
                       <Separator className="dark:bg-slate-800" />
-                      <div className="px-4 py-4">
+                      <div className="px-4 py-4 space-y-1">
+                        {canSwitch && (
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start gap-2 hover:bg-blue-50 text-blue-600 dark:hover:bg-blue-900/30 dark:text-blue-300"
+                            onClick={() => {
+                              setMobileMenuOpen(false);
+                              window.setTimeout(() => setShowRoleSwitcher(true), 0);
+                            }}
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                            Trocar Conta
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           className="w-full justify-start gap-2 hover:bg-slate-100 dark:hover:bg-slate-800/50 dark:text-blue-300"
@@ -1125,7 +1161,7 @@ export default function Admin() {
                     <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-blue-400">
                       Painel Administrativo
                     </p>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-blue-100">
+                    <h1 className="text-xl font-bold text-slate-900 sm:text-2xl dark:text-blue-100">
                       Dashboard
                     </h1>
                   </div>
@@ -1153,7 +1189,12 @@ export default function Admin() {
                       <Moon className="h-4 w-4 text-slate-600" />
                     )}
                   </Button>
-                  <div className="hidden items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm md:flex dark:border-slate-700 dark:bg-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowAccountModal(true)}
+                    className="hidden items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:flex dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+                    aria-label="Abrir configurações da conta"
+                  >
                     <Avatar className="h-8 w-8">
                       {user?.profileImageUrl ? (
                         <AvatarImage
@@ -1169,8 +1210,31 @@ export default function Admin() {
                       </p>
                       <p className="text-xs text-slate-500">Admin</p>
                     </div>
-                  </div>
+                  </button>
                 </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAccountModal(true)}
+                  className="mt-3 flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition-colors active:bg-slate-100 md:hidden dark:border-slate-700 dark:bg-slate-800 dark:active:bg-slate-700"
+                  aria-label="Abrir configurações da conta"
+                >
+                  <Avatar className="h-10 w-10 shrink-0">
+                    {user?.profileImageUrl ? (
+                      <AvatarImage src={user.profileImageUrl} alt={adminName} />
+                    ) : null}
+                    <AvatarFallback>{adminInitials}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {adminName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {user?.adminRole === "master" ? "Administrador mestre" : "Administrador"}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+                </button>
               </div>
             </header>
             <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-8 lg:px-10">
@@ -1322,6 +1386,23 @@ export default function Admin() {
           />
         </div>
       </div>
+      {/* Role Switcher Modal */}
+      <RoleSwitcherModal
+        open={showRoleSwitcher}
+        onClose={() => setShowRoleSwitcher(false)}
+        currentViewRole={viewRole}
+        onSelectRole={(role) => {
+          setViewRole(role);
+          if (role === "admin") window.location.hash = "#dashboard";
+          else if (role === "instructor") window.location.href = "/dashboard/instrutor";
+          else window.location.href = "/dashboard/aluno";
+        }}
+      />
+      <AccountModal
+        open={showAccountModal}
+        onOpenChange={setShowAccountModal}
+        user={user}
+      />
     </AuthGuard>
   );
 }

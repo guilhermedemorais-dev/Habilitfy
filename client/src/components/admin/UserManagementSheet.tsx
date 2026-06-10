@@ -73,12 +73,22 @@ type ReviewPayload = {
     vehiclePlateImageUrl?: string | null;
   } | null;
   latestKyc?: {
+    id?: string;
     selfieUrl?: string | null;
     documentFrontUrl?: string | null;
     documentBackUrl?: string | null;
     status?: string | null;
     rejectionReason?: string | null;
     reviewNotes?: string | null;
+    documentValidationDetails?: {
+      submissionType?: string;
+      role?: string;
+      isLicensed?: boolean;
+      licenseImageUrl?: string | null;
+      theoreticalProofImageUrl?: string | null;
+      credentialImageUrl?: string | null;
+    } | null;
+    createdAt?: string | null;
   } | null;
   vehiclesSummary?: {
     total: number;
@@ -296,7 +306,14 @@ const statusLabel = (status?: string | null) => {
 const isImageLike = (url?: string | null) =>
   Boolean(url && /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(url));
 
+const secureKycUrl = (url?: string | null) => {
+  if (!url) return url;
+  const match = url.match(/^\/uploads\/kyc\/([^/]+)\/([^/]+)$/);
+  return match ? `/api/kyc/files/${encodeURIComponent(match[1])}/${encodeURIComponent(match[2])}` : url;
+};
+
 function MediaItem({ label, url }: { label: string; url?: string | null }) {
+  const safeUrl = secureKycUrl(url);
   if (!url) {
     return (
       <div className="rounded-md border border-dashed border-slate-200 p-3 text-xs text-slate-400">
@@ -310,7 +327,7 @@ function MediaItem({ label, url }: { label: string; url?: string | null }) {
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-slate-700">{label}</span>
         <a
-          href={url}
+          href={safeUrl || undefined}
           target="_blank"
           rel="noreferrer"
           className="text-xs text-blue-600 hover:underline"
@@ -320,7 +337,7 @@ function MediaItem({ label, url }: { label: string; url?: string | null }) {
       </div>
       {isImageLike(url) ? (
         <img
-          src={url}
+          src={safeUrl || undefined}
           alt={label}
           className="h-28 w-full rounded border border-slate-100 object-cover"
         />
@@ -571,6 +588,7 @@ export function UserManagementSheet({
   const reviewData = reviewQuery.data;
   const user = reviewData?.user;
   const instructor = reviewData?.instructor;
+  const latestKycDetails = reviewData?.latestKyc?.documentValidationDetails;
 
   const reviewWarnings = useMemo(
     () =>
@@ -779,6 +797,11 @@ export function UserManagementSheet({
                           Rejeição registrada
                         </Badge>
                       ) : null}
+                      {reviewData.latestKyc?.createdAt ? (
+                        <Badge className="bg-slate-100 text-slate-700">
+                          Enviado em {formatDateTime(reviewData.latestKyc.createdAt)}
+                        </Badge>
+                      ) : null}
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -808,6 +831,18 @@ export function UserManagementSheet({
                       <MediaItem
                         label="KYC documento verso"
                         url={reviewData.latestKyc?.documentBackUrl}
+                      />
+                      <MediaItem
+                        label="CNH adicional do aluno"
+                        url={latestKycDetails?.licenseImageUrl}
+                      />
+                      <MediaItem
+                        label="LADV / comprovante teórico"
+                        url={latestKycDetails?.theoreticalProofImageUrl}
+                      />
+                      <MediaItem
+                        label="Credencial da tentativa KYC"
+                        url={latestKycDetails?.credentialImageUrl}
                       />
                     </div>
                   </div>
