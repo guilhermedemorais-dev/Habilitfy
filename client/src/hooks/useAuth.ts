@@ -29,9 +29,13 @@ function markJustLoggedOut() {
   window.sessionStorage.setItem(JUST_LOGGED_OUT_KEY, "1");
 }
 
-function wasJustLoggedOut() {
+function consumeJustLoggedOut() {
   if (typeof window === "undefined") return false;
-  return window.sessionStorage.getItem(JUST_LOGGED_OUT_KEY) === "1";
+  const justLoggedOut = window.sessionStorage.getItem(JUST_LOGGED_OUT_KEY) === "1";
+  if (justLoggedOut) {
+    window.sessionStorage.removeItem(JUST_LOGGED_OUT_KEY);
+  }
+  return justLoggedOut;
 }
 
 function clearJustLoggedOut() {
@@ -99,8 +103,9 @@ export function useAuth() {
         return;
       }
 
-      if (wasJustLoggedOut()) {
-        navigate("/");
+      if (consumeJustLoggedOut()) {
+        rememberRedirect(redirectTo);
+        navigate("/login");
         return;
       }
 
